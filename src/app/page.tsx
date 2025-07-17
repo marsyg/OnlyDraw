@@ -2,16 +2,12 @@
 import { getStroke } from "perfect-freehand";
 import { getSvgPathFromStroke } from '@/lib/utills/drawingUtility/getSVGStroke';
 import rough from 'roughjs'
-import { useEffect } from 'react';
+import { useEffect, useLayoutEffect } from 'react';
 import { useDraw } from '@/Store/store';
 export default function Home() {
   const { points, setPoint, addPoint } = useDraw()
-  const canvas = document.getElementById("canvas") as HTMLCanvasElement;
-  const context = canvas.getContext("2d") as CanvasRenderingContext2D;
-  if (!context) {
-    console.error('Canvas context is null');
-    return;
-  }
+
+
 
 
   const options = {
@@ -22,7 +18,21 @@ export default function Home() {
 
   };
 
+  useLayoutEffect(() => {
+    const canvas = document.getElementById("canvas") as HTMLCanvasElement;
+    const context = canvas.getContext("2d") as CanvasRenderingContext2D;
+    if (!context) {
+      console.error('Canvas context is null');
+      return;
+    }
+    canvas.width = canvas.offsetWidth;
+    canvas.height = canvas.offsetHeight;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    const stroke = getStroke(points as [number, number, number][], options)
+    const path = getSvgPathFromStroke(stroke)
+    context.fill(new Path2D(path));
 
+  }, [points])
 
   const handlePointerDown = (e: React.PointerEvent) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -34,9 +44,6 @@ export default function Home() {
     const rect = e.currentTarget.getBoundingClientRect();
     addPoint([e.clientX - rect.left, e.clientY - rect.top, e.pressure ?? 1]);
   };
-  const stroke = getStroke(points as [number, number, number][], options)
-  const path = getSvgPathFromStroke(stroke)
-  context.fill(new Path2D(path));
 
 
 
@@ -44,7 +51,7 @@ export default function Home() {
     <div className='bg-white w-full h-screen'>
       <canvas className='w-full h-screen' id="canvas" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove}
         style={{ touchAction: "none" }}>
-        {points && <path d={path} fill="none" stroke="black" strokeWidth={2} />}
+
       </canvas>
     </div>
   );
