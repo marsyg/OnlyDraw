@@ -1,12 +1,14 @@
 'use client'
 import { getStroke } from "perfect-freehand";
-import { getSvgPathFromStroke } from '@/lib/utills/drawingUtility/getSVGStroke';
+import { getSvgPathFromStroke } from '@/lib/utils/drawingUtility/getSVGStroke';
 import rough from 'roughjs'
-import { useEffect, useLayoutEffect } from 'react';
-import { useDraw } from '@/Store/store';
+import { DrawStroke } from '@/lib/utils/drawingUtility/drawStroke';
+import { useLayoutEffect, useRef } from 'react';
+import { useDraw, useStroke } from '@/Store/store';
 export default function Home() {
-  const { points, setPoint, addPoint } = useDraw()
 
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const { startingStroke, allStrokes, currentStroke, clearAllStroke, continueStroke, endStroke } = useStroke()
 
 
 
@@ -19,8 +21,10 @@ export default function Home() {
   };
 
   useLayoutEffect(() => {
-    const canvas = document.getElementById("canvas") as HTMLCanvasElement;
-    const context = canvas.getContext("2d") as CanvasRenderingContext2D;
+    const canvas = canvasRef.current
+    if (!canvas) return;
+
+    const context = canvas.getContext("2d")
     if (!context) {
       console.error('Canvas context is null');
       return;
@@ -28,30 +32,47 @@ export default function Home() {
     canvas.width = canvas.offsetWidth;
     canvas.height = canvas.offsetHeight;
     context.clearRect(0, 0, canvas.width, canvas.height);
-    const stroke = getStroke(points as [number, number, number][], options)
-    const path = getSvgPathFromStroke(stroke)
-    context.fill(new Path2D(path));
+    console.log(allStrokes)
+    for (const stroke of allStrokes) {
+      DrawStroke(context, stroke.points)
+      
+    }
 
-  }, [points])
 
+
+    DrawStroke(context, currentStroke.points)
+    
+    context.save()
+  }, [currentStroke.points, allStrokes])
+  const handlePointerUp = () => {
+    endStroke();
+
+  }
   const handlePointerDown = (e: React.PointerEvent) => {
+    console.log(e, "handlePointerDown")
     const rect = e.currentTarget.getBoundingClientRect();
-    setPoint([[e.clientX - rect.left, e.clientY - rect.top, e.pressure ?? 1]]);
+    startingStroke([e.clientX - rect.left, e.clientY - rect.top, e.pressure ?? 1])
+    
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (e.buttons !== 1) return;
+    console.log(e, "handlePointerMove")
     const rect = e.currentTarget.getBoundingClientRect();
-    addPoint([e.clientX - rect.left, e.clientY - rect.top, e.pressure ?? 1]);
+    continueStroke([e.clientX - rect.left, e.clientY - rect.top, e.pressure ?? 1])
+   
   };
 
 
 
   return (
     <div className='bg-white w-full h-screen'>
-      <canvas className='w-full h-screen' id="canvas" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove}
+      <canvas
+        ref={canvasRef}
+        className='w-full h-screen' id="canvas"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
         style={{ touchAction: "none" }}>
-
       </canvas>
     </div>
   );
