@@ -1,3 +1,4 @@
+import { actionType, elementType, OnlyDrawElement, point } from '@/types/type';
 import { create } from 'zustand';
 type Point = [number , number , number ]
 type Stroke = {
@@ -5,12 +6,6 @@ type Stroke = {
     timeStamp : number 
 }
 
-type pointerStore = {
-    points : Point[] ,
-    addPoint : (point : Point) => void 
-     setPoint : (points : Point[]) => void 
-    clearPoint : () => void 
-}
 type strokeStore = {
     allStrokes : Stroke[]
     currentStroke : Stroke ;
@@ -19,19 +14,71 @@ type strokeStore = {
     endStroke : ()=> void 
     clearAllStroke  :  () => void 
 }
-export const useDraw = create<pointerStore>((set) => ({
-    points: [] ,
-    addPoint: (point) =>
-        set((state) => ({
-            points: [...state.points,  point ]
-        })),
-     setPoint: (points) =>
-        set(() => ({
-            points: points 
-        })),
+
+type CurrentTool = {
+  actionType: actionType;
+  elementType: elementType | null;
+};
+export type AppState = {
+
+  elements : OnlyDrawElement[]
+  currentTool : CurrentTool
+  selectedElementId?  : number |null
+  toolbar :{
+    activeToolId : string | null 
+  }
+  isDragging : boolean
+  isResizing : boolean 
+
+   pointerPosition: point
+  
+  //actions 
+
+  setCurrentTool : (tool : CurrentTool) => void
+  addElement : ( el : OnlyDrawElement) => void 
+  updateElement : (id : number , data  : Partial<OnlyDrawElement>) => void
+  setSelectedElementId : (id : number ) => void 
+  setIsDragging : (drag : boolean ) => void 
+  setIsResizing : (resize : boolean) => void
+  setActiveToolbarId : ( id : string) => void
+  setPointerPosition : (pos : point) => void 
+}
 
 
-     clearPoint: () => set({ points: [] }),
+export const useAppStore = create<AppState>((set) => ({
+  elements: [],
+  selectedElementId: null,
+  currentTool: {
+    actionType: actionType.Selecting,
+    elementType: null,
+  },
+  isDragging: false,
+  isResizing: false,
+  pointerPosition: [0, 0],
+  toolbar: {
+    activeToolId: null,
+  },
+
+  setCurrentTool: (tool) => set({ currentTool: tool }),
+  addElement: (el) => set((state) => ({ elements: [...state.elements, el] })),
+  updateElement: (id, data) =>
+    set((state) => ({
+      elements: state.elements.map((el) =>
+        el.id === id ? { ...el, ...data } : el
+      ),
+    })),
+
+  setSelectedElementId: (id) => set({ selectedElementId: id }),
+
+  setIsDragging: (drag) => set({ isDragging: drag }),
+
+  setIsResizing: (resize) => set({ isResizing: resize }),
+
+  setPointerPosition: (pos) => set({ pointerPosition: pos }),
+  
+  setActiveToolbarId: (id) => set((state) => ({
+    toolbar: { ...state.toolbar, activeToolId: id }
+  })),
 }));
 
 export const useStroke = create<strokeStore>((set) => ({

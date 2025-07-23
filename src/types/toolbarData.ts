@@ -1,4 +1,4 @@
-import { SquareIcon, CircleIcon, MinusIcon, PencilIcon, MousePointer } from 'lucide-react'
+import { SquareIcon, CircleIcon, MinusIcon, PencilIcon, MousePointer, Scaling } from 'lucide-react'
 import { actionType, elementType, ToolBarDataType } from './type'
 
 
@@ -45,5 +45,14 @@ export const TOOLBAR_ITEM : ToolBarDataType[] = [
     isActive : false,
     actionType: actionType.Selecting,
     elementType: elementType.Select,
+    },
+    
+    {
+        id : 'scale',
+        name : 'scale',
+        icon :  Scaling,
+        actionType : actionType.Resizing ,
+        isActive : false ,
+        elementType : elementType.Select
     },
 ]
