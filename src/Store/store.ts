@@ -1,24 +1,25 @@
-import { actionType, elementType, OnlyDrawElement, point } from '@/types/type';
+import { actionType, elementType, freeHandElement, OnlyDrawElement, point } from '@/types/type';
+import { PointsFreeHand, Stroke } from '@/types/type';
 import { create } from 'zustand';
-type Point = [number , number , number ]
-type Stroke = {
-    points : Point[]
-    timeStamp : number 
-}
+
+
 
 type strokeStore = {
     allStrokes : Stroke[]
     currentStroke : Stroke ;
-    startingStroke : (point : Point)=> void
-    continueStroke : (point : Point)=> void
+    startingStroke : (point : PointsFreeHand)=> void
+    continueStroke : (point : PointsFreeHand)=> void
     endStroke : ()=> void 
     clearAllStroke  :  () => void 
 }
+
 
 type CurrentTool = {
   actionType: actionType;
   elementType: elementType | null;
 };
+
+
 export type AppState = {
 
   elements : OnlyDrawElement[]
@@ -61,12 +62,29 @@ export const useAppStore = create<AppState>((set) => ({
 
   setCurrentTool: (tool) => set({ currentTool: tool }),
   addElement: (el) => set((state) => ({ elements: [...state.elements, el] })),
-  updateElement: (id, data) =>
-    set((state) => ({
-      elements: state.elements.map((el) =>
-        el.id === id ? { ...el, ...data } : el
-      ),
-    })),
+   updateElement: (id, data) =>
+  set((state) => ({
+    elements: state.elements.map((el) => {
+      if (el.id !== id) return el;
+
+      switch (el.type) {
+        case elementType.Rectangle:
+        case elementType.ellipse:
+        case elementType.line:
+          return { ...el, ...data } as typeof el;
+
+        case elementType.freehand:
+          const freehandData = data as Partial<freeHandElement>;
+    return {
+    ...el,
+    ...freehandData,
+    stroke: freehandData.stroke ?? el.stroke,
+  };
+        default:
+          return el;
+      }
+    }),
+  })),
 
   setSelectedElementId: (id) => set({ selectedElementId: id }),
 

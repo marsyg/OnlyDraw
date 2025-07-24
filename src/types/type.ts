@@ -1,5 +1,10 @@
 import { LucideIcon } from "lucide-react";
 
+export type PointsFreeHand = [number , number , number ]
+export type Stroke = {
+    points : PointsFreeHand[]
+    timeStamp : number 
+}
 
 type baseType  = {
     id : number 
@@ -14,8 +19,8 @@ export type rectangleElement = baseType & {
  type : elementType.Rectangle
 }
 
-export type circleElement = baseType &{
- type : elementType.circle;
+export type ellipseElement = baseType &{
+ type : elementType.ellipse;
 
 }
 
@@ -23,12 +28,15 @@ export type lineElement = baseType & {
  type : elementType.line
 }
 
-export type freeHandElement = baseType &{
+export type freeHandElement = baseType& {
+
+  stroke : Stroke[]
+  
  type : elementType.freehand
 }
 export type Degrees = number
 
-export type OnlyDrawElement = |rectangleElement|lineElement|circleElement|freeHandElement
+export type OnlyDrawElement = |rectangleElement|lineElement|ellipseElement|freeHandElement
 
 
 export type point = [x : number  , y: number ]
@@ -56,7 +64,7 @@ Resizing = 'resizing'
 
 export enum elementType {
   Rectangle = 'rectangle',
-  circle = 'circle',
+  ellipse = 'ellipse',
   line = 'line',
   freehand = 'freehand',
   Select = 'select'
