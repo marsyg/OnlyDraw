@@ -19,7 +19,7 @@ export const TOOLBAR_ITEM : ToolBarDataType[] = [
         icon :  CircleIcon,
         actionType : actionType.Drawing ,
         isActive : false ,
-        elementType : elementType.circle
+        elementType : elementType.ellipse
     }
     ,
        {

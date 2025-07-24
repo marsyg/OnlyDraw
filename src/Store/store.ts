@@ -118,7 +118,7 @@ export const useStroke = create<strokeStore>((set) => ({
         points: [...state.currentStroke.points, point],
       },
     })),
-
+   // should update the elements with the new stroke
   endStroke: () =>
     set((state) => ({
       allStrokes: [...state.allStrokes, state.currentStroke],
