@@ -72,14 +72,13 @@ export const useAppStore = create<AppState>((set) => ({
         case elementType.ellipse:
         case elementType.line:
           return { ...el, ...data } as typeof el;
-
         case elementType.freehand:
           const freehandData = data as Partial<freeHandElement>;
-    return {
-    ...el,
-    ...freehandData,
-    stroke: freehandData.stroke ?? el.stroke,
-  };
+            return {
+            ...el,
+            ...freehandData,
+            stroke: freehandData.stroke ?? el.stroke,
+          };
         default:
           return el;
       }
