@@ -40,7 +40,8 @@ export const DrawElements = ({ ctx, element }: DrawingArgs) => {
     }
 
     case elementType.freehand: {
-      const points = element.stroke.flatMap((s) => s.points);
+      const points = element.stroke
+      if(!points) return 
       const stroke = getStroke(points);
       const path = getSvgPathFromStroke(stroke);
 

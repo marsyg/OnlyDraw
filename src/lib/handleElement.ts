@@ -4,12 +4,14 @@ type DrawArgs = {
   element: elementType;
   startPoint: point;
   endPoint: point;
+  stroke?: point[] | undefined;
 };
 export const handleDrawElement = ({
   action,
   element,
   startPoint,
   endPoint,
+  stroke,
 }: DrawArgs): OnlyDrawElement | null => {
   if (action !== actionType.Drawing) return null;
   switch (element) {
@@ -44,6 +46,7 @@ export const handleDrawElement = ({
         type: elementType.ellipse,
       };
     case elementType.freehand:
+      if(!stroke)return null
       return {
         id: Date.now(),
         x: startPoint[0],
@@ -51,12 +54,10 @@ export const handleDrawElement = ({
         width: endPoint[0] - startPoint[0],
         height: endPoint[1] - startPoint[1],
         isDeleted: false,
-        stroke: [],
+        stroke: stroke,
         type: elementType.freehand,
       };
-        default:
+    default:
       return null;
   }
-  }
-  
-
+};

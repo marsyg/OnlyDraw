@@ -30,7 +30,7 @@ export type lineElement = baseType & {
 
 export type freeHandElement = baseType& {
 
-  stroke : Stroke[]
+  stroke : point[]
   
  type : elementType.freehand
 }
