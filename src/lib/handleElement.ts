@@ -1,10 +1,10 @@
 import { actionType, elementType, point, OnlyDrawElement } from '@/types/type';
 type DrawArgs = {
   action: actionType;
-  element: elementType;
+  element: elementType |null;
   startPoint: point;
   endPoint: point;
-  stroke?: point[] | undefined;
+  stroke?: point[]
 };
 export const handleDrawElement = ({
   action,
@@ -17,7 +17,7 @@ export const handleDrawElement = ({
   switch (element) {
     case elementType.Rectangle:
       return {
-        id: Date.now(), // or use your own ID gen
+        id: Date.now(),
         x: startPoint[0],
         y: startPoint[1],
         width: endPoint[0] - startPoint[0],

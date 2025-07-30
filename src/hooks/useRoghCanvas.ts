@@ -1,19 +1,19 @@
-import React, { useRef, useEffect } from 'react';
+import  { useRef, useEffect } from 'react';
 import rough from 'roughjs/bin/rough';
+import type { RoughCanvas } from 'roughjs/bin/canvas';
 
 const useRoughCanvas = () => {
-  const canvasRef = useRef(null);
-  const roughCanvasRef = useRef(null);
-  const generatorRef = useRef(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const roughCanvasRef = useRef<RoughCanvas | null>(null);
+  const generatorRef = useRef<ReturnType<(typeof rough)['generator']> | null>(
+    null
+  );
 
   useEffect(() => {
     if (canvasRef.current) {
       const rc = rough.canvas(canvasRef.current);
-      
       roughCanvasRef.current = rc;
-      
       generatorRef.current = rc.generator;
-
     }
   }, []);
 

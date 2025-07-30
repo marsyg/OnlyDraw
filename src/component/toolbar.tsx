@@ -8,9 +8,10 @@ type ToolbarProps = {
   className?: string;
 };
 const Toolbar: React.FC<ToolbarProps> = ({ className }) => {
-  const { setActiveToolbarId, toolbar ,setCurrentTool} = useAppStore()
+  const { setActiveToolbarId, toolbar ,setCurrentTool ,setIsDrawing} = useAppStore()
   const handleClick = (id: string , actionType : actionType , elementType :elementType) => {
-    setActiveToolbarId(id)
+    setActiveToolbarId(id) 
+    
     setCurrentTool({actionType, elementType })
 
   }
