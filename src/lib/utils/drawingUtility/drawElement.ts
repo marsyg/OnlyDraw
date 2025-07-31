@@ -8,10 +8,14 @@ type DrawingArgs = {
 };
 
 export const DrawElements = ({ ctx, element }: DrawingArgs) => {
+ 
+  ctx.save();
+
   switch (element.type) {
     case elementType.Rectangle: {
       ctx.beginPath();
       ctx.rect(element.x, element.y, element.width, element.height);
+      ctx.strokeStyle = 'black';
       ctx.stroke();
       break;
     }
@@ -40,8 +44,8 @@ export const DrawElements = ({ ctx, element }: DrawingArgs) => {
     }
 
     case elementType.freehand: {
-      const points = element.stroke
-      if(!points) return 
+      const points = element.stroke;
+      if (!points) return;
       const stroke = getStroke(points);
       const path = getSvgPathFromStroke(stroke);
 
@@ -53,4 +57,5 @@ export const DrawElements = ({ ctx, element }: DrawingArgs) => {
     default:
       break;
   }
+  ctx.restore();
 };

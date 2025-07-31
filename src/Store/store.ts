@@ -101,6 +101,9 @@ export const useAppStore = create<AppState>((set) => ({
     })),
 }));
 
+
+
+
 export const useStroke = create<strokeStore>((set) => ({
   allStrokes: [],
   currentStroke: { points: [], timeStamp: Date.now() },

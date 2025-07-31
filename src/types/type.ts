@@ -13,7 +13,7 @@ type baseType  = {
     height : number 
     width  :  number 
     isDeleted : boolean
-
+     
 }
 export type rectangleElement = baseType & {
  type : elementType.Rectangle

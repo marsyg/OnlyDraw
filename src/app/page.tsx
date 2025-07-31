@@ -1,8 +1,14 @@
-'use client'
+'use client';
 
-import rough from 'roughjs'
+import rough from 'roughjs';
 import { DrawStroke } from '@/lib/utils/drawingUtility/drawStroke';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import { useAppStore, useStroke } from '@/Store/store';
 import { RoughGenerator } from 'roughjs/bin/generator';
 import { RoughCanvas } from 'roughjs/bin/canvas';
@@ -11,14 +17,14 @@ import { OnlyDrawElement, point } from '@/types/type';
 import { actionType, elementType } from '@/types/type';
 import { handleDrawElement } from '@/lib/handleElement';
 import { DrawElements } from '@/lib/utils/drawingUtility/drawElement';
+import { get } from 'http';
 export default function Home() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const isDrawing = useRef(false);
-  const generatorRef = useRef<RoughGenerator | null>(null)
+  const generatorRef = useRef<RoughGenerator | null>(null);
   const roughCanvasRef = useRef<RoughCanvas | null>(null);
-  const pointerDownRef = useRef<(e: PointerEvent) => void>(undefined)
-  const points: point[] = []
+  const pointerDownRef = useRef<(e: PointerEvent) => void>(undefined);
+  const points: point[] = [];
 
   const {
     startingStroke,
@@ -26,8 +32,8 @@ export default function Home() {
     currentStroke,
     clearAllStroke,
     continueStroke,
-    endStroke
-  } = useStroke()
+    endStroke,
+  } = useStroke();
   const {
     setPointerPosition,
     currentTool,
@@ -36,170 +42,113 @@ export default function Home() {
     selectedElementId,
     elements,
     setIsDrawing,
+    isDrawing,
     setCurrentTool,
     pointerPosition,
-    updateElement
-  } = useAppStore()
-  const [startCoordinate, setStartCoordinate] = useState<point>([0, 0])
-  const [dimension, setdimension] = useState({ width: 0, height: 0 })
-  if (selectedElementId)
-    console.log(elements)
-
+    updateElement,
+  } = useAppStore();
+  const [startCoordinate, setStartCoordinate] = useState<point>([0, 0]);
+  const [dimension, setdimension] = useState({ width: 0, height: 0 });
 
   const getMOuseCoordinate = (e: React.PointerEvent) => {
     if (canvasRef.current) {
       const rect = canvasRef.current?.getBoundingClientRect();
-      const X = e.clientX - rect.left
-      const Y = e.clientX - rect.top
-      setPointerPosition([X, Y])
+      const X = e.clientX - rect.left;
+      const Y = e.clientY - rect.top;
+      setPointerPosition([X, Y]);
     }
-  }
+    return pointerPosition;
+  };
+
+
   const handlePointerDown = (e: React.PointerEvent) => {
-    setIsDrawing(true)
-    const canvas = canvasRef.current
+    setIsDrawing(true);
+    const canvas = canvasRef.current;
     if (!canvas) return;
-    const context = canvas.getContext("2d")
+    const context = canvas.getContext('2d');
     if (!context) {
       console.error('Canvas context is null');
       return;
     }
-    // const rect = e.currentTarget.getBoundingClientRect();
-    const start: point = [e.clientX, e.clientY]
-    setStartCoordinate(start)
+
+    const start: point = [e.clientX, e.clientY];
+    setStartCoordinate(start);
+    const initialPoint: point = getMOuseCoordinate(e);
 
     if (currentTool.actionType === actionType.Drawing) {
-      const element = handleDrawElement(
-        {
-          action: actionType.Drawing,
-          element: currentTool.elementType,
-          startPoint: startCoordinate,
-          endPoint: startCoordinate,
-          stroke: points
-        })
-      console.log(element, "POinter down check")
+      const element = handleDrawElement({
+        action: actionType.Drawing,
+        element: currentTool.elementType,
+        startPoint: initialPoint,
+        endPoint: initialPoint,
+        stroke: points,
+      });
+      //
 
-      if (element === null) return
-      console.log(element.id)
-      const elementNew = addElement(element)
-      console.log(elementNew)
-      setSelectedElementId(element.id)
-      if (selectedElementId) console.log(elements[selectedElementId], "from the store")
-      DrawElements({ ctx: context, element: element })
-      context.save()
+      if (element === null) return;
+
+      addElement(element);
+      //
+      setSelectedElementId(element.id);
+      if (selectedElementId) DrawElements({ ctx: context, element: element });
+      context.save();
     }
-    // startingStroke([e.clientX - rect.left, e.clientY - rect.top, e.pressure ?? 1])
   };
-  // useEffect(() => {
-
-  //   if (currentTool.actionType !== 'drawing') return
-
-  //   console.log(handlePointerDown, "triggering ")
-  //   pointerDownRef.current = handlePointerDown
-  //   const listener = (e: PointerEvent) => {
-  //     if (pointerDownRef.current) {
-  //       pointerDownRef.current(e);
-  //     }
-  //   };
-
-  //   if (!pointerDownRef) return
-  //   window.addEventListener('pointerdown', listener)
-
-  //   return () => {
-
-  //     window.removeEventListener('pointerdown', listener);
-  //   };
-
-  // }, [addElement, currentTool, elements, points, selectedElementId, setSelectedElementId, startCoordinate])
-
 
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!isDrawing) return
-    const canvasBounds = e.currentTarget.getBoundingClientRect()
-    const x = e.clientX - canvasBounds.left;
-    const y = e.clientY - canvasBounds.top;
-    getMOuseCoordinate(e)
-    const canvas = canvasRef.current
+
+    const [x, y] = getMOuseCoordinate(e);
+
+    const canvas = canvasRef.current;
     if (!canvas) return;
-    const context = canvas.getContext("2d")
+    const context = canvas.getContext('2d');
     if (!context) {
       console.error('Canvas context is null');
       return;
     }
-
+    //
+    context.clearRect(0, 0, canvas.width, canvas.height);
 
 
 
     if (currentTool.actionType === actionType.Drawing) {
-      if (!selectedElementId) return
-      const element = elements.find(el => el.id === selectedElementId);
+      if (!selectedElementId) return;
+      const element = elements.find((el) => el.id === selectedElementId);
 
-      if (!element) return
-      console.log(element, "this is the element")
+      if (!element) return;
+      //
 
       const updatedElement: OnlyDrawElement = {
         ...element,
         id: selectedElementId,
-        width: pointerPosition[0] - element.x,
-        height: pointerPosition[1] - element.y
-      }
+        width: x - element.x,
+        height: y - element.y,
+      };
 
+      updateElement(selectedElementId, updatedElement);
 
-      updateElement(selectedElementId, updatedElement)
-      DrawElements({ ctx: context, element: element })
-      context.save()
+      elements.forEach((el) => {
+        DrawElements({ ctx: context, element: el });
+      });
+
+      DrawElements({ ctx: context, element: updatedElement });
+      context.save();
     }
+  }
 
 
-
-
-
-    // const rect = e.currentTarget.getBoundingClientRect();
-    const current = { x: e.clientX, y: e.clientY };
-    setPointerPosition([x, y])
-    // const x = Math.min(startCoordinate.x, current.x);
-    // const y = Math.min(startCoordinate.y, current.y);
-    const width = Math.abs(current.x - startCoordinate[0]);
-    const height = Math.abs(current.y - startCoordinate[1]);
-    setdimension({ width: width, height: height })
-    // continueStroke([e.clientX - rect.left, e.clientY - rect.top, e.pressure ?? 1])
-  };
-
-  const handlePointerUp = useCallback(() => {
-    setIsDrawing(false)
-    if (!isDrawing.current) return;
-    isDrawing.current = false;
-    // console.log("Up")
-
-
-
-    // if (roughCanvasRef.current && generatorRef.current) {
-    //   const rect = generatorRef.current.rectangle(
-    //     startCoordinate[0],
-    //     startCoordinate[1],
-    //     dimension.width,
-    //     dimension.height);
-    //   roughCanvasRef.current.draw(rect);
-    // }
-
-    // endStroke();
-
-  }, [startCoordinate, dimension])
-
-  const options = {
-    size: 32,
-    thinning: 0.5,
-    smoothing: 0.5,
-    streamline: 0.5,
-
-  };
+  const handlePointerUp = () => {
+    setIsDrawing(false);
+  }
 
   useLayoutEffect(() => {
-    const canvas = canvasRef.current
+    console.log('useLayoutEffect called');
+    const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const context = canvas.getContext("2d")
+    const context = canvas.getContext('2d');
     if (!context) {
-      console.error('Canvas context is null');
       return;
     }
 
@@ -207,24 +156,22 @@ export default function Home() {
     canvas.height = canvas.offsetHeight;
     context.clearRect(0, 0, canvas.width, canvas.height);
 
-
+    elements.forEach((el) => {
+      console.log(el, 'elements from useLayoutEffect');
+      DrawElements({ ctx: context, element: el });
+    });
 
     roughCanvasRef.current = rough.canvas(canvas);
     generatorRef.current = roughCanvasRef.current.generator;
 
-    // console.log(allStrokes)
-
     for (const stroke of allStrokes) {
-      DrawStroke(context, stroke.points)
+      DrawStroke(context, stroke.points);
     }
 
-    DrawStroke(context, currentStroke.points)
+    DrawStroke(context, currentStroke.points);
 
-    context.save()
-
-  }, [currentStroke.points, allStrokes, handlePointerUp])
-
-
+    context.save();
+  }, []);
 
   return (
     <div className='bg-white relative w-full h-screen'>
@@ -232,13 +179,13 @@ export default function Home() {
 
       <canvas
         ref={canvasRef}
-        className='w-full h-screen' id="canvas"
+        className='w-full h-screen'
+        id='canvas'
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-
-        style={{ border: '1px solid black' }}>
-      </canvas>
+        style={{ border: '1px solid black' }}
+      ></canvas>
     </div>
   );
 }
