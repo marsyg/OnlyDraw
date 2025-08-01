@@ -8,7 +8,6 @@ type DrawingArgs = {
 };
 
 export const DrawElements = ({ ctx, element }: DrawingArgs) => {
- 
   ctx.save();
 
   switch (element.type) {
@@ -31,10 +30,10 @@ export const DrawElements = ({ ctx, element }: DrawingArgs) => {
     case elementType.ellipse: {
       ctx.beginPath();
       ctx.ellipse(
-        element.x + element.width / 2,
-        element.y + element.height / 2,
-        element.width / 2,
-        element.height / 2,
+        Math.abs(element.x + element.width / 2),
+        Math.abs(element.y + element.height / 2),
+        Math.abs(element.width / 2),
+        Math.abs(element.height / 2),
         0,
         0,
         2 * Math.PI
