@@ -1,15 +1,9 @@
 'use client';
 
 import rough from 'roughjs';
-import { DrawStroke } from '@/lib/utils/drawingUtility/drawStroke';
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react';
-import { useAppStore, useStroke } from '@/Store/store';
+
+import { useLayoutEffect, useRef, useState } from 'react';
+import { useAppStore } from '@/Store/store';
 import { RoughGenerator } from 'roughjs/bin/generator';
 import { RoughCanvas } from 'roughjs/bin/canvas';
 import Toolbar from '@/component/toolbar';
@@ -33,20 +27,11 @@ export default function Home() {
     updateElement,
   } = useAppStore();
 
-  const [freehandPoint, setfreehandPoint] = useState<PointsFreeHand[]>([[pointerPosition[0], pointerPosition[1], 1]])
+  const [freehandPoint, setFreehandPoint] = useState<PointsFreeHand[]>([
+    [pointerPosition[0], pointerPosition[1], 1],
+  ]);
   const generatorRef = useRef<RoughGenerator | null>(null);
   const roughCanvasRef = useRef<RoughCanvas | null>(null);
-
-  const points: point[] = [];
-
-  const {
-    startingStroke,
-    allStrokes,
-    currentStroke,
-    clearAllStroke,
-    continueStroke,
-    endStroke,
-  } = useStroke();
 
   const getMOuseCoordinate = (e: React.PointerEvent) => {
     if (canvasRef.current) {
@@ -58,7 +43,6 @@ export default function Home() {
     return pointerPosition;
   };
 
-
   const handlePointerDown = (e: React.PointerEvent) => {
     setIsDrawing(true);
     const canvas = canvasRef.current;
@@ -69,10 +53,9 @@ export default function Home() {
       return;
     }
 
-
-    const initialPoint: point = pointerPosition
-    console.log(initialPoint, "this is the initial Point ")
-    setfreehandPoint([[initialPoint[0], initialPoint[1], 1]])
+    const initialPoint: point = pointerPosition;
+    console.log(initialPoint, 'this is the initial Point ');
+    setFreehandPoint([[initialPoint[0], initialPoint[1], 1]]);
     if (currentTool.actionType === actionType.Drawing) {
       const element = handleDrawElement({
         action: actionType.Drawing,
@@ -80,25 +63,22 @@ export default function Home() {
         startPoint: initialPoint,
         endPoint: initialPoint,
         stroke: {
-          points: [[initialPoint[0], initialPoint[1], 1]]
+          points: [[initialPoint[0], initialPoint[1], 1]],
         },
       });
-      console.log(element, "this is the element on intialization")
-
 
       if (element === null) return;
 
       addElement(element);
 
       setSelectedElementId(element.id);
-
     }
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
-    getMOuseCoordinate(e)
-    console.log(getMOuseCoordinate(e), "this the pointer ")
-    if (!isDrawing) return
+    getMOuseCoordinate(e);
+    console.log(getMOuseCoordinate(e), 'this the pointer ');
+    if (!isDrawing) return;
 
     const [x, y] = getMOuseCoordinate(e);
 
@@ -110,24 +90,25 @@ export default function Home() {
       return;
     }
 
-
-
     if (currentTool.actionType === actionType.Drawing && isDrawing) {
       if (!selectedElementId) return;
       const element = elements.find((el) => el.id === selectedElementId);
 
       if (!element) return;
       if (element.type === elementType.freehand) {
-        setfreehandPoint([...freehandPoint, [pointerPosition[0], pointerPosition[1], 1]])
+        setFreehandPoint([
+          ...freehandPoint,
+          [pointerPosition[0], pointerPosition[1], 1],
+        ]);
         const stroke: Stroke = {
-          points: freehandPoint
-        }
+          points: freehandPoint,
+        };
         const updatedElement: OnlyDrawElement = {
           ...element,
           id: selectedElementId,
           width: x - element.x,
           height: y - element.y,
-          stroke: stroke
+          stroke: stroke,
         };
         updateElement(selectedElementId, updatedElement);
       } else {
@@ -139,23 +120,18 @@ export default function Home() {
         };
         updateElement(selectedElementId, updatedElement);
       }
-
-
-
-
-
-
     }
-  }
-
+  };
 
   const handlePointerUp = () => {
     setIsDrawing(false);
-    console.log(pointerPosition, "this si the point after we Pointer is moved up ")
-  }
+    console.log(
+      pointerPosition,
+      'this si the point after we Pointer is moved up '
+    );
+  };
 
   useLayoutEffect(() => {
-
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -176,9 +152,8 @@ export default function Home() {
     roughCanvasRef.current = rough.canvas(canvas);
     generatorRef.current = roughCanvasRef.current.generator;
 
-
     context.save();
-  },);
+  });
 
   return (
     <div className='bg-white relative w-full h-screen'>

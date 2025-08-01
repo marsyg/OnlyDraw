@@ -5,17 +5,10 @@ import {
   OnlyDrawElement,
   point,
 } from '@/types/type';
-import { PointsFreeHand, Stroke } from '@/types/type';
+
 import { create } from 'zustand';
 
-type strokeStore = {
-  allStrokes: Stroke[];
-  currentStroke: Stroke;
-  startingStroke: (point: PointsFreeHand) => void;
-  continueStroke: (point: PointsFreeHand) => void;
-  endStroke: () => void;
-  clearAllStroke: () => void;
-};
+
 
 type CurrentTool = {
   actionType: actionType;
@@ -103,32 +96,3 @@ export const useAppStore = create<AppState>((set) => ({
 
 
 
-
-export const useStroke = create<strokeStore>((set) => ({
-  allStrokes: [],
-  currentStroke: { points: [], timeStamp: Date.now() },
-
-  startingStroke: (point) =>
-    set(() => ({
-      currentStroke: {
-        points: [point],
-        timeStamp: Date.now(),
-      },
-    })),
-
-  continueStroke: (point) =>
-    set((state) => ({
-      currentStroke: {
-        ...state.currentStroke,
-        points: [...state.currentStroke.points, point],
-      },
-    })),
-  // should update the elements with the new stroke
-  endStroke: () =>
-    set((state) => ({
-      allStrokes: [...state.allStrokes, state.currentStroke],
-      currentStroke: { points: [], timeStamp: Date.now() },
-    })),
-
-  clearAllStroke: () => set({ allStrokes: [] }),
-}));

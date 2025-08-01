@@ -1,4 +1,4 @@
-import { actionType, elementType, point, OnlyDrawElement, PointsFreeHand, Stroke } from '@/types/type';
+import { actionType, elementType, point, OnlyDrawElement , Stroke } from '@/types/type';
 type DrawArgs = {
   action: actionType;
   element: elementType |null;
