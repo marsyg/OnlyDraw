@@ -1,10 +1,10 @@
-import { actionType, elementType, point, OnlyDrawElement } from '@/types/type';
+import { actionType, elementType, point, OnlyDrawElement, PointsFreeHand, Stroke } from '@/types/type';
 type DrawArgs = {
   action: actionType;
   element: elementType |null;
   startPoint: point;
   endPoint: point;
-  stroke?: point[]
+  stroke?: Stroke
 };
 export const handleDrawElement = ({
   action,

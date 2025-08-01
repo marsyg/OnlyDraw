@@ -3,7 +3,7 @@ import { LucideIcon } from "lucide-react";
 export type PointsFreeHand = [number , number , number ]
 export type Stroke = {
     points : PointsFreeHand[]
-    timeStamp : number 
+    
 }
 
 type baseType  = {
@@ -30,7 +30,7 @@ export type lineElement = baseType & {
 
 export type freeHandElement = baseType& {
 
-  stroke : point[]
+  stroke : Stroke
   
  type : elementType.freehand
 }

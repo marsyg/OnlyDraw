@@ -13,27 +13,13 @@ import { useAppStore, useStroke } from '@/Store/store';
 import { RoughGenerator } from 'roughjs/bin/generator';
 import { RoughCanvas } from 'roughjs/bin/canvas';
 import Toolbar from '@/component/toolbar';
-import { OnlyDrawElement, point } from '@/types/type';
+import { OnlyDrawElement, point, PointsFreeHand, Stroke } from '@/types/type';
 import { actionType, elementType } from '@/types/type';
 import { handleDrawElement } from '@/lib/handleElement';
 import { DrawElements } from '@/lib/utils/drawingUtility/drawElement';
 
 export default function Home() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  const generatorRef = useRef<RoughGenerator | null>(null);
-  const roughCanvasRef = useRef<RoughCanvas | null>(null);
-
-  const points: point[] = [];
-
-  const {
-    startingStroke,
-    allStrokes,
-    currentStroke,
-    clearAllStroke,
-    continueStroke,
-    endStroke,
-  } = useStroke();
   const {
     setPointerPosition,
     currentTool,
@@ -47,6 +33,20 @@ export default function Home() {
     updateElement,
   } = useAppStore();
 
+  const [freehandPoint, setfreehandPoint] = useState<PointsFreeHand[]>([[pointerPosition[0], pointerPosition[1], 1]])
+  const generatorRef = useRef<RoughGenerator | null>(null);
+  const roughCanvasRef = useRef<RoughCanvas | null>(null);
+
+  const points: point[] = [];
+
+  const {
+    startingStroke,
+    allStrokes,
+    currentStroke,
+    clearAllStroke,
+    continueStroke,
+    endStroke,
+  } = useStroke();
 
   const getMOuseCoordinate = (e: React.PointerEvent) => {
     if (canvasRef.current) {
@@ -72,14 +72,16 @@ export default function Home() {
 
     const initialPoint: point = pointerPosition
     console.log(initialPoint, "this is the initial Point ")
-
+    setfreehandPoint([[initialPoint[0], initialPoint[1], 1]])
     if (currentTool.actionType === actionType.Drawing) {
       const element = handleDrawElement({
         action: actionType.Drawing,
         element: currentTool.elementType,
         startPoint: initialPoint,
         endPoint: initialPoint,
-        stroke: points,
+        stroke: {
+          points: [[initialPoint[0], initialPoint[1], 1]]
+        },
       });
       console.log(element, "this is the element on intialization")
 
@@ -115,16 +117,31 @@ export default function Home() {
       const element = elements.find((el) => el.id === selectedElementId);
 
       if (!element) return;
+      if (element.type === elementType.freehand) {
+        setfreehandPoint([...freehandPoint, [pointerPosition[0], pointerPosition[1], 1]])
+        const stroke: Stroke = {
+          points: freehandPoint
+        }
+        const updatedElement: OnlyDrawElement = {
+          ...element,
+          id: selectedElementId,
+          width: x - element.x,
+          height: y - element.y,
+          stroke: stroke
+        };
+        updateElement(selectedElementId, updatedElement);
+      } else {
+        const updatedElement: OnlyDrawElement = {
+          ...element,
+          id: selectedElementId,
+          width: x - element.x,
+          height: y - element.y,
+        };
+        updateElement(selectedElementId, updatedElement);
+      }
 
 
-      const updatedElement: OnlyDrawElement = {
-        ...element,
-        id: selectedElementId,
-        width: x - element.x,
-        height: y - element.y,
-      };
 
-      updateElement(selectedElementId, updatedElement);
 
 
 
