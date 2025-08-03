@@ -145,10 +145,10 @@ export default function Home() {
     context.clearRect(0, 0, canvas.width, canvas.height);
 
     elements.forEach((el) => {
-      // console.log(el, "element printed")
+    
       DrawElements({ ctx: context, element: el });
     });
-    // console.log(elements)
+  
     roughCanvasRef.current = rough.canvas(canvas);
     generatorRef.current = roughCanvasRef.current.generator;
 
