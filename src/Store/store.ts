@@ -8,8 +8,6 @@ import {
 
 import { create } from 'zustand';
 
-
-
 type CurrentTool = {
   actionType: actionType;
   elementType: elementType | null;
@@ -23,6 +21,7 @@ export type AppState = {
     activeToolId: string | null;
   };
   isDragging: boolean;
+  isSelecting: boolean;
   isResizing: boolean;
   isDrawing: boolean;
   pointerPosition: point;
@@ -35,6 +34,7 @@ export type AppState = {
   setSelectedElementId: (id: number) => void;
   setIsDragging: (drag: boolean) => void;
   setIsDrawing: (draw: boolean) => void;
+  setIsSelecting: (draw: boolean) => void;
   setIsResizing: (resize: boolean) => void;
   setActiveToolbarId: (id: string) => void;
   setPointerPosition: (pos: point) => void;
@@ -47,14 +47,16 @@ export const useAppStore = create<AppState>((set) => ({
     actionType: actionType.Selecting,
     elementType: null,
   },
-  isDrawing : false ,
+  isDrawing: false,
   isDragging: false,
   isResizing: false,
+  isSelecting: false,
   pointerPosition: [0, 0],
   toolbar: {
     activeToolId: null,
   },
-   setIsDrawing : (draw) => set({isDrawing : draw}), 
+  setIsDrawing: (draw) => set({ isDrawing: draw }),
+  setIsSelecting: (select) => set({ isSelecting: select }),
   setCurrentTool: (tool) => set({ currentTool: tool }),
   addElement: (el) => set((state) => ({ elements: [...state.elements, el] })),
   updateElement: (id, data) =>
@@ -93,6 +95,3 @@ export const useAppStore = create<AppState>((set) => ({
       toolbar: { ...state.toolbar, activeToolId: id },
     })),
 }));
-
-
-

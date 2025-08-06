@@ -11,6 +11,9 @@ import { OnlyDrawElement, point, PointsFreeHand, Stroke } from '@/types/type';
 import { actionType, elementType } from '@/types/type';
 import { handleDrawElement } from '@/lib/handleElement';
 import { DrawElements } from '@/lib/utils/drawingUtility/drawElement';
+import { isPointInsideElement } from '@/lib/utils/drawingUtility/hitTest';
+import { DrawBounds } from '@/lib/drawBounds';
+import { getBounds } from '@/lib/utils/boundsUtility/getBounds';
 
 export default function Home() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -25,6 +28,8 @@ export default function Home() {
     isDrawing,
     pointerPosition,
     updateElement,
+    setIsSelecting,
+    isSelecting
   } = useAppStore();
 
   const [freehandPoint, setFreehandPoint] = useState<PointsFreeHand[]>([
@@ -44,7 +49,8 @@ export default function Home() {
   };
 
   const handlePointerDown = (e: React.PointerEvent) => {
-    setIsDrawing(true);
+    if (actionType.Drawing) setIsDrawing(true);
+    if (actionType.Selecting) setIsSelecting(true)
     const canvas = canvasRef.current;
     if (!canvas) return;
     const context = canvas.getContext('2d');
@@ -54,7 +60,7 @@ export default function Home() {
     }
 
     const initialPoint: point = pointerPosition;
-    console.log(initialPoint, 'this is the initial Point ');
+
     setFreehandPoint([[initialPoint[0], initialPoint[1], 1]]);
     if (currentTool.actionType === actionType.Drawing) {
       const element = handleDrawElement({
@@ -77,8 +83,8 @@ export default function Home() {
 
   const handlePointerMove = (e: React.PointerEvent) => {
     getMOuseCoordinate(e);
-    console.log(getMOuseCoordinate(e), 'this the pointer ');
-    if (!isDrawing) return;
+
+    if (!isDrawing || !isSelecting) return;
 
     const [x, y] = getMOuseCoordinate(e);
 
@@ -121,14 +127,27 @@ export default function Home() {
         updateElement(selectedElementId, updatedElement);
       }
     }
+
+    if (currentTool.actionType === actionType.Selecting && isSelecting) {
+
+      console.log("i am inside the inside Element ")
+      for (let i = elements.length - 1; i >= 0; i--) {
+        const element = elements[i];
+        const flag = isPointInsideElement({ point: pointerPosition, element });
+        if (flag) {
+          setSelectedElementId(element.id)
+        }
+        console.log(flag, ` inside ${element.id} ${element.type}`)
+      }
+
+    }
+   
   };
 
   const handlePointerUp = () => {
     setIsDrawing(false);
-    console.log(
-      pointerPosition,
-      'this si the point after we Pointer is moved up '
-    );
+
+
   };
 
   useLayoutEffect(() => {
@@ -139,16 +158,28 @@ export default function Home() {
     if (!context) {
       return;
     }
+    console.log(currentTool)
 
     canvas.width = canvas.offsetWidth;
     canvas.height = canvas.offsetHeight;
     context.clearRect(0, 0, canvas.width, canvas.height);
 
     elements.forEach((el) => {
-    
       DrawElements({ ctx: context, element: el });
     });
-  
+
+    
+    if (currentTool.actionType === "selecting" && selectedElementId) {
+
+      const element = elements.find((el) => el.id === selectedElementId);
+      if (!element) return
+
+      const bounds = getBounds({ element })
+      DrawBounds({ context, bounds })
+      console.log("check point 3")
+
+
+    } 
     roughCanvasRef.current = rough.canvas(canvas);
     generatorRef.current = roughCanvasRef.current.generator;
 
@@ -158,7 +189,6 @@ export default function Home() {
   return (
     <div className='bg-white relative w-full h-screen'>
       <Toolbar className='absolute top-2 left-2 z-10'></Toolbar>
-
       <canvas
         ref={canvasRef}
         className='w-full h-screen'

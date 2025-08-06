@@ -1,5 +1,6 @@
 
-import { Point } from 'roughjs/bin/geometry';
+import { point, Stroke } from '@/types/type';
+
 
 /**
  * Checks if a point is near a freehand stroke (polyline).
@@ -9,11 +10,13 @@ import { Point } from 'roughjs/bin/geometry';
  * @param threshold How close the point must be to count as a hit
  */
 export function isNearFreehand(
-  x: number,
-  y: number,
-  stroke: Point[],
+  point : point,
+  argStroke: Stroke,
   threshold = 5
 ): boolean {
+    const x  = point[0]
+    const y = point[1]
+    const stroke = argStroke.points
   for (let i = 0; i < stroke.length - 1; i++) {
     const [x1, y1] = stroke[i];
     const [x2, y2] = stroke[i + 1];
