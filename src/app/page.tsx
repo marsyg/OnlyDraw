@@ -14,9 +14,13 @@ import { DrawElements } from '@/lib/utils/drawingUtility/drawElement';
 import { isPointInsideElement } from '@/lib/utils/drawingUtility/hitTest';
 import { DrawBounds } from '@/lib/drawBounds';
 import { getBounds } from '@/lib/utils/boundsUtility/getBounds';
+import { UseDragElements } from '@/lib/dragElement';
+import { Point } from 'roughjs/bin/geometry';
+
 
 export default function Home() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+    
+    const canvasRef = useRef<HTMLCanvasElement>(null);
   const {
     setPointerPosition,
     currentTool,
@@ -25,6 +29,8 @@ export default function Home() {
     selectedElementId,
     elements,
     setIsDrawing,
+    setIsDragging,
+    isDragging,
     isDrawing,
     pointerPosition,
     updateElement,
@@ -35,6 +41,8 @@ export default function Home() {
   const [freehandPoint, setFreehandPoint] = useState<PointsFreeHand[]>([
     [pointerPosition[0], pointerPosition[1], 1],
   ]);
+  const [SelectedElement, setSelectedElement] = useState<OnlyDrawElement | null>(null)
+  const [GlobalPointerPosition, setGlobalPointerPosition] = useState<Point | null>(null)
   const generatorRef = useRef<RoughGenerator | null>(null);
   const roughCanvasRef = useRef<RoughCanvas | null>(null);
 
@@ -79,6 +87,11 @@ export default function Home() {
 
       setSelectedElementId(element.id);
     }
+
+    if (SelectedElement) {
+      setIsDrawing(true)
+      setGlobalPointerPosition(pointerPosition)
+    }
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
@@ -101,6 +114,7 @@ export default function Home() {
       const element = elements.find((el) => el.id === selectedElementId);
 
       if (!element) return;
+
       if (element.type === elementType.freehand) {
         setFreehandPoint([
           ...freehandPoint,
@@ -117,7 +131,8 @@ export default function Home() {
           stroke: stroke,
         };
         updateElement(selectedElementId, updatedElement);
-      } else {
+      }
+      else {
         const updatedElement: OnlyDrawElement = {
           ...element,
           id: selectedElementId,
@@ -129,25 +144,29 @@ export default function Home() {
     }
 
     if (currentTool.actionType === actionType.Selecting && isSelecting) {
-
       console.log("i am inside the inside Element ")
       for (let i = elements.length - 1; i >= 0; i--) {
         const element = elements[i];
         const flag = isPointInsideElement({ point: pointerPosition, element });
         if (flag) {
           setSelectedElementId(element.id)
+          setSelectedElement(element)
+          setIsDragging(true)
+          return
         }
         console.log(flag, ` inside ${element.id} ${element.type}`)
       }
+    }
+    if (isDragging) {
+      if (!GlobalPointerPosition) return;
+      if (!SelectedElement) return
+      UseDragElements({ initialPosition: GlobalPointerPosition, currentPosition: pointerPosition, element: SelectedElement })
 
     }
-   
   };
 
   const handlePointerUp = () => {
     setIsDrawing(false);
-
-
   };
 
   useLayoutEffect(() => {
@@ -168,18 +187,18 @@ export default function Home() {
       DrawElements({ ctx: context, element: el });
     });
 
-    
+
     if (currentTool.actionType === "selecting" && selectedElementId) {
 
-      const element = elements.find((el) => el.id === selectedElementId);
-      if (!element) return
 
-      const bounds = getBounds({ element })
+      if (!SelectedElement) return
+
+      const bounds = getBounds({ element: SelectedElement })
       DrawBounds({ context, bounds })
       console.log("check point 3")
 
 
-    } 
+    }
     roughCanvasRef.current = rough.canvas(canvas);
     generatorRef.current = roughCanvasRef.current.generator;
 
@@ -188,7 +207,7 @@ export default function Home() {
 
   return (
     <div className='bg-white relative w-full h-screen'>
-      <Toolbar className='absolute top-2 left-2 z-10'></Toolbar>
+      <Toolbar className='absolute top-2 left-2 z-10' />
       <canvas
         ref={canvasRef}
         className='w-full h-screen'
@@ -197,7 +216,7 @@ export default function Home() {
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         style={{ border: '1px solid black' }}
-      ></canvas>
+      />
     </div>
   );
 }

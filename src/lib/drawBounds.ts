@@ -12,9 +12,9 @@ export const DrawBounds = ({ context, bounds }: args) => {
   console.log('this is also firing up');
   const { maxX, minY, maxY, minX } = bounds;
   context.save();
-  context.strokeStyle = 'red'; 
+  context.strokeStyle = 'rgba(0, 0, 255, 0.6)';
   context.setLineDash([4, 2]);
-  context.lineWidth = 6;
+  context.lineWidth = 2;
   context.strokeRect(minX, minY, maxX - minX, maxY - minY);
   context.restore();
 };
