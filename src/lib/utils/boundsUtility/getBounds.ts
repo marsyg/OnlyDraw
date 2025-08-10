@@ -4,15 +4,13 @@ import { Point } from 'roughjs/bin/geometry';
 type args = {
   element: OnlyDrawElement;
 };
-
-export const getBounds = ({
-  element
-}: args): {
+export type boundType = {
   minX: number;
   minY: number;
   maxX: number;
   maxY: number;
-} => {
+};
+export const getBounds = ({ element }: args): boundType => {
   const { x, y, width, height } = element;
   switch (element.type) {
     case elementType.line:

@@ -9,7 +9,7 @@ type args = {
 };
 
 export const DrawBounds = ({ context, bounds }: args) => {
-  console.log('this is also firing up');
+ 
   const { maxX, minY, maxY, minX } = bounds;
   context.save();
   context.strokeStyle = 'rgba(0, 0, 255, 0.6)';

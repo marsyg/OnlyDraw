@@ -9,7 +9,7 @@ import {
 import { create } from 'zustand';
 
 type CurrentTool = {
-  actionType: actionType;
+  action: actionType;
   elementType: elementType | null;
 };
 
@@ -31,7 +31,7 @@ export type AppState = {
   setCurrentTool: (tool: CurrentTool) => void;
   addElement: (el: OnlyDrawElement) => void;
   updateElement: (id: number, data: Partial<OnlyDrawElement>) => void;
-  setSelectedElementId: (id: number) => void;
+  setSelectedElementId: (id: number | undefined) => void;
   setIsDragging: (drag: boolean) => void;
   setIsDrawing: (draw: boolean) => void;
   setIsSelecting: (draw: boolean) => void;
@@ -44,7 +44,7 @@ export const useAppStore = create<AppState>((set) => ({
   elements: [],
   selectedElementId: 0,
   currentTool: {
-    actionType: actionType.Selecting,
+    action: actionType.Selecting,
     elementType: null,
   },
   isDrawing: false,

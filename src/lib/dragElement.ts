@@ -1,4 +1,3 @@
-import { useAppStore } from '@/Store/store';
 import { OnlyDrawElement } from '@/types/type';
 import { Point } from 'roughjs/bin/geometry';
 type args = {
@@ -6,22 +5,28 @@ type args = {
   currentPosition: Point;
   element: OnlyDrawElement;
 };
-export const UseDragElements = ({
+export const DragElements = ({
   initialPosition,
   currentPosition,
   element,
-}: args) => {
+}: args): OnlyDrawElement => {
   const id = element.id;
-  const offsetX = element.x - initialPosition[0];
-  const offsetY = element.y - initialPosition[1];
+  console.log(initialPosition);
+  console.log('for offsetX ', element.x, initialPosition[0]);
+  const offsetX = initialPosition[0] - element.x;
+  console.log(' offsetX calculated  ', offsetX);
+  console.log('======');
+  console.log('for offsety ', element.y, initialPosition[1]);
+
+  const offsetY = initialPosition[1] - element.y;
+  console.log(' offsetY calculated  ', offsetY);
   const x = currentPosition[0] - offsetX;
   const y = currentPosition[1] - offsetY;
-  const { updateElement } = useAppStore();
-
+  console.log(x, y, 'these are the coordinate ');
   const updatedElement: OnlyDrawElement = {
     ...element,
     x: x,
     y: y,
   };
-  updateElement(id, updatedElement);
+  return updatedElement;
 };

@@ -2,7 +2,7 @@
 
 import rough from 'roughjs';
 
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useAppStore } from '@/Store/store';
 import { RoughGenerator } from 'roughjs/bin/generator';
 import { RoughCanvas } from 'roughjs/bin/canvas';
@@ -14,13 +14,14 @@ import { DrawElements } from '@/lib/utils/drawingUtility/drawElement';
 import { isPointInsideElement } from '@/lib/utils/drawingUtility/hitTest';
 import { DrawBounds } from '@/lib/drawBounds';
 import { getBounds } from '@/lib/utils/boundsUtility/getBounds';
-import { UseDragElements } from '@/lib/dragElement';
+import { DragElements } from '@/lib/dragElement';
 import { Point } from 'roughjs/bin/geometry';
+import { boundType } from '@/lib/utils/boundsUtility/getBounds';
 
 
 export default function Home() {
-    
-    const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const {
     setPointerPosition,
     currentTool,
@@ -45,6 +46,7 @@ export default function Home() {
   const [GlobalPointerPosition, setGlobalPointerPosition] = useState<Point | null>(null)
   const generatorRef = useRef<RoughGenerator | null>(null);
   const roughCanvasRef = useRef<RoughCanvas | null>(null);
+  const [Bound, setBound] = useState<boundType | null>(null)
 
   const getMOuseCoordinate = (e: React.PointerEvent) => {
     if (canvasRef.current) {
@@ -70,7 +72,7 @@ export default function Home() {
     const initialPoint: point = pointerPosition;
 
     setFreehandPoint([[initialPoint[0], initialPoint[1], 1]]);
-    if (currentTool.actionType === actionType.Drawing) {
+    if (currentTool.action === actionType.Drawing) {
       const element = handleDrawElement({
         action: actionType.Drawing,
         element: currentTool.elementType,
@@ -109,7 +111,7 @@ export default function Home() {
       return;
     }
 
-    if (currentTool.actionType === actionType.Drawing && isDrawing) {
+    if (currentTool.action === actionType.Drawing && isDrawing) {
       if (!selectedElementId) return;
       const element = elements.find((el) => el.id === selectedElementId);
 
@@ -143,8 +145,8 @@ export default function Home() {
       }
     }
 
-    if (currentTool.actionType === actionType.Selecting && isSelecting) {
-      console.log("i am inside the inside Element ")
+    if (currentTool.action === actionType.Selecting && !isDragging) {
+
       for (let i = elements.length - 1; i >= 0; i--) {
         const element = elements[i];
         const flag = isPointInsideElement({ point: pointerPosition, element });
@@ -154,20 +156,46 @@ export default function Home() {
           setIsDragging(true)
           return
         }
-        console.log(flag, ` inside ${element.id} ${element.type}`)
+
       }
     }
     if (isDragging) {
       if (!GlobalPointerPosition) return;
       if (!SelectedElement) return
-      UseDragElements({ initialPosition: GlobalPointerPosition, currentPosition: pointerPosition, element: SelectedElement })
+
+      const updatedElement = DragElements(
+        {
+          initialPosition: GlobalPointerPosition,
+          currentPosition: pointerPosition,
+          element: SelectedElement
+        }
+      )
+
+
+      updateElement(SelectedElement.id, updatedElement)
+      setBound(getBounds({ element: updatedElement }))
+
 
     }
+
   };
 
   const handlePointerUp = () => {
     setIsDrawing(false);
+    setIsDragging(false)
   };
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const context = canvas.getContext('2d');
+    if (!context) {
+      return;
+    }
+    if (Bound)
+      DrawBounds({ context, bounds: Bound })
+  }, [Bound])
 
   useLayoutEffect(() => {
     const canvas = canvasRef.current;
@@ -177,7 +205,7 @@ export default function Home() {
     if (!context) {
       return;
     }
-    console.log(currentTool)
+
 
     canvas.width = canvas.offsetWidth;
     canvas.height = canvas.offsetHeight;
@@ -188,14 +216,17 @@ export default function Home() {
     });
 
 
-    if (currentTool.actionType === "selecting" && selectedElementId) {
+    if (currentTool.action === "selecting" && selectedElementId) {
 
 
       if (!SelectedElement) return
 
       const bounds = getBounds({ element: SelectedElement })
+      const { maxX, minY, maxY, minX } = bounds;
       DrawBounds({ context, bounds })
-      console.log("check point 3")
+      // if (isDragging) context.clearRect(minX, minY, maxX - minX, maxY - minY);
+
+
 
 
     }

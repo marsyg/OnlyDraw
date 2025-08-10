@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { TOOLBAR_ITEM } from '@/types/toolbarData'
 import { useAppStore } from '@/Store/store';
 import { actionType, elementType } from '@/types/type';
@@ -8,12 +8,18 @@ type ToolbarProps = {
   className?: string;
 };
 const Toolbar: React.FC<ToolbarProps> = ({ className }) => {
-  const { setActiveToolbarId, toolbar, setCurrentTool } = useAppStore()
-  const handleClick = (id: string, actionType: actionType, elementType: elementType) => {
+  const { setActiveToolbarId, toolbar, setCurrentTool, setSelectedElementId, setIsDragging, currentTool } = useAppStore()
+
+  const handleClick = (id: string, action: actionType, elementType: elementType) => {
     setActiveToolbarId(id)
 
-    setCurrentTool({ actionType, elementType })
+    setCurrentTool({ action, elementType })
 
+    if (action !== actionType.Selecting) {
+
+      setIsDragging(false)
+      setSelectedElementId(undefined)
+    }
 
   }
   return (
