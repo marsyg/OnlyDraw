@@ -42,12 +42,13 @@ export default function Home() {
   const [freehandPoint, setFreehandPoint] = useState<PointsFreeHand[]>([
     [pointerPosition[0], pointerPosition[1], 1],
   ]);
+  const [CursorStyle, setCursorStyle] = useState("default")
   const [SelectedElement, setSelectedElement] = useState<OnlyDrawElement | null>(null)
   const [GlobalPointerPosition, setGlobalPointerPosition] = useState<Point | null>(null)
   const generatorRef = useRef<RoughGenerator | null>(null);
   const roughCanvasRef = useRef<RoughCanvas | null>(null);
   const [Bound, setBound] = useState<boundType | null>(null)
-
+  const flagRef = useRef<boolean>(false)
   const getMOuseCoordinate = (e: React.PointerEvent) => {
     if (canvasRef.current) {
       const rect = canvasRef.current?.getBoundingClientRect();
@@ -93,6 +94,28 @@ export default function Home() {
     if (SelectedElement) {
       setIsDrawing(true)
       setGlobalPointerPosition(pointerPosition)
+    }
+    if (currentTool.action === actionType.Selecting && !isDragging) {
+
+      for (let i = elements.length - 1; i >= 0; i--) {
+        const element = elements[i];
+        const flag = isPointInsideElement({ point: pointerPosition, element });
+        // console.log(flag, "this is flag ")
+        flagRef.current = flag
+        if (flag) {
+          setSelectedElementId(element.id)
+          setSelectedElement(element)
+          setIsDragging(true)
+          setCursorStyle("grab")
+          return
+        } else {
+          setIsDragging(false)
+        }
+
+      }
+    }
+    if (isDragging && SelectedElement) {
+      setBound(getBounds({ element: SelectedElement }))
     }
   };
 
@@ -145,20 +168,20 @@ export default function Home() {
       }
     }
 
-    if (currentTool.action === actionType.Selecting && !isDragging) {
+    // if (currentTool.action === actionType.Selecting && !isDragging) {
 
-      for (let i = elements.length - 1; i >= 0; i--) {
-        const element = elements[i];
-        const flag = isPointInsideElement({ point: pointerPosition, element });
-        if (flag) {
-          setSelectedElementId(element.id)
-          setSelectedElement(element)
-          setIsDragging(true)
-          return
-        }
+    //   for (let i = elements.length - 1; i >= 0; i--) {
+    //     const element = elements[i];
+    //     const flag = isPointInsideElement({ point: pointerPosition, element });
+    //     if (flag) {
+    //       setSelectedElementId(element.id)
+    //       setSelectedElement(element)
+    //       setIsDragging(true)
+    //       return
+    //     }
 
-      }
-    }
+    //   }
+    // }
     if (isDragging) {
       if (!GlobalPointerPosition) return;
       if (!SelectedElement) return
@@ -170,12 +193,8 @@ export default function Home() {
           element: SelectedElement
         }
       )
-
-
       updateElement(SelectedElement.id, updatedElement)
       setBound(getBounds({ element: updatedElement }))
-
-
     }
 
   };
@@ -183,19 +202,29 @@ export default function Home() {
   const handlePointerUp = () => {
     setIsDrawing(false);
     setIsDragging(false)
+    // setSelectedElement(null)
   };
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     const context = canvas.getContext('2d');
     if (!context) {
       return;
     }
-    if (Bound)
+    if (currentTool.action === actionType.Drawing) {
+      setCursorStyle("crosshair")
+
+    } else if (isDragging) {
+      setCursorStyle("grabbing")
+
+    } else {
+      setCursorStyle("default")
+    }
+
+    if (SelectedElement && Bound)
       DrawBounds({ context, bounds: Bound })
-  }, [Bound])
+  }, [Bound, SelectedElement, currentTool.action, isDragging])
 
   useLayoutEffect(() => {
     const canvas = canvasRef.current;
@@ -206,7 +235,7 @@ export default function Home() {
       return;
     }
 
-
+    console.log("cursorStyl", CursorStyle)
     canvas.width = canvas.offsetWidth;
     canvas.height = canvas.offsetHeight;
     context.clearRect(0, 0, canvas.width, canvas.height);
@@ -214,25 +243,8 @@ export default function Home() {
     elements.forEach((el) => {
       DrawElements({ ctx: context, element: el });
     });
-
-
-    if (currentTool.action === "selecting" && selectedElementId) {
-
-
-      if (!SelectedElement) return
-
-      const bounds = getBounds({ element: SelectedElement })
-      const { maxX, minY, maxY, minX } = bounds;
-      DrawBounds({ context, bounds })
-      // if (isDragging) context.clearRect(minX, minY, maxX - minX, maxY - minY);
-
-
-
-
-    }
     roughCanvasRef.current = rough.canvas(canvas);
     generatorRef.current = roughCanvasRef.current.generator;
-
     context.save();
   });
 
@@ -241,12 +253,15 @@ export default function Home() {
       <Toolbar className='absolute top-2 left-2 z-10' />
       <canvas
         ref={canvasRef}
-        className='w-full h-screen'
+        className={`w-full h-screen `}
         id='canvas'
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        style={{ border: '1px solid black' }}
+        style={{
+          border: '1px solid black',
+          cursor: CursorStyle
+        }}
       />
     </div>
   );
