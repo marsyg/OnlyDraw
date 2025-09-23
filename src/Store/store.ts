@@ -16,7 +16,7 @@ type CurrentTool = {
 export type AppState = {
   elements: OnlyDrawElement[];
   currentTool: CurrentTool;
-  selectedElementId?: number;
+  selectedElementId?: number | null;
   toolbar: {
     activeToolId: string | null;
   };
@@ -31,7 +31,7 @@ export type AppState = {
   setCurrentTool: (tool: CurrentTool) => void;
   addElement: (el: OnlyDrawElement) => void;
   updateElement: (id: number, data: Partial<OnlyDrawElement>) => void;
-  setSelectedElementId: (id: number | undefined) => void;
+  setSelectedElementId: (id: number | null) => void;
   setIsDragging: (drag: boolean) => void;
   setIsDrawing: (draw: boolean) => void;
   setIsSelecting: (draw: boolean) => void;
@@ -42,7 +42,7 @@ export type AppState = {
 
 export const useAppStore = create<AppState>((set) => ({
   elements: [],
-  selectedElementId: 0,
+  
   currentTool: {
     action: actionType.Selecting,
     elementType: null,

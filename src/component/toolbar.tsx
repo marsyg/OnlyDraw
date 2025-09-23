@@ -8,18 +8,17 @@ type ToolbarProps = {
   className?: string;
 };
 const Toolbar: React.FC<ToolbarProps> = ({ className }) => {
-  const { setActiveToolbarId, toolbar, setCurrentTool, setSelectedElementId, setIsDragging, currentTool } = useAppStore()
+  const { setActiveToolbarId, toolbar, setCurrentTool, setSelectedElementId, setIsDragging, setIsSelecting } = useAppStore()
 
   const handleClick = (id: string, action: actionType, elementType: elementType) => {
     setActiveToolbarId(id)
 
     setCurrentTool({ action, elementType })
+    if (action === actionType.Selecting) setIsSelecting(true)
+    else { setIsSelecting(false) }
+    if (action === actionType.Dragging) setIsDragging(true)
+    else { setIsDragging(false) }
 
-    if (action !== actionType.Selecting) {
-
-      setIsDragging(false)
-      setSelectedElementId(undefined)
-    }
 
   }
   return (
@@ -29,7 +28,6 @@ const Toolbar: React.FC<ToolbarProps> = ({ className }) => {
           onClick={() => handleClick(item.id, item.actionType, item.elementType)}
           className={`hover:bg-gray-400  flex p-1 rounded-sm ${(toolbar.activeToolId === item.id) && ' bg-gray-600'}`} >
           {<item.icon style={{
-
           }} color='black' />}
         </button>
       ))

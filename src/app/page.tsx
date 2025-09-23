@@ -49,6 +49,7 @@ export default function Home() {
   const roughCanvasRef = useRef<RoughCanvas | null>(null);
   const [Bound, setBound] = useState<boundType | null>(null)
   const flagRef = useRef<boolean>(false)
+
   const getMOuseCoordinate = (e: React.PointerEvent) => {
     if (canvasRef.current) {
       const rect = canvasRef.current?.getBoundingClientRect();
@@ -60,8 +61,7 @@ export default function Home() {
   };
 
   const handlePointerDown = (e: React.PointerEvent) => {
-    if (actionType.Drawing) setIsDrawing(true);
-    if (actionType.Selecting) setIsSelecting(true)
+    console.log("cp ---->1 ")
     const canvas = canvasRef.current;
     if (!canvas) return;
     const context = canvas.getContext('2d');
@@ -71,8 +71,9 @@ export default function Home() {
     }
 
     const initialPoint: point = pointerPosition;
-
+    console.log("cp ---->2 ")
     setFreehandPoint([[initialPoint[0], initialPoint[1], 1]]);
+
     if (currentTool.action === actionType.Drawing) {
       const element = handleDrawElement({
         action: actionType.Drawing,
@@ -83,46 +84,80 @@ export default function Home() {
           points: [[initialPoint[0], initialPoint[1], 1]],
         },
       });
-
+      console.log("cp ---->3 ,  ", element)
       if (element === null) return;
 
       addElement(element);
+      console.log("cp ---->4 , after ADDING ELEMENT ")
 
       setSelectedElementId(element.id);
+      if (element.id) {
+        setIsDrawing(true)
+        setGlobalPointerPosition(pointerPosition)
+      }
     }
 
-    if (SelectedElement) {
+    console.log(selectedElementId)
+    if (selectedElementId) {
+      console.log("are elements here")
       setIsDrawing(true)
       setGlobalPointerPosition(pointerPosition)
     }
+    if (flagRef.current) {
+      setIsDragging(true)
+    }
+
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+
+    getMOuseCoordinate(e);
     if (currentTool.action === actionType.Selecting && !isDragging) {
 
       for (let i = elements.length - 1; i >= 0; i--) {
         const element = elements[i];
         const flag = isPointInsideElement({ point: pointerPosition, element });
-        // console.log(flag, "this is flag ")
+
         flagRef.current = flag
         if (flag) {
           setSelectedElementId(element.id)
           setSelectedElement(element)
-          setIsDragging(true)
           setCursorStyle("grab")
-          return
-        } else {
-          setIsDragging(false)
-        }
 
+          console.log("Pointer:", pointerPosition);
+          console.log("Element bottom-right:", [element.x + element.width, element.y + element.height]);
+
+          const threshold = 5
+          const cornerX = element.x + element.width;
+          const cornerY = element.y + element.height;
+          const dx = pointerPosition[0] - cornerX;
+          const dy = pointerPosition[1] - cornerY;
+
+          const isBottomRight =
+            pointerPosition[0] === element.x + element.width &&
+            pointerPosition[1] === element.y + element.height;
+          console.log("Condition matched?", isBottomRight);
+
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          if (distance <= threshold) {
+            setCursorStyle("se-resize")
+          } else {
+            setCursorStyle("default")
+          }
+
+
+          if (pointerPosition[0] === element.x + element.width && pointerPosition[1] === element.y + element.height) {
+            setCursorStyle("se-resize")
+          }
+          break;
+        } else {
+          setSelectedElement(null)
+          setCursorStyle("default")
+        }
       }
     }
-    if (isDragging && SelectedElement) {
-      setBound(getBounds({ element: SelectedElement }))
-    }
-  };
 
-  const handlePointerMove = (e: React.PointerEvent) => {
-    getMOuseCoordinate(e);
-
-    if (!isDrawing || !isSelecting) return;
+    if (!isDrawing && !isSelecting) return;
 
     const [x, y] = getMOuseCoordinate(e);
 
@@ -134,7 +169,10 @@ export default function Home() {
       return;
     }
 
-    if (currentTool.action === actionType.Drawing && isDrawing) {
+
+    if (currentTool.action === actionType.Drawing) {
+
+      // TODO change the logic  that uses selectedElement rather than selectedElementId 
       if (!selectedElementId) return;
       const element = elements.find((el) => el.id === selectedElementId);
 
@@ -168,20 +206,6 @@ export default function Home() {
       }
     }
 
-    // if (currentTool.action === actionType.Selecting && !isDragging) {
-
-    //   for (let i = elements.length - 1; i >= 0; i--) {
-    //     const element = elements[i];
-    //     const flag = isPointInsideElement({ point: pointerPosition, element });
-    //     if (flag) {
-    //       setSelectedElementId(element.id)
-    //       setSelectedElement(element)
-    //       setIsDragging(true)
-    //       return
-    //     }
-
-    //   }
-    // }
     if (isDragging) {
       if (!GlobalPointerPosition) return;
       if (!SelectedElement) return
@@ -202,7 +226,7 @@ export default function Home() {
   const handlePointerUp = () => {
     setIsDrawing(false);
     setIsDragging(false)
-    // setSelectedElement(null)
+    setSelectedElement(null)
   };
 
   useEffect(() => {
@@ -221,10 +245,14 @@ export default function Home() {
     } else {
       setCursorStyle("default")
     }
+    console.log(currentTool)
+    console.log("is draging", isDragging)
+    console.log("is selecting ", isSelecting)
+
 
     if (SelectedElement && Bound)
       DrawBounds({ context, bounds: Bound })
-  }, [Bound, SelectedElement, currentTool.action, isDragging])
+  }, [Bound, SelectedElement, currentTool, currentTool.action, isDragging, isSelecting, selectedElementId])
 
   useLayoutEffect(() => {
     const canvas = canvasRef.current;
@@ -235,7 +263,6 @@ export default function Home() {
       return;
     }
 
-    console.log("cursorStyl", CursorStyle)
     canvas.width = canvas.offsetWidth;
     canvas.height = canvas.offsetHeight;
     context.clearRect(0, 0, canvas.width, canvas.height);
@@ -246,7 +273,7 @@ export default function Home() {
     roughCanvasRef.current = rough.canvas(canvas);
     generatorRef.current = roughCanvasRef.current.generator;
     context.save();
-  });
+  },);
 
   return (
     <div className='bg-white relative w-full h-screen'>

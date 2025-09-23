@@ -1,10 +1,16 @@
-import { actionType, elementType, point, OnlyDrawElement , Stroke } from '@/types/type';
+import {
+  actionType,
+  elementType,
+  point,
+  OnlyDrawElement,
+  Stroke,
+} from '@/types/type';
 type DrawArgs = {
   action: actionType;
-  element: elementType |null;
+  element: elementType | null;
   startPoint: point;
   endPoint: point;
-  stroke?: Stroke
+  stroke?: Stroke;
 };
 export const handleDrawElement = ({
   action,
@@ -46,7 +52,7 @@ export const handleDrawElement = ({
         type: elementType.ellipse,
       };
     case elementType.freehand:
-      if(!stroke)return null
+      if (!stroke) return null;
       return {
         id: Date.now(),
         x: startPoint[0],
