@@ -15,8 +15,10 @@ import { isPointInsideElement } from '@/lib/utils/drawingUtility/hitTest';
 import { DrawBounds } from '@/lib/drawBounds';
 import { getBounds } from '@/lib/utils/boundsUtility/getBounds';
 import { DragElements } from '@/lib/dragElement';
+
 import { Point } from 'roughjs/bin/geometry';
 import { boundType } from '@/lib/utils/boundsUtility/getBounds';
+import createYElement from '@/lib/utils/createYElement';
 
 
 export default function Home() {
@@ -86,7 +88,7 @@ export default function Home() {
       });
       console.log("cp ---->3 ,  ", element)
       if (element === null) return;
-
+      // createYElement(element) dont forget to uncomment this line
       addElement(element);
       console.log("cp ---->4 , after ADDING ELEMENT ")
 
@@ -105,6 +107,7 @@ export default function Home() {
     }
     if (flagRef.current) {
       setIsDragging(true)
+      console.log("is dragging set to true")
     }
 
   };
@@ -117,17 +120,22 @@ export default function Home() {
       for (let i = elements.length - 1; i >= 0; i--) {
         const element = elements[i];
         const flag = isPointInsideElement({ point: pointerPosition, element });
-
+        console.log("Element ID:", element.id, "Flag:", flag);
+        //checked this working perfectly fine
         flagRef.current = flag
+
         if (flag) {
+          console.log("Found emelement under pointer")
           setSelectedElementId(element.id)
           setSelectedElement(element)
           setCursorStyle("grab")
+          console.log("Selected Element ID:", selectedElementId);
+          console.log("Cursor Style:", CursorStyle);
 
-          console.log("Pointer:", pointerPosition);
-          console.log("Element bottom-right:", [element.x + element.width, element.y + element.height]);
+          // console.log("Pointer:", pointerPosition);
+          // console.log("Element bottom-right:", [element.x + element.width, element.y + element.height]);
 
-          const threshold = 5
+          const threshold = 10;
           const cornerX = element.x + element.width;
           const cornerY = element.y + element.height;
           const dx = pointerPosition[0] - cornerX;
@@ -136,21 +144,16 @@ export default function Home() {
           const isBottomRight =
             pointerPosition[0] === element.x + element.width &&
             pointerPosition[1] === element.y + element.height;
-          console.log("Condition matched?", isBottomRight);
+          // console.log("Condition matched?", isBottomRight);
 
           const distance = Math.sqrt(dx * dx + dy * dy);
           if (distance <= threshold) {
             setCursorStyle("se-resize")
-          } else {
-            setCursorStyle("default")
-          }
-
-
-          if (pointerPosition[0] === element.x + element.width && pointerPosition[1] === element.y + element.height) {
-            setCursorStyle("se-resize")
           }
           break;
-        } else {
+        }
+
+        else {
           setSelectedElement(null)
           setCursorStyle("default")
         }
@@ -223,10 +226,16 @@ export default function Home() {
 
   };
 
-  const handlePointerUp = () => {
+  const handlePointerUp = (e: React.PointerEvent) => {
+    flagRef.current = false
     setIsDrawing(false);
     setIsDragging(false)
     setSelectedElement(null)
+    setGlobalPointerPosition(null)
+    const target = e.target as HTMLElement
+    if (target.hasPointerCapture && target.hasPointerCapture(e.pointerId)) {
+      target.releasePointerCapture(e.pointerId);
+    }
   };
 
   useEffect(() => {
@@ -236,6 +245,7 @@ export default function Home() {
     if (!context) {
       return;
     }
+
     if (currentTool.action === actionType.Drawing) {
       setCursorStyle("crosshair")
 
@@ -245,15 +255,19 @@ export default function Home() {
     } else {
       setCursorStyle("default")
     }
-    console.log(currentTool)
-    console.log("is draging", isDragging)
+    // console.log(currentTool)
+    // console.log("is draging", isDragging)
     console.log("is selecting ", isSelecting)
-
+    console.log("selected element id ", selectedElementId)
 
     if (SelectedElement && Bound)
       DrawBounds({ context, bounds: Bound })
-  }, [Bound, SelectedElement, currentTool, currentTool.action, isDragging, isSelecting, selectedElementId])
+  }, [Bound, currentTool, currentTool.action, isDragging,])
 
+
+  useEffect(() => {
+    console.log("Cursor Style changed to: from its own effect", CursorStyle);
+  }, [CursorStyle]);
   useLayoutEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -266,7 +280,7 @@ export default function Home() {
     canvas.width = canvas.offsetWidth;
     canvas.height = canvas.offsetHeight;
     context.clearRect(0, 0, canvas.width, canvas.height);
-
+    console.log("in use layout effect")
     elements.forEach((el) => {
       DrawElements({ ctx: context, element: el });
     });
