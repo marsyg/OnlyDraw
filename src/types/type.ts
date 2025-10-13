@@ -1,5 +1,6 @@
 import { LucideIcon } from 'lucide-react';
-
+import { Interface } from 'readline';
+import * as Y from 'yjs'
 export type PointsFreeHand = [number, number, number];
 export type Stroke = {
   points: PointsFreeHand[];
@@ -38,6 +39,15 @@ export type OnlyDrawElement =
   | ellipseElement
   | freeHandElement;
 
+export type YElement = OnlyDrawElement & {
+  author : number;
+  
+}
+export interface SharedDoc {
+  elements: Y.Map<Y.Map<unknown>>;
+  order : Y.Array<string>;
+  
+}
 export type point = [x: number, y: number];
 
 // line is tuple of points P is a generic is a here which is extended
