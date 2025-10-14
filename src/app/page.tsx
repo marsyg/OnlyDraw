@@ -88,7 +88,7 @@ export default function Home() {
       });
       console.log("cp ---->3 ,  ", element)
       if (element === null) return;
-      // createYElement(element) dont forget to uncomment this line
+      createYElement(element) ;
       addElement(element);
       console.log("cp ---->4 , after ADDING ELEMENT ")
 
