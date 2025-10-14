@@ -15,6 +15,7 @@ export const DrawElements = ({ ctx, element }: DrawingArgs) => {
       ctx.beginPath();
       ctx.rect(element.x, element.y, element.width, element.height);
       ctx.strokeStyle = 'black';
+
       ctx.stroke();
       break;
     }
@@ -45,11 +46,45 @@ export const DrawElements = ({ ctx, element }: DrawingArgs) => {
     case elementType.freehand: {
       const points = element.stroke.points;
       if (!points) return;
-      const stroke = getStroke(points);
+      interface StrokeTaperOptions {
+        taper: number;
+        easing: (t: number) => number;
+        cap: boolean;
+      }
+
+      interface StrokeOptions {
+        size: number;
+        thinning: number;
+        smoothing: number;
+        streamline: number;
+        easing: (t: number) => number;
+        start: StrokeTaperOptions;
+        end: StrokeTaperOptions;
+      }
+
+      const options: StrokeOptions = {
+        size: 32,
+        thinning: 0.5,
+        smoothing: 0.5,
+        streamline: 0.5,
+        easing: (t: number) => t,
+        start: {
+          taper: 0,
+          easing: (t: number) => t,
+          cap: true,
+        },
+        end: {
+          taper: 100,
+          easing: (t: number) => t,
+          cap: true,
+        },
+      };
+      const stroke = getStroke(points, options);
       const path = getSvgPathFromStroke(stroke);
 
       const path2D = new Path2D(path);
-      ctx.stroke(path2D);
+      ctx.fillStyle = 'black';
+      ctx.fill(path2D);
       break;
     }
 
