@@ -63,7 +63,7 @@ export const DrawElements = ({ ctx, element }: DrawingArgs) => {
       }
 
       const options: StrokeOptions = {
-        size: 32,
+        size: 22,
         thinning: 0.5,
         smoothing: 0.5,
         streamline: 0.5,
