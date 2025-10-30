@@ -19,17 +19,17 @@ export type rectangleElement = baseType & {
 };
 
 export type ellipseElement = baseType & {
-  type: elementType.ellipse;
+  type: elementType.Ellipse;
 };
 
 export type lineElement = baseType & {
-  type: elementType.line;
+  type: elementType.Line;
 };
 
 export type freeHandElement = baseType & {
   stroke: Stroke;
 
-  type: elementType.freehand;
+  type: elementType.Freehand;
 };
 export type Degrees = number;
 
@@ -68,14 +68,16 @@ export const enum actionType {
   Selecting = 'selecting',
   Dragging = 'dragging',
   Resizing = 'resizing',
+  Delete = 'delete',
 }
 
 export enum elementType {
   Rectangle = 'rectangle',
-  ellipse = 'ellipse',
-  line = 'line',
-  freehand = 'freehand',
+  Ellipse = 'ellipse',
+  Line = 'line',
+  Freehand = 'freehand',
   Select = 'select',
+  Delete = 'delete',
 }
 
 export type ToolBarDataType = {

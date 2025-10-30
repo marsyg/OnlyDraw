@@ -21,6 +21,23 @@ wsProvider.on('status', (event) => {
   console.log('Provider Status:', event.status);
 });
 
+const UndoManager = new Y.UndoManager([elements], {
+  trackedOrigins: new Set([doc.clientID]),
+});
+UndoManager.on('stack-item-added', () => {
+  console.log(
+    'Undo stack item added. Current undo stack size:',
+    UndoManager.undoStack.length
+  );
+});
+
+UndoManager.on('stack-item-popped', () => {
+  console.log(
+    'Undo stack item removed. Current undo stack size:',
+    UndoManager.undoStack.length
+  );
+});
+export { UndoManager };
 export const canvasDoc = {
   Y: Y,
   doc: doc,

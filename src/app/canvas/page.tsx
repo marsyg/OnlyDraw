@@ -20,6 +20,8 @@ import * as Y from 'yjs';
 import { Point } from 'roughjs/bin/geometry';
 import { boundType } from '@/lib/utils/boundsUtility/getBounds';
 import createYElement from '@/lib/utils/createYElement';
+import { handleUndo, handleRedo } from '@/lib/helperfunc/undo-redo';
+import { UndoManager as undoManager } from '@/Store/yjs-store';
 
 
 export default function App() {
@@ -97,7 +99,9 @@ export default function App() {
           const newYElement = createYElement(element);
           // setSelectedYElement(newYElement)
           // console.log("created y element successfully", newYElement.toJSON())
-        })
+        }, doc.clientID);
+
+
 
       } catch (error) {
         console.log("error in creating y element", error)
@@ -189,7 +193,7 @@ export default function App() {
 
       if (!element) return;
 
-      if (element.type === elementType.freehand) {
+      if (element.type === elementType.Freehand) {
         setFreehandPoint([
           ...freehandPoint,
           [pointerPosition[0], pointerPosition[1], 1],
@@ -289,6 +293,24 @@ export default function App() {
   }, [SelectedElement, Bound]);
 
   useEffect(() => {
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === 'z') {
+        console.log("Undo triggered")
+        handleUndo()
+      }
+      if (e.ctrlKey && e.key === 'y') {
+        console.log("Redo triggered")
+        handleRedo()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+
+  }, []);
+
+  useEffect(() => {
     yElement.forEach((element, key) => {
       console.log('Y.Element Key:', key, 'Value:', element.toJSON());
     })
@@ -305,12 +327,15 @@ export default function App() {
       });
     }
 
+    console.log(`[UNDO] Undo Stack Size: ${undoManager.undoStack.length}`)
+    console.log(`[UNDO] Redo Stack Size: ${undoManager.redoStack.length}`)
     canvasDoc.yElement.observe(observer);
     return () => {
       canvasDoc.yElement.unobserve(observer);
 
+
     }
-  }, [canvasDoc.yElement]);
+  }, [yElement.size, yElement]);
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -344,6 +369,7 @@ export default function App() {
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+
         style={{
           border: '1px solid black',
           cursor: CursorStyle
