@@ -97,8 +97,8 @@ export default function App() {
         if (!doc) throw new Error("Y.Doc is not initialized");
         doc.transact(() => {
           const newYElement = createYElement(element);
-          // setSelectedYElement(newYElement)
-          // console.log("created y element successfully", newYElement.toJSON())
+          setSelectedYElement(newYElement)
+          console.log("created y element successfully", newYElement.toJSON())
         }, doc.clientID);
 
 
@@ -210,9 +210,9 @@ export default function App() {
         };
         updateElement(selectedElementId, updatedElement)
         if (!selectedYElement) return;
-        // selectedYElement.set("width", updatedElement.width)
-        // selectedYElement.set("height", updatedElement.height)
-        // selectedYElement.set("stroke", updatedElement.stroke)
+        selectedYElement.set("width", updatedElement.width)
+        selectedYElement.set("height", updatedElement.height)
+        selectedYElement.set("stroke", updatedElement.stroke)
         ;
       }
 
@@ -225,8 +225,8 @@ export default function App() {
         };
         updateElement(selectedElementId, updatedElement);
         if (!selectedYElement) return;
-        // selectedYElement.set("width", updatedElement.width)
-        // selectedYElement.set("height", updatedElement.height)      
+        selectedYElement.set("width", updatedElement.width)
+        selectedYElement.set("height", updatedElement.height)      
 
       }
     }
@@ -303,12 +303,25 @@ export default function App() {
         console.log("Redo triggered")
         handleRedo()
       }
+      if(e.key === 'Delete' && selectedYElement){
+        console.log("Delete triggered")
+        doc.transact(() => {
+          const elementId = selectedYElement.get("id") as string;
+          yElement.delete(elementId);
+          // const index = order.toArray().indexOf(elementId);
+          // if (index > -1) {
+          //   order.delete(index, 1);
+          // }
+        }, doc.clientID);
+      }
+
     }
+
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
 
-  }, []);
+  }, [doc ,selectedYElement, yElement]);
 
   useEffect(() => {
     yElement.forEach((element, key) => {
@@ -318,7 +331,7 @@ export default function App() {
       console.log("Y.Element size:", yElement.size);
     }
     type YElement = Y.Map<unknown>;
-    type YElementsMap = Y.Map<YElement>;
+   
     type YElementsObserver = (event: Y.YMapEvent<YElement>) => void;
 
     const observer: YElementsObserver = (event) => {
@@ -350,7 +363,7 @@ export default function App() {
     canvas.height = canvas.offsetHeight;
     context.clearRect(0, 0, canvas.width, canvas.height);
     console.log("in use layout effect")
-    elements.forEach((el) => {
+    canvasDoc.yElement.forEach((el) => {
       DrawElements({ ctx: context, element: el });
     });
     roughCanvasRef.current = rough.canvas(canvas);

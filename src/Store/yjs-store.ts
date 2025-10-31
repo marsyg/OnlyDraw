@@ -1,4 +1,4 @@
-import { OnlyDrawElement, SharedDoc } from '@/types/type';
+
 import * as Y from 'yjs';
 import { YElement } from '@/types/type';
 import { WebsocketProvider } from 'y-websocket';

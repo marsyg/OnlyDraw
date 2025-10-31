@@ -1,40 +1,48 @@
 import { elementType, OnlyDrawElement } from '@/types/type';
 import getStroke from 'perfect-freehand';
 import { getSvgPathFromStroke } from './getSVGStroke';
-
+import * as Y from 'yjs';
 type DrawingArgs = {
   ctx: CanvasRenderingContext2D;
-  element: OnlyDrawElement;
+  element: Y.Map<unknown>;
 };
 
 export const DrawElements = ({ ctx, element }: DrawingArgs) => {
   ctx.save();
-
-  switch (element.type) {
+  const type = (element.get('type') as unknown) as elementType;
+  switch (type) {
     case elementType.Rectangle: {
       ctx.beginPath();
-      ctx.rect(element.x, element.y, element.width, element.height);
+      ctx.rect(
+        Number(element.get('x')),
+        Number(element.get('y')),
+        Number(element.get('width')),
+        Number(element.get('height'))
+      );
       ctx.strokeStyle = 'black';
 
       ctx.stroke();
       break;
     }
 
-    case elementType.line: {
+    case elementType.Line: {
       ctx.beginPath();
-      ctx.moveTo(element.x, element.y);
-      ctx.lineTo(element.x + element.width, element.y + element.height);
+      ctx.moveTo(Number(element.get('x')), Number(element.get('y')));
+      ctx.lineTo(
+        Number(element.get('x')) + Number(element.get('width')),
+        Number(element.get('y')) + Number(element.get('height'))
+      );
       ctx.stroke();
       break;
     }
 
-    case elementType.ellipse: {
+    case elementType.Ellipse: {
       ctx.beginPath();
       ctx.ellipse(
-        Math.abs(element.x + element.width / 2),
-        Math.abs(element.y + element.height / 2),
-        Math.abs(element.width / 2),
-        Math.abs(element.height / 2),
+        Math.abs(Number(element.get('x')) + Number(element.get('width')) / 2),
+        Math.abs(Number(element.get('y')) + Number(element.get('height')) / 2),
+        Math.abs(Number(element.get('width')) / 2),
+        Math.abs(Number(element.get('height')) / 2),
         0,
         0,
         2 * Math.PI
@@ -43,8 +51,9 @@ export const DrawElements = ({ ctx, element }: DrawingArgs) => {
       break;
     }
 
-    case elementType.freehand: {
-      const points = element.stroke.points;
+    case elementType.Freehand: {
+      type FreehandStroke = { points?: Array<[number, number, number?]> };
+      const points = (element.get('stroke') as unknown as FreehandStroke)?.points;
       if (!points) return;
       interface StrokeTaperOptions {
         taper: number;
@@ -79,7 +88,13 @@ export const DrawElements = ({ ctx, element }: DrawingArgs) => {
           cap: true,
         },
       };
-      const stroke = getStroke(points, options);
+      // normalize tuple points [x, y, pressure?] to objects expected by perfect-freehand
+      const normalizedPoints = points.map(([x, y, pressure]) => ({
+        x: Number(x),
+        y: Number(y),
+        pressure: pressure ?? 1,
+      }));
+      const stroke = getStroke(normalizedPoints, options);
       const path = getSvgPathFromStroke(stroke);
 
       const path2D = new Path2D(path);
