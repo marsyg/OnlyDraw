@@ -9,8 +9,9 @@ type args = {
 };
 
 export const DrawBounds = ({ context, bounds }: args) => {
-  const { maxX, minY, maxY, minX } = bounds;
   context.save();
+  const { maxX, minY, maxY, minX } = bounds;
+
   context.strokeStyle = 'rgba(0, 0, 255, 0.6)';
   context.setLineDash([4, 2]);
   context.lineWidth = 2;

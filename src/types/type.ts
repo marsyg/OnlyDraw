@@ -7,7 +7,7 @@ export type Stroke = {
 };
 
 type baseType = {
-  id: number;
+  id:string;
   x: number;
   y: number;
   height: number;

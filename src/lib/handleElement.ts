@@ -5,6 +5,7 @@ import {
   OnlyDrawElement,
   Stroke,
 } from '@/types/type';
+import { nanoid } from 'nanoid';
 type DrawArgs = {
   action: actionType;
   element: elementType | null;
@@ -23,7 +24,7 @@ export const handleDrawElement = ({
   switch (element) {
     case elementType.Rectangle:
       return {
-        id: Date.now(),
+        id: nanoid(),
         x: startPoint[0],
         y: startPoint[1],
         width: endPoint[0] - startPoint[0],
@@ -31,37 +32,37 @@ export const handleDrawElement = ({
         isDeleted: false,
         type: elementType.Rectangle,
       };
-    case elementType.line:
+    case elementType.Line:
       return {
-        id: Date.now(),
+        id:nanoid(),
         x: startPoint[0],
         y: startPoint[1],
         width: endPoint[0] - startPoint[0],
         height: endPoint[1] - startPoint[1],
         isDeleted: false,
-        type: elementType.line,
+        type: elementType.Line,
       };
-    case elementType.ellipse:
+    case elementType.Ellipse:
       return {
-        id: Date.now(),
+        id:nanoid(),
         x: startPoint[0],
         y: startPoint[1],
         width: endPoint[0] - startPoint[0],
         height: endPoint[1] - startPoint[1],
         isDeleted: false,
-        type: elementType.ellipse,
+        type: elementType.Ellipse,
       };
-    case elementType.freehand:
+    case elementType.Freehand:
       if (!stroke) return null;
       return {
-        id: Date.now(),
+        id:nanoid(),
         x: startPoint[0],
         y: startPoint[1],
         width: endPoint[0] - startPoint[0],
         height: endPoint[1] - startPoint[1],
         isDeleted: false,
         stroke: stroke,
-        type: elementType.freehand,
+        type: elementType.Freehand,
       };
     default:
       return null;

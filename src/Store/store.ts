@@ -66,10 +66,10 @@ export const useAppStore = create<AppState>((set) => ({
 
         switch (el.type) {
           case elementType.Rectangle:
-          case elementType.ellipse:
-          case elementType.line:
+          case elementType.Ellipse:
+          case elementType.Line:
             return { ...el, ...data } as typeof el;
-          case elementType.freehand:
+          case elementType.Freehand:
             const freehandData = data as Partial<freeHandElement>;
             return {
               ...el,
