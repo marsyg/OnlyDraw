@@ -5,7 +5,7 @@ import * as Y from 'yjs';
 type args = {
   element: Y.Map<unknown> ;
 };
-export type boundType = {
+export type   boundType = {
   minX: number;
   minY: number;
   maxX: number;

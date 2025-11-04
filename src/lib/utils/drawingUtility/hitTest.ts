@@ -12,6 +12,7 @@ export const isPointInsideElement = ({ point, element }: args): boolean => {
       return isInsideRectangle({ point, element });
     }
     case elementType.Ellipse: {
+      console.log('ellipse is being checked ');
       return isInsideEllipse({ point, element });
     }
     case elementType.Line: {

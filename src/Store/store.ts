@@ -4,8 +4,10 @@ import {
   freeHandElement,
   OnlyDrawElement,
   point,
+  
 } from '@/types/type';
-
+import { boundType } from '@/lib/utils/boundsUtility/getBounds';
+import * as Y from 'yjs';
 import { create } from 'zustand';
 
 type CurrentTool = {
@@ -16,22 +18,27 @@ type CurrentTool = {
 export type AppState = {
   elements: OnlyDrawElement[];
   currentTool: CurrentTool;
-  selectedElementId?: number | null;
+  selectedElementId?: string | null;
   toolbar: {
     activeToolId: string | null;
   };
+  bound : boundType | null ;
   isDragging: boolean;
   isSelecting: boolean;
   isResizing: boolean;
   isDrawing: boolean;
   pointerPosition: point;
-
+  resizeHandle?: string | null;
+  selectedYElement : Y.Map<unknown> | null;
+  
   //actions
-
+  setBound : (bound : boundType | null) => void ;
+  setYElement : (el : Y.Map<unknown> | null) => void;
+  setResizeHandle: (handle: string | null) => void;
   setCurrentTool: (tool: CurrentTool) => void;
   addElement: (el: OnlyDrawElement) => void;
-  updateElement: (id: number, data: Partial<OnlyDrawElement>) => void;
-  setSelectedElementId: (id: number | null) => void;
+  updateElement: (id:string, data: Partial<OnlyDrawElement>) => void;
+  setSelectedElementId: (id: string | null) => void;
   setIsDragging: (drag: boolean) => void;
   setIsDrawing: (draw: boolean) => void;
   setIsSelecting: (draw: boolean) => void;
@@ -42,19 +49,26 @@ export type AppState = {
 
 export const useAppStore = create<AppState>((set) => ({
   elements: [],
-  
+  bound : null ,
+  selectedElementId: null,
+  resizeHandle: null,
   currentTool: {
     action: actionType.Selecting,
     elementType: null,
   },
+ 
   isDrawing: false,
   isDragging: false,
   isResizing: false,
   isSelecting: false,
+  selectedYElement : null,
   pointerPosition: [0, 0],
   toolbar: {
     activeToolId: null,
   },
+  setBound : (bound) => set({ bound }),
+  setYElement : (el) => set({ selectedYElement : el }),
+  setResizeHandle: (handle) => set({ resizeHandle: handle }),
   setIsDrawing: (draw) => set({ isDrawing: draw }),
   setIsSelecting: (select) => set({ isSelecting: select }),
   setCurrentTool: (tool) => set({ currentTool: tool }),
