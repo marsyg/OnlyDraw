@@ -1,63 +1,58 @@
+import { boundType } from './utils/boundsUtility/getBounds';
 type args = {
   context: CanvasRenderingContext2D;
-  bounds: {
-    minX: number;
-    minY: number;
-    maxX: number;
-    maxY: number;
-  };
+  bounds: boundType;
 };
 
 export const DrawBounds = ({ context, bounds }: args) => {
-  const { minX, minY, maxX, maxY } = bounds;
+  const { x, y, width, height } = bounds;
   const padding = 6;
   const handleRadius = 4;
 
   context.save();
 
-  // --- Draw outer bounding box ---
+  
   context.strokeStyle = 'rgba(0, 120, 255, 0.8)';
   context.lineWidth = 2;
   context.shadowColor = 'rgba(0, 120, 255, 0.3)';
   context.shadowBlur = 8;
 
-  const x = minX - padding;
-  const y = minY - padding;
-  const width = maxX - minX + padding * 2;
-  const height = maxY - minY + padding * 2;
+  const boxX = x - padding;
+  const boxY = y - padding;
+  const boxWidth = width + padding * 2;
+  const boxHeight = height + padding * 2;
 
-  context.strokeRect(x, y, width, height);
-
+  context.strokeRect(boxX, boxY, boxWidth, boxHeight);
   // --- Draw resize handles ---
-  context.shadowBlur = 0; 
+  context.shadowBlur = 0;
   context.fillStyle = 'white';
   context.strokeStyle = 'rgba(0, 120, 255, 0.9)';
   context.lineWidth = 1.5;
 
-  const midX = (minX + maxX) / 2;
-  const midY = (minY + maxY) / 2;
+ 
+  const handleMinX = boxX;
+  const handleMinY = boxY;
+  const handleMaxX = boxX + boxWidth;
+  const handleMaxY = boxY + boxHeight;
+  const handleMidX = boxX + boxWidth / 2;
+  const handleMidY = boxY + boxHeight / 2;
 
-  
   const handles = [
-    [minX, minY], // top-left
-    [midX, minY], // top-middle
-    [maxX, minY], // top-right
-    [maxX, midY], // middle-right
-    [maxX, maxY], // bottom-right
-    [midX, maxY], // bottom-middle
-    [minX, maxY], // bottom-left
-    [minX, midY], // middle-left
+    [handleMinX, handleMinY], // top-left
+    [handleMidX, handleMinY], // top-middle
+    [handleMaxX, handleMinY], // top-right
+    [handleMaxX, handleMidY], // middle-right
+    [handleMaxX, handleMaxY], // bottom-right
+    [handleMidX, handleMaxY], // bottom-middle
+    [handleMinX, handleMaxY], // bottom-left
+    [handleMinX, handleMidY], // middle-left
   ];
 
   handles.forEach(([hx, hy]) => {
-    const cx = hx + (hx === minX ? -padding : hx === maxX ? padding : 0);
-    const cy = hy + (hy === minY ? -padding : hy === maxY ? padding : 0);
-
     context.beginPath();
-    context.arc(cx, cy, handleRadius, 0, Math.PI * 2);
+    context.arc(hx, hy, handleRadius, 0, Math.PI * 2);
     context.fill();
     context.stroke();
   });
-
   context.restore();
 };

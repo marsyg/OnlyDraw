@@ -18,7 +18,7 @@ const createYElement = (element: OnlyDrawElement) => {
   
   return newElement;
 };
-const updateYelement = (element : OnlyDrawElement , yElement : Y.Map<unknown>) =>{
+const updateYElement = (element : OnlyDrawElement , yElement : Y.Map<unknown>) =>{
   const newElement = yElement;
   newElement.set('x', element.x);
   newElement.set('y', element.y);
@@ -26,10 +26,10 @@ const updateYelement = (element : OnlyDrawElement , yElement : Y.Map<unknown>) =
   newElement.set('height', element.height);
   if (element.type === 'freehand') newElement.set('stroke', element.stroke);
   newElement.set('isDeleted', element.isDeleted);
-  newElement.set('author', canvasDoc.doc.clientID);
+  
   
   return newElement;
 }
-const yUtils = { createYElement, updateYelement };
+const yUtils = { createYElement, updateYElement };
 export default yUtils;
 

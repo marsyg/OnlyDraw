@@ -22,7 +22,8 @@ import yUtils from '@/lib/utils/createYElement';
 import { handleUndo, handleRedo } from '@/lib/helperfunc/undo-redo';
 import { UndoManager as undoManager } from '@/Store/yjs-store';
 import detectResizeHandle from '@/lib/hitTest/detectResizeHandler';
-import resizeElement from '@/lib/resizeElement';
+import resizeBound from '@/lib/resizeBound';
+import { resizeElement } from '@/lib/resizeElement';
 
 export default function App() {
   const { doc, yElement, order } = canvasDoc;
@@ -52,7 +53,7 @@ export default function App() {
     bound,
     setBound,
   } = useAppStore();
-  const [foundHandle, setFoundHandle] = useState<boolean>(false)
+  
   const [freehandPoint, setFreehandPoint] = useState<PointsFreeHand[]>([
     [pointerPosition[0], pointerPosition[1], 1] as PointsFreeHand,
   ]);
@@ -61,6 +62,8 @@ export default function App() {
   const [GlobalPointerPosition, setGlobalPointerPosition] = useState<Point | null>(null)
   const generatorRef = useRef<RoughGenerator | null>(null);
   const roughCanvasRef = useRef<RoughCanvas | null>(null);
+  const resizeStartPointerRef = useRef<point | null>(null);
+  const resizeOriginalRectRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
 
   const flagRef = useRef<boolean>(false)
   const animationFrameIdRef = useRef<number | null>(null);
@@ -83,7 +86,7 @@ export default function App() {
     animationFrameIdRef.current = requestAnimationFrame(renderCanvas);
   }, [renderCanvas]);
 
-  // return coords synchronously and update pointerPosition state (but prefer using returned coords)
+  
   const getMOuseCoordinate = (e: React.PointerEvent) => {
     const canvas = canvasRef.current;
     if (!canvas) return [0, 0] as [number, number];
@@ -118,11 +121,11 @@ export default function App() {
     const initialPoint: point = [x, y];
     setFreehandPoint([[initialPoint[0], initialPoint[1], 1] as PointsFreeHand]);
 
-    // If selecting tool: perform immediate hit-test and start dragging if clicked an element
+    
     if (currentTool.action === actionType.Selecting) {
       const hit = hitTestAtPoint(initialPoint);
       if (hit && hit.yEl) {
-        // setSelectedElementId(hit.id);
+        ;
         setYElement(hit.yEl);
         setBound(getBounds({ element: hit.yEl }));
         setIsDragging(true);
@@ -130,22 +133,30 @@ export default function App() {
 
         flagRef.current = true;
 
-        // capture pointer so we get consistent move/up events
+       
         try { (e.target as Element).setPointerCapture(e.pointerId); } catch (err) { }
       } else {
-        setYElement(null);
+        
         setIsDragging(false);
       }
       if (resizeHandleRef.current) {
         console.log("Resize Handle Found on Pointer Down:", resizeHandleRef.current.direction);
         setIsResizing(true);
         setResizeHandle(resizeHandleRef.current.direction);
+        setIsDragging(false);
+        resizeStartPointerRef.current = initialPoint; 
+        if (hit && hit.yEl) {
+
+          resizeOriginalRectRef.current = (getBounds({ element: hit.yEl })) as { x: number; y: number; width: number; height: number };
+        } else if (bound) {
+          resizeOriginalRectRef.current = (bound) as { x: number; y: number; width: number; height: number };
+        }
 
       }
-      return;
+    
     }
 
-    // Drawing tool: create element and use returned Y element to start drawing immediately
+    
     if (currentTool.action === actionType.Drawing) {
       const element = handleDrawElement({
         action: actionType.Drawing,
@@ -163,16 +174,16 @@ export default function App() {
         let createdYEl: Y.Map<unknown> | null = null;
         doc.transact(() => {
           createdYEl = yUtils.createYElement(element);
-          // ensure it exists in shared map
+
           if (!yElement.get(element.id) && createdYEl) {
             yElement.set(element.id, createdYEl);
             order.push([element.id]);
           }
         }, doc.clientID);
-        // start drawing immediately using createdYEl (don't rely on selectedYElement state)
+        
         if (createdYEl) {
           setYElement(createdYEl);
-          // addElement(element);
+          
           setSelectedElementId(element.id);
           setIsDrawing(true);
           setGlobalPointerPosition([x, y]);
@@ -189,68 +200,112 @@ export default function App() {
     const [x, y] = getMOuseCoordinate(e);
     const pt: point = [x, y];
     console.log("resizing status ", isResizing)
-    // Selection hover logic (only when not dragging)
-    if (currentTool.action === actionType.Selecting && !isDragging && !isResizing) {
+    
+    if (currentTool.action === actionType.Selecting && !isDragging && !isResizing ) {
       console.log("inside hover logic")
-      let found = false;
-      let foundElement: Y.Map<unknown> | null = null;
+      
+      let foundElementToSelect: Y.Map<unknown> | null = null;
+      
 
-
-      for (let i = order.length - 1; i >= 0; i--) {
-        const elementId = order.get(i) as string;
-        const element = yElement.get(elementId);
-        if (element) console.log(element.toJSON())
-        if (!element) continue;
-        const isHit = isPointInsideElement({ point: pt, element });
-        console.log("isHit --->", isHit)
-        flagRef.current = isHit;
-        if (isHit) {
-          found = true;
-          foundElement = element;
-
-          const resizeHandle = detectResizeHandle({ point: pt, element, tolerance: 10 })
-          if (resizeHandle) {
-            foundResizeHandle = resizeHandle
-            resizeHandleRef.current = resizeHandle;
-            setFoundHandle(true)
-            // setCursorStyle(resizeHandle.cursor)
-            // setIsDragging(false)
-            // setIsResizing(true)
-            // setResizeHandle(resizeHandle.direction)
-            // resizeElement expects four positional arguments: (handle, element, initialPosition, currentPosition)
-
-
-          }
-          break;
-        }
-
+      const hit = hitTestAtPoint(pt);
+      if (hit) {
+        foundElementToSelect = hit.yEl;
+        
       }
-      if (found && foundElement) {
-        setYElement(foundElement);
+      let newCursorStyle = 'default';
+      let newResizeHandle: { direction: string; cursor: string } | null = null;
+      const elementToCheck = selectedYElement || foundElementToSelect;
+
+      const boundsToCheck = bound || (elementToCheck ? getBounds({ element: elementToCheck }) : null);
+      if (boundsToCheck) {
+        const handleHit = detectResizeHandle({ point: pt, element: boundsToCheck, tolerance: 10 });
+        if (handleHit) {
+          newResizeHandle = handleHit;
+          newCursorStyle = handleHit.cursor;
+          console.log({handleHit})
+          console.log({newResizeHandle})
+          console.log({newCursorStyle})
+        }
+      }
+
+      // for (let i = order.length - 1; i >= 0; i--) {
+      //   const elementId = order.get(i) as string;
+      //   const element = yElement.get(elementId);
+      //   if (element) console.log(element.toJSON())
+      //   if (!element) continue;
+      //   const isHit = isPointInsideElement({ point: pt, element });
+      //   console.log("isHit --->", isHit)
+      //   flagRef.current = isHit;
+      //   if (isHit) {
+      //     found = true;
+      //     foundElementToSelect = element;
+      //     if (!bound) return
+      //     const resizeHandle = detectResizeHandle({ point: pt, element: bound, tolerance: 10 })
+      //     if (resizeHandle) {
+      //       foundResizeHandle = resizeHandle
+      //       resizeHandleRef.current = resizeHandle;
+      //       setFoundHandle(true)
+      //       // setCursorStyle(resizeHandle.cursor)
+      //       // setIsDragging(false)
+      //       // setIsResizing(true)
+      //       // setResizeHandle(resizeHandle.direction)
+      //       // resizeElement expects four positional arguments: (handle, element, initialPosition, currentPosition)
+
+
+      //     }
+      //     break;
+      //   }
+
+      // }
+      // if (found && foundElementToSelect) {
+      //   setYElement(foundElementToSelect);
+      //   setCursorStyle('grab');
+
+      //   if (foundResizeHandle) {
+      //     setIsDragging(false)
+      //     setResizeHandle(foundResizeHandle.direction)
+      //     console.log("Resize Handle Detected:", foundResizeHandle.direction);
+      //     setCursorStyle(foundResizeHandle.cursor);
+      //   }
+
+
+      // } else {
+      //   // setYElement(null);
+      //   setCursorStyle('default');
+      //   setIsResizing(false);
+      //   setResizeHandle(null)
+      // }
+
+      
+      if (newResizeHandle) {
+        
+        setCursorStyle(newCursorStyle);
+        resizeHandleRef.current = newResizeHandle;
+        setYElement(elementToCheck); 
+        setBound(boundsToCheck); 
+        setIsDragging(false);
+      } else if (foundElementToSelect) {
+       
+        setYElement(foundElementToSelect);
+        setBound(getBounds({ element: foundElementToSelect }));
         setCursorStyle('grab');
-
-        if (foundResizeHandle) {
-          setIsDragging(false)
-          setResizeHandle(foundResizeHandle.direction)
-          console.log("Resize Handle Detected:", foundResizeHandle.direction);
-          setCursorStyle(foundResizeHandle.cursor);
-        }
-
-
+        resizeHandleRef.current = null;
       } else {
-        // setYElement(null);
+        
         setCursorStyle('default');
-        setIsResizing(false);
-        setResizeHandle(null)
+        resizeHandleRef.current = null;        
       }
+
+     
+      foundResizeHandle = newResizeHandle;
 
 
     }
 
-    // If not drawing or dragging, nothing to do
+   
     if (!isDrawing && !isDragging && !isResizing) return;
 
-    // Drawing update: use x,y directly and update shared element via yUtils
+   
     if (currentTool.action === actionType.Drawing) {
       if (!selectedYElement) return;
       const elementJSON = selectedYElement.toJSON() as OnlyDrawElement;
@@ -265,7 +320,7 @@ export default function App() {
           height: y - elementJSON.y,
           stroke,
         } as Extract<OnlyDrawElement, { type: elementType.Freehand }>;
-        yUtils.updateYelement(updatedElement, selectedYElement);
+        yUtils.updateYElement(updatedElement, selectedYElement);
         scheduleRender();
       } else {
         const updatedElement = {
@@ -273,13 +328,13 @@ export default function App() {
           width: x - elementJSON.x,
           height: y - elementJSON.y,
         };
-        yUtils.updateYelement(updatedElement, selectedYElement);
+        yUtils.updateYElement(updatedElement, selectedYElement);
         scheduleRender();
       }
       return;
     }
 
-    // Dragging update: compute movement from GlobalPointerPosition (initial down) to current x,y
+    
     if (isDragging) {
       if (!GlobalPointerPosition || !selectedYElement) return;
       const updatedElement = DragElements({
@@ -298,22 +353,36 @@ export default function App() {
       }
       scheduleRender();
 
-      // Update GlobalPointerPosition to current so drag becomes incremental (optional)
+
       setGlobalPointerPosition([x, y]);
     }
     if (isResizing) {
       console.log("Resizing in progress...");
+      console.log({GlobalPointerPosition})
+      console.log({selectedYElement})
+      console.log({resizeHandle})
       if (!GlobalPointerPosition || !selectedYElement || !resizeHandle) return;
 
-      const originalElement = selectedYElement.toJSON() as OnlyDrawElement;
-      const resizedPartial = resizeElement(resizeHandle, GlobalPointerPosition, [x, y], originalElement);
-      // merge partial resize result into the original element so all required fields (id, isDeleted, etc.) are present
-      const updatedElement: OnlyDrawElement = {
-        ...originalElement,
-        ...resizedPartial,
-      };
-      yUtils.updateYelement(updatedElement, selectedYElement);
+     console.log("are we resizing ?")
+
+
+      const startPointer = resizeStartPointerRef.current
+      const originalBound = resizeOriginalRectRef.current
+      if (!startPointer || !originalBound || !selectedYElement || !resizeHandle || !bound) return;
+      const resizedBound = resizeBound(resizeHandle, startPointer, [x, y], originalBound);
+
+      setBound(resizedBound)
+      scheduleRender()
+      doc.transact(() => {
+        resizeElement({
+          element: selectedYElement,
+          newBounds: resizedBound,
+          oldBounds: originalBound
+        })
+      }, doc.clientID)
+
     }
+
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
@@ -321,13 +390,15 @@ export default function App() {
     setIsDrawing(false);
     setIsDragging(false);
 
-    setGlobalPointerPosition(null);
+   
     setSelectedElementId(null);
     resizeHandleRef.current = null;
     setIsResizing(false);
     setResizeHandle(null);
     setCursorStyle("default")
-    // release pointer capture
+    resizeStartPointerRef.current = null;
+    resizeOriginalRectRef.current = null;
+
     try {
       if ((e.target as Element).hasPointerCapture && (e.target as Element).hasPointerCapture(e.pointerId)) {
         (e.target as Element).releasePointerCapture(e.pointerId);
@@ -342,6 +413,7 @@ export default function App() {
     if (!context) {
       return;
     }
+   
     console.log(isDragging, currentTool);
     if (currentTool.action === actionType.Drawing) {
       setCursorStyle("crosshair")
@@ -363,7 +435,7 @@ export default function App() {
 
     console.log("selectedYElement changed ", selectedYElement?.toJSON());
     console.log("bound changed ", bound);
-    // draw bound
+
     if (selectedYElement && bound) {
       DrawBounds({ context, bounds: bound })
     }
@@ -441,7 +513,8 @@ export default function App() {
     console.log("currentTool ---> ", currentTool)
     console.log("selectedYElement ---> ", selectedYElement)
     console.log("resizeHandle ---> ", resizeHandle)
-  }, [isDragging, isDrawing, CursorStyle, currentTool, selectedYElement, resizeHandle]);
+    console.log("isResizing ---> ", isResizing)
+  }, [isDragging, isDrawing, CursorStyle, currentTool, selectedYElement, resizeHandle, isResizing]);
   useEffect(() => {
     return () => {
       if (animationFrameIdRef.current) {

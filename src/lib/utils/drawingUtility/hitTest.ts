@@ -1,4 +1,4 @@
-import { elementType } from '@/types/type';
+import { elementType, Stroke } from '@/types/type';
 import { args } from '../../hitTest/argumentType';
 
 import { isInsideRectangle } from '../../hitTest/rectangle';
@@ -19,7 +19,7 @@ export const isPointInsideElement = ({ point, element }: args): boolean => {
       return isNearLine({ point, element });
     }
     case elementType.Freehand: {
-      return isNearFreehand(point, element.get('stroke') as any);
+      return isNearFreehand(point, element.get('stroke') as unknown as Stroke);
     }
     default:
       return false;

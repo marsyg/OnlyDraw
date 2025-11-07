@@ -1,17 +1,18 @@
 import * as Y from 'yjs';
 import { point } from '@/types/type';
+import { boundType } from '../utils/boundsUtility/getBounds';
 export type args = {
   point: point;
-  element: Y.Map<unknown>;
+  element: boundType;
   tolerance: number;
 };
 function detectResizeHandle({ point, element, tolerance }: args) {
   const pointerX = point[0];
   const pointerY = point[1];
-  const x = element.get('x') as number;
-  const y = element.get('y') as number;
-  const w = element.get('width') as number;
-  const h = element.get('height') as number;
+  const x = element.x;
+  const y = element.y;
+  const w = element.width;
+  const h = element.height;
 
   const corners = {
     nw: { x, y, cursor: 'nw-resize' },
