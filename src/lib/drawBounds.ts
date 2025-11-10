@@ -23,7 +23,7 @@ export const DrawBounds = ({ context, bounds }: args) => {
   const boxHeight = height + padding * 2;
 
   context.strokeRect(boxX, boxY, boxWidth, boxHeight);
-  // --- Draw resize handles ---
+ 
   context.shadowBlur = 0;
   context.fillStyle = 'white';
   context.strokeStyle = 'rgba(0, 120, 255, 0.9)';
@@ -38,11 +38,11 @@ export const DrawBounds = ({ context, bounds }: args) => {
   const handleMidY = boxY + boxHeight / 2;
 
   const handles = [
-    [handleMinX, handleMinY], // top-left
-    [handleMidX, handleMinY], // top-middle
-    [handleMaxX, handleMinY], // top-right
-    [handleMaxX, handleMidY], // middle-right
-    [handleMaxX, handleMaxY], // bottom-right
+    [handleMinX, handleMinY], 
+    [handleMidX, handleMinY], 
+    [handleMaxX, handleMinY],
+    [handleMaxX, handleMidY], 
+    [handleMaxX, handleMaxY], 
     [handleMidX, handleMaxY], // bottom-middle
     [handleMinX, handleMaxY], // bottom-left
     [handleMinX, handleMidY], // middle-left

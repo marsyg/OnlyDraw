@@ -9,7 +9,7 @@ type DrawingArgs = {
 
 export const DrawElements = ({ ctx, element }: DrawingArgs) => {
   ctx.save();
-  const type = (element.get('type') as unknown) as elementType;
+  const type = element.get('type') as unknown as elementType;
   switch (type) {
     case elementType.Rectangle: {
       ctx.beginPath();
@@ -52,8 +52,18 @@ export const DrawElements = ({ ctx, element }: DrawingArgs) => {
     }
 
     case elementType.Freehand: {
-      type FreehandStroke = { points?: Array<[number, number, number?]> };
-      const points = (element.get('stroke') as unknown as FreehandStroke)?.points;
+      const x = Number(element.get('x'));
+      const y = Number(element.get('y'));
+      ctx.translate(x, y);
+      const strokeData = element.get('points') as Y.Array<Y.Map<number>>;
+      const points = strokeData
+        .toArray()
+        .map((p) => [
+          p.get('x') as number,
+          p.get('y') as number,
+          p.get('pressure') as number,
+        ]);
+
       if (!points) return;
       interface StrokeTaperOptions {
         taper: number;
@@ -72,7 +82,7 @@ export const DrawElements = ({ ctx, element }: DrawingArgs) => {
       }
 
       const options: StrokeOptions = {
-        size: 22,
+        size: 10,
         thinning: 0.5,
         smoothing: 0.5,
         streamline: 0.5,
@@ -88,7 +98,6 @@ export const DrawElements = ({ ctx, element }: DrawingArgs) => {
           cap: true,
         },
       };
-      // normalize tuple points [x, y, pressure?] to objects expected by perfect-freehand
       const normalizedPoints = points.map(([x, y, pressure]) => ({
         x: Number(x),
         y: Number(y),

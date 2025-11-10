@@ -29,10 +29,15 @@ export const getBounds = ({ element }: args): boundType => {
     }
 
     case elementType.Freehand: {
-      const stroke = element.get('stroke') as unknown as
-        | { points: Point[] }
-        | undefined;
-      const points = stroke?.points ?? [];
+      const strokeData = element.get('points') as Y.Array<Y.Map<number>>;
+      const points = strokeData
+        .toArray()
+        .map((p) => [
+          p.get('x') as number,
+          p.get('y') as number,
+          p.get('pressure') as number,
+        ]);
+
       if (points.length === 0) {
         const x1 = Math.min(x, x + width);
         const y1 = Math.min(y, y + height);
@@ -44,12 +49,12 @@ export const getBounds = ({ element }: args): boundType => {
       const absPoints = points.map(([px, py]) => [x + px, y + py] as Point);
       const xs = absPoints.map(([px]) => px);
       const ys = absPoints.map(([py]) => py);
-
+      const pad = 11;
       return {
-        x: Math.min(...xs),
-        y: Math.min(...ys),
-        width: Math.max(...xs) - Math.min(...xs),
-        height: Math.max(...ys) - Math.min(...ys),
+        x: Number(element.get('x')) - pad,
+        y: Number(element.get('y')) - pad,
+        width: Number(element.get('width')) + 2 * pad,
+        height: Number(element.get('height')) + 2 * pad,
       };
     }
     default:

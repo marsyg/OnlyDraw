@@ -1,4 +1,4 @@
-    import { OnlyDrawElement, point } from '@/types/type'
+    import {point } from '@/types/type'
     import * as Y from 'yjs';
     export type args = {
         point : point

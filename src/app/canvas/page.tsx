@@ -7,13 +7,14 @@ import { useAppStore } from '@/Store/store';
 import { RoughGenerator } from 'roughjs/bin/generator';
 import { RoughCanvas } from 'roughjs/bin/canvas';
 import Toolbar from '@/component/toolbar';
-import { OnlyDrawElement, point, PointsFreeHand, Stroke } from '@/types/type';
+import { freeHandElement, OnlyDrawElement, point, PointsFreeHand, Stroke } from '@/types/type';
 import { actionType, elementType } from '@/types/type';
 import { handleDrawElement } from '@/lib/handleElement';
 import { DrawElements } from '@/lib/utils/drawingUtility/drawElement';
 import { isPointInsideElement } from '@/lib/utils/drawingUtility/hitTest';
 import { DrawBounds } from '@/lib/drawBounds';
 import { getBounds } from '@/lib/utils/boundsUtility/getBounds';
+import { isPointInPaddedBounds } from '@/lib/utils/boundsUtility/isPointInPaddedBounds';
 import { DragElements } from '@/lib/dragElement';
 import canvasDoc from '@/Store/yjs-store';
 import * as Y from 'yjs';
@@ -53,11 +54,12 @@ export default function App() {
     bound,
     setBound,
   } = useAppStore();
-  
-  const [freehandPoint, setFreehandPoint] = useState<PointsFreeHand[]>([
+
+  const [freehandPoint, setFreehandPoint] = useState<PointsFreeHand[] | null>([
     [pointerPosition[0], pointerPosition[1], 1] as PointsFreeHand,
   ]);
   const [CursorStyle, setCursorStyle] = useState("default")
+  const [lockedBounds, setLockedBounds] = useState<boolean>(false)
 
   const [GlobalPointerPosition, setGlobalPointerPosition] = useState<Point | null>(null)
   const generatorRef = useRef<RoughGenerator | null>(null);
@@ -69,6 +71,7 @@ export default function App() {
   const animationFrameIdRef = useRef<number | null>(null);
   let foundResizeHandle: { direction: string; cursor: string } | null = null;
   const resizeHandleRef = useRef<{ direction: string; cursor: string } | null>(null);
+  const originalPointRef = useRef<PointsFreeHand[] | null>(null)
 
   const renderCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -86,7 +89,7 @@ export default function App() {
     animationFrameIdRef.current = requestAnimationFrame(renderCanvas);
   }, [renderCanvas]);
 
-  
+
   const getMOuseCoordinate = (e: React.PointerEvent) => {
     const canvas = canvasRef.current;
     if (!canvas) return [0, 0] as [number, number];
@@ -112,31 +115,47 @@ export default function App() {
   };
 
   const handlePointerDown = (e: React.PointerEvent) => {
+
     const canvas = canvasRef.current;
     if (!canvas) return;
     const context = canvas.getContext('2d');
     if (!context) return;
 
     const [x, y] = getMOuseCoordinate(e);
+    console.log({ getMOuseCoordinate })
     const initialPoint: point = [x, y];
-    setFreehandPoint([[initialPoint[0], initialPoint[1], 1] as PointsFreeHand]);
 
-    
+
+    setFreehandPoint([[initialPoint[0], initialPoint[1], 1] as PointsFreeHand]);
     if (currentTool.action === actionType.Selecting) {
-      const hit = hitTestAtPoint(initialPoint);
+
+      const handleHit = bound ? detectResizeHandle({ point: initialPoint, element: bound, tolerance: 10 }) : null;
+      if (handleHit) {
+        resizeHandleRef.current = handleHit;
+      }
+
+      let hit = null;
+      if (lockedBounds && bound && isPointInPaddedBounds(initialPoint, bound)) {
+        if (selectedYElement) {
+          hit = { id: selectedYElement.get('id') as string, yEl: selectedYElement };
+        }
+      } else {
+        hit = hitTestAtPoint(initialPoint);
+      }
+
       if (hit && hit.yEl) {
-        ;
+        const currentBounds = getBounds({ element: hit.yEl });
         setYElement(hit.yEl);
         setBound(getBounds({ element: hit.yEl }));
         setIsDragging(true);
-        setGlobalPointerPosition([x, y]);
+        const offsetXToBound = x - currentBounds.x;
+        const offsetYToBound = y - currentBounds.y;
+        setGlobalPointerPosition([offsetXToBound, offsetYToBound])
 
         flagRef.current = true;
-
-       
-        try { (e.target as Element).setPointerCapture(e.pointerId); } catch (err) { }
-      } else {
-        
+      }
+      else {
+        setLockedBounds(false)
         setIsDragging(false);
       }
       if (resizeHandleRef.current) {
@@ -144,20 +163,41 @@ export default function App() {
         setIsResizing(true);
         setResizeHandle(resizeHandleRef.current.direction);
         setIsDragging(false);
-        resizeStartPointerRef.current = initialPoint; 
-        if (hit && hit.yEl) {
+        resizeStartPointerRef.current = initialPoint;
 
+
+        const stroke = selectedYElement?.get('points') as Y.Array<Y.Map<number>>;
+        const points: PointsFreeHand[] = stroke
+          .toArray()
+          .map((p) => [
+            (p.get('x') as number),
+            (p.get('y') as number),
+            p.get('pressure') as number,
+          ]);
+
+        originalPointRef.current = points
+        if (hit && hit.yEl) {
           resizeOriginalRectRef.current = (getBounds({ element: hit.yEl })) as { x: number; y: number; width: number; height: number };
         } else if (bound) {
           resizeOriginalRectRef.current = (bound) as { x: number; y: number; width: number; height: number };
         }
 
       }
-    
+      if (bound) setLockedBounds(true)
+      else setLockedBounds(false)
+
+      if (!hit && !resizeHandleRef.current) {
+        setYElement(null)
+        setBound(null)
+        setLockedBounds(false)
+
+      }
+
     }
 
-    
+
     if (currentTool.action === actionType.Drawing) {
+      setCursorStyle("crosshair")
       const element = handleDrawElement({
         action: actionType.Drawing,
         element: currentTool.elementType,
@@ -167,6 +207,7 @@ export default function App() {
           points: [[initialPoint[0], initialPoint[1], 1]],
         },
       });
+
       if (!element) return;
 
       try {
@@ -180,14 +221,14 @@ export default function App() {
             order.push([element.id]);
           }
         }, doc.clientID);
-        
+
         if (createdYEl) {
           setYElement(createdYEl);
-          
+
           setSelectedElementId(element.id);
           setIsDrawing(true);
           setGlobalPointerPosition([x, y]);
-          try { (e.target as Element).setPointerCapture(e.pointerId); } catch (err) { }
+
         }
       } catch (error) {
         console.error("error in creating y element", error);
@@ -199,153 +240,160 @@ export default function App() {
   const handlePointerMove = (e: React.PointerEvent) => {
     const [x, y] = getMOuseCoordinate(e);
     const pt: point = [x, y];
+    console.log([x, y])
     console.log("resizing status ", isResizing)
-    
-    if (currentTool.action === actionType.Selecting && !isDragging && !isResizing ) {
-      console.log("inside hover logic")
-      
-      let foundElementToSelect: Y.Map<unknown> | null = null;
-      
 
-      const hit = hitTestAtPoint(pt);
-      if (hit) {
+    if (currentTool.action === actionType.Selecting && !isDragging && !isResizing) {
+      console.log("inside hover logic")
+      let foundElementToSelect: Y.Map<unknown> | null = null;
+
+
+      let hit = null;
+      if (lockedBounds && bound && isPointInPaddedBounds(pt, bound)) {
+
+        if (selectedYElement) {
+          hit = { id: selectedYElement.get('id') as string, yEl: selectedYElement };
+        }
+      } else {
+        hit = hitTestAtPoint(pt);
+      }
+
+      if (hit && !lockedBounds) {
         foundElementToSelect = hit.yEl;
-        
+        setBound(getBounds({ element: foundElementToSelect }));
+        console.log({ pt })
+        console.log("bounds calculated at resizing ", getBounds({ element: foundElementToSelect }))
+
       }
       let newCursorStyle = 'default';
       let newResizeHandle: { direction: string; cursor: string } | null = null;
       const elementToCheck = selectedYElement || foundElementToSelect;
 
-      const boundsToCheck = bound || (elementToCheck ? getBounds({ element: elementToCheck }) : null);
-      if (boundsToCheck) {
-        const handleHit = detectResizeHandle({ point: pt, element: boundsToCheck, tolerance: 10 });
+
+      if (bound || elementToCheck) {
+        const handleHit = detectResizeHandle({ point: pt, element: bound || getBounds({ element: elementToCheck! }), tolerance: 10 });
         if (handleHit) {
           newResizeHandle = handleHit;
           newCursorStyle = handleHit.cursor;
-          console.log({handleHit})
-          console.log({newResizeHandle})
-          console.log({newCursorStyle})
+
         }
+      } else {
+        setBound(null)
+        setYElement(null)
       }
 
-      // for (let i = order.length - 1; i >= 0; i--) {
-      //   const elementId = order.get(i) as string;
-      //   const element = yElement.get(elementId);
-      //   if (element) console.log(element.toJSON())
-      //   if (!element) continue;
-      //   const isHit = isPointInsideElement({ point: pt, element });
-      //   console.log("isHit --->", isHit)
-      //   flagRef.current = isHit;
-      //   if (isHit) {
-      //     found = true;
-      //     foundElementToSelect = element;
-      //     if (!bound) return
-      //     const resizeHandle = detectResizeHandle({ point: pt, element: bound, tolerance: 10 })
-      //     if (resizeHandle) {
-      //       foundResizeHandle = resizeHandle
-      //       resizeHandleRef.current = resizeHandle;
-      //       setFoundHandle(true)
-      //       // setCursorStyle(resizeHandle.cursor)
-      //       // setIsDragging(false)
-      //       // setIsResizing(true)
-      //       // setResizeHandle(resizeHandle.direction)
-      //       // resizeElement expects four positional arguments: (handle, element, initialPosition, currentPosition)
-
-
-      //     }
-      //     break;
-      //   }
-
-      // }
-      // if (found && foundElementToSelect) {
-      //   setYElement(foundElementToSelect);
-      //   setCursorStyle('grab');
-
-      //   if (foundResizeHandle) {
-      //     setIsDragging(false)
-      //     setResizeHandle(foundResizeHandle.direction)
-      //     console.log("Resize Handle Detected:", foundResizeHandle.direction);
-      //     setCursorStyle(foundResizeHandle.cursor);
-      //   }
-
-
-      // } else {
-      //   // setYElement(null);
-      //   setCursorStyle('default');
-      //   setIsResizing(false);
-      //   setResizeHandle(null)
-      // }
-
-      
       if (newResizeHandle) {
-        
         setCursorStyle(newCursorStyle);
         resizeHandleRef.current = newResizeHandle;
-        setYElement(elementToCheck); 
-        setBound(boundsToCheck); 
+        setYElement(elementToCheck);
         setIsDragging(false);
-      } else if (foundElementToSelect) {
-       
+      } else if (foundElementToSelect && !lockedBounds) {
+
         setYElement(foundElementToSelect);
         setBound(getBounds({ element: foundElementToSelect }));
         setCursorStyle('grab');
         resizeHandleRef.current = null;
       } else {
-        
         setCursorStyle('default');
-        resizeHandleRef.current = null;        
+        resizeHandleRef.current = null;
       }
-
-     
       foundResizeHandle = newResizeHandle;
-
-
     }
 
-   
+
     if (!isDrawing && !isDragging && !isResizing) return;
 
-   
+
     if (currentTool.action === actionType.Drawing) {
       if (!selectedYElement) return;
       const elementJSON = selectedYElement.toJSON() as OnlyDrawElement;
       const type = selectedYElement.get('type') as unknown as elementType;
-      if (type === elementType.Freehand) {
-        const newPoints: PointsFreeHand[] = [...freehandPoint, [x, y, 1] as PointsFreeHand];
-        setFreehandPoint(newPoints);
-        const stroke: Stroke = { points: newPoints };
+      if (type === elementType.Freehand && freehandPoint) {
+
+        const newAbsPoints: PointsFreeHand[] = [
+          ...freehandPoint,
+          [x, y, 1] as PointsFreeHand,
+        ];
+        setFreehandPoint(newAbsPoints);
+
+        const xs = newAbsPoints.map(([px]) => px);
+        const ys = newAbsPoints.map(([, py]) => py);
+        console.log({ xs })
+        console.log({ ys })
+        const minX = Math.min(...xs);
+        const minY = Math.min(...ys);
+        const maxX = Math.max(...xs);
+        const maxY = Math.max(...ys);
+        console.log("minX:", minX);
+        console.log("minY:", minY);
+        console.log("maxX:", maxX);
+        console.log("maxY:", maxY);
+
+        const relPoints = newAbsPoints.map(
+          ([px, py, pressure]) =>
+            [px - minX, py - minY, pressure] as PointsFreeHand
+        );
+
+
         const updatedElement = {
           ...(elementJSON as Extract<OnlyDrawElement, { type: elementType.Freehand }>),
-          width: x - elementJSON.x,
-          height: y - elementJSON.y,
-          stroke,
+          x: minX,
+          y: minY,
+          width: maxX - minX,
+          height: maxY - minY,
+          stroke: { points: relPoints },
         } as Extract<OnlyDrawElement, { type: elementType.Freehand }>;
-        yUtils.updateYElement(updatedElement, selectedYElement);
+
+        console.log(
+          "Updated Element Values:",
+          {
+            x: minX,
+            y: minY,
+            width: maxX - minX,
+            height: maxY - minY,
+            elementJSON,
+          }
+        );
+
+        console.log(
+          '[Move] Updating Freehand:',
+          `x: ${updatedElement.x}, y: ${updatedElement.y}`,
+          `Points (Count: ${updatedElement.stroke.points.length}):`,
+          JSON.parse(JSON.stringify(updatedElement.stroke.points))
+        );
+
+        doc.transact(() => {
+          yUtils.updateYElement(updatedElement, selectedYElement);
+        }, doc.clientID)
+
         scheduleRender();
+
       } else {
         const updatedElement = {
           ...elementJSON,
           width: x - elementJSON.x,
           height: y - elementJSON.y,
         };
-        yUtils.updateYElement(updatedElement, selectedYElement);
+        doc.transact(() => {
+          yUtils.updateYElement(updatedElement, selectedYElement);
+        }, doc.clientID)
         scheduleRender();
       }
       return;
     }
 
-    
+
     if (isDragging) {
-      if (!GlobalPointerPosition || !selectedYElement) return;
-      const updatedElement = DragElements({
-        initialPosition: GlobalPointerPosition,
-        currentPosition: [x, y],
-        element: selectedYElement,
-      });
+      if (!GlobalPointerPosition || !selectedYElement || !bound) return;
+      const newBoundX = x - GlobalPointerPosition[0];
+      const newBoundY = y - GlobalPointerPosition[1];
+      const dx = newBoundX - bound.x;
+      const dy = newBoundY - bound.y;
+
       try {
         doc.transact(() => {
-          selectedYElement.set("x", updatedElement.x);
-          selectedYElement.set("y", updatedElement.y);
+          selectedYElement.set("x", Number(selectedYElement.get("x")) + dx);
+          selectedYElement.set("y", Number(selectedYElement.get("y")) + dy);
           setBound(getBounds({ element: selectedYElement }));
         }, doc.clientID);
       } catch (err) {
@@ -354,30 +402,33 @@ export default function App() {
       scheduleRender();
 
 
-      setGlobalPointerPosition([x, y]);
+
     }
     if (isResizing) {
       console.log("Resizing in progress...");
-      console.log({GlobalPointerPosition})
-      console.log({selectedYElement})
-      console.log({resizeHandle})
+      console.log({ GlobalPointerPosition })
+      console.log({ selectedYElement })
+      console.log({ resizeHandle })
       if (!GlobalPointerPosition || !selectedYElement || !resizeHandle) return;
 
-     console.log("are we resizing ?")
+      console.log("are we resizing ?")
 
 
       const startPointer = resizeStartPointerRef.current
       const originalBound = resizeOriginalRectRef.current
+
       if (!startPointer || !originalBound || !selectedYElement || !resizeHandle || !bound) return;
       const resizedBound = resizeBound(resizeHandle, startPointer, [x, y], originalBound);
 
+      const originalPoint = originalPointRef.current
       setBound(resizedBound)
       scheduleRender()
       doc.transact(() => {
         resizeElement({
           element: selectedYElement,
           newBounds: resizedBound,
-          oldBounds: originalBound
+          oldBounds: originalBound,
+          originalPoints: originalPoint
         })
       }, doc.clientID)
 
@@ -390,7 +441,7 @@ export default function App() {
     setIsDrawing(false);
     setIsDragging(false);
 
-   
+    setFreehandPoint(null)
     setSelectedElementId(null);
     resizeHandleRef.current = null;
     setIsResizing(false);
@@ -413,7 +464,7 @@ export default function App() {
     if (!context) {
       return;
     }
-   
+
     console.log(isDragging, currentTool);
     if (currentTool.action === actionType.Drawing) {
       setCursorStyle("crosshair")
@@ -514,7 +565,9 @@ export default function App() {
     console.log("selectedYElement ---> ", selectedYElement)
     console.log("resizeHandle ---> ", resizeHandle)
     console.log("isResizing ---> ", isResizing)
-  }, [isDragging, isDrawing, CursorStyle, currentTool, selectedYElement, resizeHandle, isResizing]);
+    console.log({ bound })
+    console.log("lockedBounds ---> ", lockedBounds)
+  }, [isDragging, isDrawing, CursorStyle, currentTool, selectedYElement, resizeHandle, isResizing, lockedBounds, bound]);
   useEffect(() => {
     return () => {
       if (animationFrameIdRef.current) {

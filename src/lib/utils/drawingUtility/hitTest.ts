@@ -19,7 +19,7 @@ export const isPointInsideElement = ({ point, element }: args): boolean => {
       return isNearLine({ point, element });
     }
     case elementType.Freehand: {
-      return isNearFreehand(point, element.get('stroke') as unknown as Stroke);
+      return isNearFreehand({point, element});
     }
     default:
       return false;

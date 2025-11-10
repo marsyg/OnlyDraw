@@ -1,6 +1,9 @@
-import * as Y from 'yjs';
+
 import { point } from '@/types/type';
 import { boundType } from '../utils/boundsUtility/getBounds';
+
+const BOUNDS_PADDING = 8; 
+
 export type args = {
   point: point;
   element: boundType;
@@ -14,18 +17,25 @@ function detectResizeHandle({ point, element, tolerance }: args) {
   const w = element.width;
   const h = element.height;
 
+  
+  const boxX = x - BOUNDS_PADDING;
+  const boxY = y - BOUNDS_PADDING;
+  const boxWidth = w + BOUNDS_PADDING * 2;
+  const boxHeight = h + BOUNDS_PADDING * 2;
+
+ 
   const corners = {
-    nw: { x, y, cursor: 'nw-resize' },
-    ne: { x: x + w, y, cursor: 'ne-resize' },
-    sw: { x, y: y + h, cursor: 'sw-resize' },
-    se: { x: x + w, y: y + h, cursor: 'se-resize' },
+    nw: { x: boxX, y: boxY, cursor: 'nw-resize' },
+    ne: { x: boxX + boxWidth, y: boxY, cursor: 'ne-resize' },
+    sw: { x: boxX, y: boxY + boxHeight, cursor: 'sw-resize' },
+    se: { x: boxX + boxWidth, y: boxY + boxHeight, cursor: 'se-resize' },
   };
 
   const sides = {
-    n: { x: x + w / 2, y, cursor: 'n-resize' },
-    s: { x: x + w / 2, y: y + h, cursor: 's-resize' },
-    e: { x: x + w, y: y + h / 2, cursor: 'e-resize' },
-    w: { x, y: y + h / 2, cursor: 'w-resize' },
+    n: { x: boxX + boxWidth / 2, y: boxY, cursor: 'n-resize' },
+    s: { x: boxX + boxWidth / 2, y: boxY + boxHeight, cursor: 's-resize' },
+    e: { x: boxX + boxWidth, y: boxY + boxHeight / 2, cursor: 'e-resize' },
+    w: { x: boxX, y: boxY + boxHeight / 2, cursor: 'w-resize' },
   };
 
   const allHandles = { ...corners, ...sides };
