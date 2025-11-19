@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "framer-motion": "^12.23.24",
     "gl-matrix": "^3.4.4",
     "lucide-react": "^0.525.0",
     "nanoid": "^5.1.6",

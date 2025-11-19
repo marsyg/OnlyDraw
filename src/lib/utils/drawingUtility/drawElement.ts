@@ -2,58 +2,91 @@ import { elementType, OnlyDrawElement } from '@/types/type';
 import getStroke from 'perfect-freehand';
 import { getSvgPathFromStroke } from './getSVGStroke';
 import * as Y from 'yjs';
+import { RoughCanvas } from 'roughjs/bin/canvas';
 type DrawingArgs = {
   ctx: CanvasRenderingContext2D;
   element: Y.Map<unknown>;
+  rc: RoughCanvas;
 };
 
-export const DrawElements = ({ ctx, element }: DrawingArgs) => {
+export const DrawElements = ({ ctx, element, rc }: DrawingArgs) => {
+  const generator = rc.generator;
+
   ctx.save();
   const type = element.get('type') as unknown as elementType;
+  const seed = parseInt(String(element.get('seed')), 10);
   switch (type) {
     case elementType.Rectangle: {
-      ctx.beginPath();
-      ctx.rect(
+      const drawable = generator.rectangle(
         Number(element.get('x')),
         Number(element.get('y')),
         Number(element.get('width')),
-        Number(element.get('height'))
+        Number(element.get('height')),
+        {
+          seed,
+          stroke: String(element.get('strokeColor')),
+          strokeWidth: Number(element.get('strokeWidth')),
+          roughness: Number(element.get('roughness')),
+          fill: String(element.get('fillColor')),
+          fillStyle: String(element.get('fillStyle')),
+          hachureGap: Number(element.get('fillWeight')),
+          // strokeStyle: String(element.get('boundaryStyle')), // Map boundaryStyle
+        }
       );
-      ctx.strokeStyle = 'black';
 
-      ctx.stroke();
+      rc.draw(drawable);
       break;
     }
 
     case elementType.Line: {
-      ctx.beginPath();
-      ctx.moveTo(Number(element.get('x')), Number(element.get('y')));
-      ctx.lineTo(
-        Number(element.get('x')) + Number(element.get('width')),
-        Number(element.get('y')) + Number(element.get('height'))
-      );
-      ctx.stroke();
+      const x1 = Number(element.get('x'));
+      const y1 = Number(element.get('y'));
+      const x2 = x1 + Number(element.get('width'));
+      const y2 = y1 + Number(element.get('height'));
+
+      const drawable = generator.line(x1, y1, x2, y2, {
+        seed,
+        stroke: String(element.get('strokeColor')),
+        strokeWidth: Number(element.get('strokeWidth')),
+        roughness: Number(element.get('roughness')),
+        // strokeStyle: String(element.get('boundaryStyle')),
+      });
+
+      rc.draw(drawable);
       break;
     }
 
     case elementType.Ellipse: {
-      ctx.beginPath();
-      ctx.ellipse(
-        Math.abs(Number(element.get('x')) + Number(element.get('width')) / 2),
-        Math.abs(Number(element.get('y')) + Number(element.get('height')) / 2),
-        Math.abs(Number(element.get('width')) / 2),
-        Math.abs(Number(element.get('height')) / 2),
-        0,
-        0,
-        2 * Math.PI
+      const x = Number(element.get('x'));
+      const y = Number(element.get('y'));
+      const width = Number(element.get('width'));
+      const height = Number(element.get('height'));
+
+      const drawable = generator.ellipse(
+        x + width / 2,
+        y + height / 2,
+        width,
+        height,
+        {
+          seed,
+          stroke: String(element.get('strokeColor')),
+          strokeWidth: Number(element.get('strokeWidth')),
+          roughness: Number(element.get('roughness')),
+          fill: String(element.get('fillColor')),
+          fillStyle: String(element.get('fillStyle')),
+          hachureGap: Number(element.get('fillWeight')),
+          // strokeStyle: String(element.get('boundaryStyle')),
+        }
       );
-      ctx.stroke();
+
+      rc.draw(drawable);
       break;
     }
 
     case elementType.Freehand: {
       const x = Number(element.get('x'));
       const y = Number(element.get('y'));
+
       ctx.translate(x, y);
       const strokeData = element.get('points') as Y.Array<Y.Map<number>>;
       const points = strokeData
@@ -65,49 +98,29 @@ export const DrawElements = ({ ctx, element }: DrawingArgs) => {
         ]);
 
       if (!points) return;
-      interface StrokeTaperOptions {
-        taper: number;
-        easing: (t: number) => number;
-        cap: boolean;
-      }
 
-      interface StrokeOptions {
-        size: number;
-        thinning: number;
-        smoothing: number;
-        streamline: number;
-        easing: (t: number) => number;
-        start: StrokeTaperOptions;
-        end: StrokeTaperOptions;
-      }
-
-      const options: StrokeOptions = {
+      const options = {
         size: 10,
         thinning: 0.5,
         smoothing: 0.5,
         streamline: 0.5,
         easing: (t: number) => t,
-        start: {
-          taper: 0,
-          easing: (t: number) => t,
-          cap: true,
-        },
-        end: {
-          taper: 100,
-          easing: (t: number) => t,
-          cap: true,
-        },
+        start: { taper: 0, easing: (t: number) => t, cap: true },
+        end: { taper: 100, easing: (t: number) => t, cap: true },
       };
+
       const normalizedPoints = points.map(([x, y, pressure]) => ({
         x: Number(x),
         y: Number(y),
         pressure: pressure ?? 1,
       }));
+
       const stroke = getStroke(normalizedPoints, options);
       const path = getSvgPathFromStroke(stroke);
 
       const path2D = new Path2D(path);
-      ctx.fillStyle = 'black';
+
+      ctx.fillStyle = String(element.get('strokeColor'));
       ctx.fill(path2D);
       break;
     }

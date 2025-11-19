@@ -1,29 +1,42 @@
 import { LucideIcon } from 'lucide-react';
 import { Interface } from 'readline';
-import * as Y from 'yjs'
+import * as Y from 'yjs';
 export type PointsFreeHand = [number, number, number];
 export type Stroke = {
   points: PointsFreeHand[];
 };
 
 type baseType = {
-  id:string;
+  id: string;
   x: number;
   y: number;
+  seed: string;
   height: number;
   width: number;
   isDeleted: boolean;
+  strokeColor: string;
+  strokeWidth: number;
+  roughness: number;
 };
 export type rectangleElement = baseType & {
   type: elementType.Rectangle;
+  fillColor: string;
+  fillStyle: string;
+  fillWeight: number;
+  boundaryStyle: string;
 };
 
 export type ellipseElement = baseType & {
   type: elementType.Ellipse;
+  fillColor: string;
+  fillStyle: string;
+  fillWeight: number;
+  boundaryStyle: string;
 };
 
 export type lineElement = baseType & {
   type: elementType.Line;
+  boundaryStyle: string;
 };
 
 export type freeHandElement = baseType & {
@@ -40,13 +53,11 @@ export type OnlyDrawElement =
   | freeHandElement;
 
 export type YElement = OnlyDrawElement & {
-  author : number;
-  
-}
+  author: number;
+};
 export interface SharedDoc {
   elements: Y.Map<Y.Map<unknown>>;
-  order : Y.Array<string>;
-  
+  order: Y.Array<string>;
 }
 export type point = [x: number, y: number];
 
@@ -87,4 +98,13 @@ export type ToolBarDataType = {
   elementType: elementType;
   actionType: actionType;
   isActive: boolean;
+};
+export type ElementOptions = {
+  strokeColor: string;
+  strokeWidth: number;
+  roughness: number;
+  fillColor: string;
+  fillStyle: string;
+  fillWeight: number;
+  boundaryStyle: string;
 };

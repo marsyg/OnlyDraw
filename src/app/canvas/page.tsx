@@ -2,7 +2,7 @@
 
 import rough from 'roughjs';
 
-import { use, useCallback, useEffect, useRef, useState } from 'react';
+import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '@/Store/store';
 import { RoughGenerator } from 'roughjs/bin/generator';
 import { RoughCanvas } from 'roughjs/bin/canvas';
@@ -25,11 +25,15 @@ import { UndoManager as undoManager } from '@/Store/yjs-store';
 import detectResizeHandle from '@/lib/hitTest/detectResizeHandler';
 import resizeBound from '@/lib/resizeBound';
 import { resizeElement } from '@/lib/resizeElement';
+import useHandleChange from '@/lib/helperfunc/handleColorChange';
+import RoughSketchToolbox from '@/component/crazyToolbar';
+
+
 
 export default function App() {
   const { doc, yElement, order } = canvasDoc;
 
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+
   const {
     setPointerPosition,
     currentTool,
@@ -53,6 +57,14 @@ export default function App() {
     setYElement,
     bound,
     setBound,
+    roughness,
+    fillColor,
+    strokeColor,
+    strokeWidth,
+    fillStyle,
+    fillWeight,
+    boundaryStyle,
+
   } = useAppStore();
 
   const [freehandPoint, setFreehandPoint] = useState<PointsFreeHand[] | null>([
@@ -60,27 +72,41 @@ export default function App() {
   ]);
   const [CursorStyle, setCursorStyle] = useState("default")
   const [lockedBounds, setLockedBounds] = useState<boolean>(false)
+  const roughGeneratorRef = useRef<RoughGenerator | null>(null);
+  const roughCanvasRef = useRef<RoughCanvas | null>(null);
+
 
   const [GlobalPointerPosition, setGlobalPointerPosition] = useState<Point | null>(null)
-  const generatorRef = useRef<RoughGenerator | null>(null);
-  const roughCanvasRef = useRef<RoughCanvas | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
   const resizeStartPointerRef = useRef<point | null>(null);
   const resizeOriginalRectRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
+  const colorInputRef = useRef<HTMLInputElement>(null)
 
   const flagRef = useRef<boolean>(false)
   const animationFrameIdRef = useRef<number | null>(null);
   let foundResizeHandle: { direction: string; cursor: string } | null = null;
   const resizeHandleRef = useRef<{ direction: string; cursor: string } | null>(null);
   const originalPointRef = useRef<PointsFreeHand[] | null>(null)
-
+  const cursorStyle = useMemo(() => {
+    if (currentTool.action === actionType.Drawing) return "crosshair";
+    if (isDragging) return "grabbing";
+    if (isResizing && resizeHandle) return resizeHandleRef.current?.cursor || "default";
+    return "default";
+  }, [currentTool.action, isDragging, isResizing, resizeHandle]);
   const renderCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    if (!roughCanvasRef.current) {
+      roughCanvasRef.current = rough.canvas(canvas);
+      roughGeneratorRef.current = roughCanvasRef.current.generator;
+    }
+    const rc = roughCanvasRef.current;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    yElement.forEach(el => DrawElements({ ctx, element: el }));
+    yElement.forEach(el => DrawElements({ ctx, element: el, rc: rc }));
     if (selectedYElement && bound) DrawBounds({ context: ctx, bounds: bound });
   }, [yElement, selectedYElement, bound]);
 
@@ -90,7 +116,7 @@ export default function App() {
   }, [renderCanvas]);
 
 
-  const getMOuseCoordinate = (e: React.PointerEvent) => {
+  const getMOuseCoordinate = useCallback((e: React.PointerEvent) => {
     const canvas = canvasRef.current;
     if (!canvas) return [0, 0] as [number, number];
     const rect = canvas.getBoundingClientRect();
@@ -98,9 +124,9 @@ export default function App() {
     const Y = e.clientY - rect.top;
     setPointerPosition([X, Y]);
     return [X, Y] as [number, number];
-  };
+  }, [setPointerPosition]);
 
-  const hitTestAtPoint = (pt: point) => {
+  const hitTestAtPoint = useCallback((pt: point) => {
 
     for (let i = order.length - 1; i >= 0; i--) {
       const elementId = order.get(i) as string;
@@ -112,9 +138,9 @@ export default function App() {
     }
 
     return null;
-  };
+  }, [order, yElement]);
 
-  const handlePointerDown = (e: React.PointerEvent) => {
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
 
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -195,7 +221,6 @@ export default function App() {
 
     }
 
-
     if (currentTool.action === actionType.Drawing) {
       setCursorStyle("crosshair")
       const element = handleDrawElement({
@@ -203,6 +228,15 @@ export default function App() {
         element: currentTool.elementType,
         startPoint: initialPoint,
         endPoint: initialPoint,
+        options: {
+          strokeColor: strokeColor,
+          strokeWidth: strokeWidth,
+          fillColor: fillColor,
+          fillStyle: fillStyle,
+          roughness: roughness,
+          boundaryStyle: boundaryStyle,
+          fillWeight: fillWeight,
+        },
         stroke: {
           points: [[initialPoint[0], initialPoint[1], 1]],
         },
@@ -235,19 +269,22 @@ export default function App() {
       }
       return;
     }
-  };
+  }, [getMOuseCoordinate, currentTool, bound, lockedBounds, selectedYElement, hitTestAtPoint,
+    setYElement, setBound, setIsDragging, setIsResizing, setResizeHandle, strokeColor,
+    strokeWidth, fillColor, fillStyle, roughness, boundaryStyle, fillWeight, doc, yElement,
+    order, setSelectedElementId, setIsDrawing]
 
-  const handlePointerMove = (e: React.PointerEvent) => {
+  );
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
     const [x, y] = getMOuseCoordinate(e);
     const pt: point = [x, y];
-    console.log([x, y])
-    console.log("resizing status ", isResizing)
+    // console.log([x, y])
+    // console.log("resizing status ", isResizing)
 
     if (currentTool.action === actionType.Selecting && !isDragging && !isResizing) {
-      console.log("inside hover logic")
+      // console.log("inside hover logic")
       let foundElementToSelect: Y.Map<unknown> | null = null;
-
-
       let hit = null;
       if (lockedBounds && bound && isPointInPaddedBounds(pt, bound)) {
 
@@ -306,8 +343,12 @@ export default function App() {
 
     if (currentTool.action === actionType.Drawing) {
       if (!selectedYElement) return;
+
       const elementJSON = selectedYElement.toJSON() as OnlyDrawElement;
+      console.log('Original seed:', selectedYElement.get('seed'));
+      console.log('JSON seed:', elementJSON.seed);
       const type = selectedYElement.get('type') as unknown as elementType;
+
       if (type === elementType.Freehand && freehandPoint) {
 
         const newAbsPoints: PointsFreeHand[] = [
@@ -318,16 +359,16 @@ export default function App() {
 
         const xs = newAbsPoints.map(([px]) => px);
         const ys = newAbsPoints.map(([, py]) => py);
-        console.log({ xs })
-        console.log({ ys })
+        // console.log({ xs })
+        // console.log({ ys })
         const minX = Math.min(...xs);
         const minY = Math.min(...ys);
         const maxX = Math.max(...xs);
         const maxY = Math.max(...ys);
-        console.log("minX:", minX);
-        console.log("minY:", minY);
-        console.log("maxX:", maxX);
-        console.log("maxY:", maxY);
+        // console.log("minX:", minX);
+        // console.log("minY:", minY);
+        // console.log("maxX:", maxX);
+        // console.log("maxY:", maxY);
 
         const relPoints = newAbsPoints.map(
           ([px, py, pressure]) =>
@@ -384,6 +425,7 @@ export default function App() {
 
 
     if (isDragging) {
+      setCursorStyle("grabbing")
       if (!GlobalPointerPosition || !selectedYElement || !bound) return;
       const newBoundX = x - GlobalPointerPosition[0];
       const newBoundY = y - GlobalPointerPosition[1];
@@ -434,7 +476,9 @@ export default function App() {
 
     }
 
-  };
+  }, [getMOuseCoordinate, currentTool, isDragging, isResizing, lockedBounds, bound,
+    selectedYElement, hitTestAtPoint, setBound, setYElement, setIsDragging, isDrawing,
+    freehandPoint, doc, scheduleRender, GlobalPointerPosition, resizeHandle]);
 
   const handlePointerUp = (e: React.PointerEvent) => {
     flagRef.current = false;
@@ -457,40 +501,22 @@ export default function App() {
     } catch (err) { }
   };
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const context = canvas.getContext('2d');
-    if (!context) {
-      return;
-    }
 
-    console.log(isDragging, currentTool);
-    if (currentTool.action === actionType.Drawing) {
-      setCursorStyle("crosshair")
-    } else if (isDragging) {
-      setCursorStyle("grabbing")
-    } else {
-      setCursorStyle("default")
-    }
 
-  }, [currentTool, isDragging,]);
+  // useEffect(() => {
+  //   const canvas = canvasRef.current;
+  //   if (!canvas) return;
+  //   const context = canvas.getContext('2d');
+  //   if (!context) {
+  //     return;
+  //   }
+  //   console.log("selectedYElement changed ", selectedYElement?.toJSON());
+  //   console.log("bound changed ", bound);
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const context = canvas.getContext('2d');
-    if (!context) {
-      return;
-    }
-
-    console.log("selectedYElement changed ", selectedYElement?.toJSON());
-    console.log("bound changed ", bound);
-
-    if (selectedYElement && bound) {
-      DrawBounds({ context, bounds: bound })
-    }
-  }, [selectedYElement, bound]);
+  //   if (selectedYElement && bound) {
+  //     DrawBounds({ context, bounds: bound })
+  //   }
+  // }, [selectedYElement, bound]);
 
   useEffect(() => {
 
@@ -528,23 +554,24 @@ export default function App() {
 
     const observer: YElementsObserver = (event) => {
       scheduleRender();
-      event.target.forEach((element: YElement, key: string) => {
-        console.log('Y.Element Key:', key, 'Value:', element.toJSON());
-      });
+      // event.target.forEach((element: YElement, key: string) => {
+      //   console.log('Y.Element Key:', key, 'Value:', element.toJSON());
+      // });
     }
 
-    console.log(`[UNDO] Undo Stack Size: ${undoManager.undoStack.length}`)
-    console.log(`[UNDO] Redo Stack Size: ${undoManager.redoStack.length}`)
+    // console.log(`[UNDO] Undo Stack Size: ${undoManager.undoStack.length}`)
+    // console.log(`[UNDO] Redo Stack Size: ${undoManager.redoStack.length}`)
     canvasDoc.yElement.observe(observer);
     return () => {
       canvasDoc.yElement.unobserve(observer);
     }
-  }, [yElement.size, yElement, scheduleRender]);
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
+    roughCanvasRef.current = rough.canvas(canvas);
+    roughGeneratorRef.current = roughCanvasRef.current.generator;
     const setSize = () => {
       canvas.width = canvas.offsetWidth;
       canvas.height = canvas.offsetHeight;
@@ -555,19 +582,19 @@ export default function App() {
     window.addEventListener('resize', setSize);
     return () => window.removeEventListener('resize', setSize);
   }, [scheduleRender]);
-  useEffect(() => {
+  // useEffect(() => {
 
 
-    console.log("isdragging ---> ", isDragging)
-    console.log("isDrawing ---> ", isDrawing)
-    console.log("CursorStyle ---> ", CursorStyle)
-    console.log("currentTool ---> ", currentTool)
-    console.log("selectedYElement ---> ", selectedYElement)
-    console.log("resizeHandle ---> ", resizeHandle)
-    console.log("isResizing ---> ", isResizing)
-    console.log({ bound })
-    console.log("lockedBounds ---> ", lockedBounds)
-  }, [isDragging, isDrawing, CursorStyle, currentTool, selectedYElement, resizeHandle, isResizing, lockedBounds, bound]);
+  //   console.log("isdragging ---> ", isDragging)
+  //   console.log("isDrawing ---> ", isDrawing)
+  //   console.log("CursorStyle ---> ", CursorStyle)
+  //   console.log("currentTool ---> ", currentTool)
+  //   console.log("selectedYElement ---> ", selectedYElement)
+  //   console.log("resizeHandle ---> ", resizeHandle)
+  //   console.log("isResizing ---> ", isResizing)
+  //   console.log({ bound })
+  //   console.log("lockedBounds ---> ", lockedBounds)
+  // }, [isDragging, isDrawing, CursorStyle, currentTool, selectedYElement, resizeHandle, isResizing, lockedBounds, bound]);
   useEffect(() => {
     return () => {
       if (animationFrameIdRef.current) {
@@ -577,10 +604,14 @@ export default function App() {
     };
   }, []);
 
+
   return (
 
     <div className='bg-white relative w-full h-screen'>
-      <Toolbar className='absolute top-2 left-2 z-10' />
+      {/* <Toolbar className='absolute top-2 left-2 z-10' /> */}
+      <RoughSketchToolbox />
+
+
       <canvas
         ref={canvasRef}
         className={`w-full h-screen `}
