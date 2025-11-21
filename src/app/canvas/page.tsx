@@ -105,10 +105,16 @@ export default function App() {
       roughGeneratorRef.current = roughCanvasRef.current.generator;
     }
     const rc = roughCanvasRef.current;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (isDragging || isResizing || isDrawing) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    } else {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    ;
     yElement.forEach(el => DrawElements({ ctx, element: el, rc: rc }));
     if (selectedYElement && bound) DrawBounds({ context: ctx, bounds: bound });
-  }, [yElement, selectedYElement, bound]);
+  }, [isDragging, isResizing, isDrawing, yElement, selectedYElement, bound]);
 
   const scheduleRender = useCallback(() => {
     if (animationFrameIdRef.current) cancelAnimationFrame(animationFrameIdRef.current);
@@ -191,17 +197,23 @@ export default function App() {
         setIsDragging(false);
         resizeStartPointerRef.current = initialPoint;
 
+        const type = selectedYElement?.get('type') as unknown as elementType;
+        if (type === 'freehand') {
 
-        const stroke = selectedYElement?.get('points') as Y.Array<Y.Map<number>>;
-        const points: PointsFreeHand[] = stroke
-          .toArray()
-          .map((p) => [
-            (p.get('x') as number),
-            (p.get('y') as number),
-            p.get('pressure') as number,
-          ]);
+          const stroke = selectedYElement?.get('points') as Y.Array<Y.Map<number>>;
+          console.log(selectedYElement?.toJSON(), "yaha se ----------------------------------")
 
-        originalPointRef.current = points
+          const points: PointsFreeHand[] = stroke
+            .toArray()
+            .map((p) => [
+              (p.get('x') as number),
+              (p.get('y') as number),
+              p.get('pressure') as number,
+            ]);
+
+          originalPointRef.current = points
+        }
+
         if (hit && hit.yEl) {
           resizeOriginalRectRef.current = (getBounds({ element: hit.yEl })) as { x: number; y: number; width: number; height: number };
         } else if (bound) {
@@ -275,13 +287,19 @@ export default function App() {
     order, setSelectedElementId, setIsDrawing]
 
   );
+  const lastMoveTimeRef = useRef<number>(0);
+  const MOVE_THROTTLE_MS = 16;
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     const [x, y] = getMOuseCoordinate(e);
     const pt: point = [x, y];
     // console.log([x, y])
     // console.log("resizing status ", isResizing)
-
+    const now = Date.now();
+    if (now - lastMoveTimeRef.current < MOVE_THROTTLE_MS && !isDrawing && !isDragging && !isResizing) {
+      return;
+    }
+    lastMoveTimeRef.current = now;
     if (currentTool.action === actionType.Selecting && !isDragging && !isResizing) {
       // console.log("inside hover logic")
       let foundElementToSelect: Y.Map<unknown> | null = null;

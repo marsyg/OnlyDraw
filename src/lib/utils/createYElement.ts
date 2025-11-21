@@ -4,16 +4,17 @@ import { OnlyDrawElement } from '@/types/type';
 import * as Y from 'yjs';
 const createYElement = (element: OnlyDrawElement) => {
   const elementId = nanoid();
+  const safeSeed = element.seed ?? Math.floor(Math.random() * 2 ** 31);
   const newElement = new canvasDoc.Y.Map();
   newElement.set('id', elementId);
   newElement.set('type', element.type);
   newElement.set('x', element.x);
   newElement.set('y', element.y);
-  newElement.set('seed', element.seed);
+  newElement.set('seed', safeSeed);
   newElement.set('width', element.width);
   newElement.set('height', element.height);
   newElement.set('strokeColor', element.strokeColor);
-  newElement.set('strokeWidth', element.strokeWidth);  
+  newElement.set('strokeWidth', element.strokeWidth);
   if (element.type === 'freehand') {
     const points = new canvasDoc.Y.Array<Y.Map<number>>();
     if (element.stroke && Array.isArray(element.stroke.points)) {
@@ -62,11 +63,6 @@ const updateYElement = (element: OnlyDrawElement, yElement: Y.Map<unknown>) => {
   yElement.set('y', element.y);
   yElement.set('width', element.width);
   yElement.set('height', element.height);
-
-  // Ensure seed is always set and valid
-  const finalSeed = Number(element.seed) || Math.floor(Math.random() * 2 ** 31);
-  yElement.set('seed', finalSeed);
-  console.log(`[DEBUG] Final seed set: ${finalSeed}`);
 
   if (element.type === 'freehand') {
     const points = new canvasDoc.Y.Array<Y.Map<number>>();

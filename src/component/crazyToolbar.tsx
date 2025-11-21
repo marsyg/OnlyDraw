@@ -92,8 +92,7 @@ const RoughStyles = () => (
 );
 
 export default function RoughSketchToolbox() {
-  // --- State ---
-  // Added local state for minimization
+
   const [isExpanded, setIsExpanded] = useState(true);
   const [target, setTarget] = useState<string | null>(null);
 
@@ -144,7 +143,7 @@ export default function RoughSketchToolbox() {
     <>
       <RoughStyles />
 
-      {/* Main Floating Panel - Positioned Top Left but with margin */}
+      
       <motion.div
         layout
         className="fixed top-4 left-4 z-50 sketch-font modern-panel flex flex-col select-none overflow-hidden"
@@ -153,10 +152,10 @@ export default function RoughSketchToolbox() {
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
       >
 
-        {/* --- SECTION 1: TOOLS (Always Visible / The Header) --- */}
+        
         <div className={`flex ${isExpanded ? 'flex-row flex-wrap p-3 gap-2 justify-between items-center' : 'flex-col p-2 gap-3 items-center'}`}>
 
-          {/* Minimized View: Just show active tool or a generic icon if expanded */}
+         
           {!isExpanded && (
             <div className="mb-2">
               <motion.button
@@ -168,10 +167,10 @@ export default function RoughSketchToolbox() {
             </div>
           )}
 
-          {/* Toolbar Icons */}
+         
           <div className={`grid ${isExpanded ? 'grid-cols-4 gap-2 w-full' : 'flex flex-col gap-2'}`}>
             {TOOLBAR_ITEM.map((item) => {
-              // Only show all tools if expanded, or show active tool if minimized
+              
               if (!isExpanded && toolbar.activeToolId !== item.id) return null;
 
               return (
@@ -180,7 +179,7 @@ export default function RoughSketchToolbox() {
                   className={`rough-btn flex items-center justify-center ${isExpanded ? 'h-10 w-full text-xl' : 'h-10 w-10 text-xl'} ${toolbar.activeToolId === item.id ? 'active' : ''}`}
                   onClick={() => {
                     handleClick(item.id, item.actionType, item.elementType)
-                    if (!isExpanded) setIsExpanded(true); // Auto open on click if closed
+                    if (!isExpanded) setIsExpanded(true); 
                   }}
                   whileTap={{ scale: 0.95 }}
                   title={item.id}
@@ -268,7 +267,7 @@ export default function RoughSketchToolbox() {
                       <span className="text-[10px] text-gray-200">{strokeWidth}px</span>
                     </div>
                     <input
-                      type="range" min="1" max="20"
+                      type="range" min="1" max="30"
                       value={strokeWidth} onChange={(e) => setStrokeWidth(Number(e.target.value))}
                       className="modern-slider"
                     />
@@ -280,7 +279,7 @@ export default function RoughSketchToolbox() {
                       <span className="text-[10px] text-gray-300">{getRoughnessLabel(roughness)}</span>
                     </div>
                     <input
-                      type="range" min="0" max="100"
+                      type="range" min="0" max="50"
                       value={roughness} onChange={(e) => setRoughness(Number(e.target.value))}
                       className="modern-slider"
                     />
