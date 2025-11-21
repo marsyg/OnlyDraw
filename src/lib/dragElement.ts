@@ -1,4 +1,3 @@
-import { OnlyDrawElement } from '@/types/type';
 import { Point } from 'roughjs/bin/geometry';
 import * as Y from 'yjs';
 type args = {
@@ -11,8 +10,6 @@ export const DragElements = ({
   currentPosition,
   element,
 }: args) => {
-  
-
   const offsetX = initialPosition[0] - Number(element.get('x'));
 
   const offsetY = initialPosition[1] - Number(element.get('y'));

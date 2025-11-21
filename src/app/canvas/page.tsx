@@ -2,12 +2,12 @@
 
 import rough from 'roughjs';
 
-import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect,  useRef, useState } from 'react';
 import { useAppStore } from '@/Store/store';
 import { RoughGenerator } from 'roughjs/bin/generator';
 import { RoughCanvas } from 'roughjs/bin/canvas';
-import Toolbar from '@/component/toolbar';
-import { freeHandElement, OnlyDrawElement, point, PointsFreeHand, Stroke } from '@/types/type';
+
+import { OnlyDrawElement, point, PointsFreeHand } from '@/types/type';
 import { actionType, elementType } from '@/types/type';
 import { handleDrawElement } from '@/lib/handleElement';
 import { DrawElements } from '@/lib/utils/drawingUtility/drawElement';
@@ -15,13 +15,13 @@ import { isPointInsideElement } from '@/lib/utils/drawingUtility/hitTest';
 import { DrawBounds } from '@/lib/drawBounds';
 import { getBounds } from '@/lib/utils/boundsUtility/getBounds';
 import { isPointInPaddedBounds } from '@/lib/utils/boundsUtility/isPointInPaddedBounds';
-import { DragElements } from '@/lib/dragElement';
+
 import canvasDoc from '@/Store/yjs-store';
 import * as Y from 'yjs';
 import { Point } from 'roughjs/bin/geometry';
 import yUtils from '@/lib/utils/createYElement';
 import { handleUndo, handleRedo } from '@/lib/helperfunc/undo-redo';
-import { UndoManager as undoManager } from '@/Store/yjs-store';
+
 import detectResizeHandle from '@/lib/hitTest/detectResizeHandler';
 import resizeBound from '@/lib/resizeBound';
 import { resizeElement } from '@/lib/resizeElement';
@@ -37,18 +37,15 @@ export default function App() {
   const {
     setPointerPosition,
     currentTool,
-    addElement,
+
     setSelectedElementId,
-    selectedElementId,
-    elements,
+
     setIsDrawing,
     setIsDragging,
     isDragging,
     isDrawing,
     pointerPosition,
-    updateElement,
-    setIsSelecting,
-    isSelecting,
+
     isResizing,
     setIsResizing,
     resizeHandle,
@@ -81,19 +78,13 @@ export default function App() {
 
   const resizeStartPointerRef = useRef<point | null>(null);
   const resizeOriginalRectRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
-  const colorInputRef = useRef<HTMLInputElement>(null)
 
   const flagRef = useRef<boolean>(false)
   const animationFrameIdRef = useRef<number | null>(null);
-  let foundResizeHandle: { direction: string; cursor: string } | null = null;
+
   const resizeHandleRef = useRef<{ direction: string; cursor: string } | null>(null);
   const originalPointRef = useRef<PointsFreeHand[] | null>(null)
-  const cursorStyle = useMemo(() => {
-    if (currentTool.action === actionType.Drawing) return "crosshair";
-    if (isDragging) return "grabbing";
-    if (isResizing && resizeHandle) return resizeHandleRef.current?.cursor || "default";
-    return "default";
-  }, [currentTool.action, isDragging, isResizing, resizeHandle]);
+
   const renderCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -352,7 +343,7 @@ export default function App() {
         setCursorStyle('default');
         resizeHandleRef.current = null;
       }
-      foundResizeHandle = newResizeHandle;
+
     }
 
 
@@ -512,11 +503,7 @@ export default function App() {
     resizeStartPointerRef.current = null;
     resizeOriginalRectRef.current = null;
 
-    try {
-      if ((e.target as Element).hasPointerCapture && (e.target as Element).hasPointerCapture(e.pointerId)) {
-        (e.target as Element).releasePointerCapture(e.pointerId);
-      }
-    } catch (err) { }
+    
   };
 
 
@@ -570,7 +557,7 @@ export default function App() {
 
     type YElementsObserver = (event: Y.YMapEvent<YElement>) => void;
 
-    const observer: YElementsObserver = (event) => {
+    const observer: YElementsObserver = () => {
       scheduleRender();
       // event.target.forEach((element: YElement, key: string) => {
       //   console.log('Y.Element Key:', key, 'Value:', element.toJSON());

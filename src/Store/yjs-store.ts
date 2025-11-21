@@ -1,6 +1,6 @@
 
 import * as Y from 'yjs';
-import { YElement } from '@/types/type';
+// import { YElement } from '@/types/type';
 import { WebsocketProvider } from 'y-websocket';
 
 const doc = new Y.Doc();

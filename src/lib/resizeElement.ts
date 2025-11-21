@@ -1,15 +1,15 @@
 import { boundType } from './utils/boundsUtility/getBounds';
 import * as Y from 'yjs';
 import { elementType, PointsFreeHand } from '@/types/type';
-import canvasDoc from '@/Store/yjs-store';
+
 type resizeArgs = {
   element: Y.Map<unknown>;
   newBounds: boundType;
   oldBounds: boundType;
   originalPoints?: PointsFreeHand[] | null;
 };
-import { Point } from 'roughjs/bin/geometry';
-const resizeSimpleShape = ({ element, newBounds, oldBounds }: resizeArgs) => {
+
+const resizeSimpleShape = ({ element, newBounds }: resizeArgs) => {
   element.set('x', newBounds.x);
   element.set('y', newBounds.y);
   element.set('width', newBounds.width);
@@ -22,13 +22,13 @@ export const resizeFreehand = ({
   oldBounds,
   originalPoints,
 }: resizeArgs) => {
-  const oldElementX = Number(element.get('x'));
-  const oldElementY = Number(element.get('y'));
-  const points = element.get('points') as Y.Array<Y.Map<number>>;
-  const stroke = points
-    .toArray()
-    .map((p) => [p.get('x') as number, p.get('y') as number, 1]);
-  const strokeData = { points: stroke } as { points: Point[] };
+  // const oldElementX = Number(element.get('x'));
+  // const oldElementY = Number(element.get('y'));
+  // const points = element.get('points') as Y.Array<Y.Map<number>>;
+  // const stroke = points
+  //   .toArray()
+  //   .map((p) => [p.get('x') as number, p.get('y') as number, 1]);
+  // const strokeData = { points: stroke } as { points: Point[] };
 
   if (!originalPoints || originalPoints.length === 0) {
     console.error('Freehand element has no stroke points to resize.');

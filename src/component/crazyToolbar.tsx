@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, ChevronUp, Settings2, Minus, Plus, Check } from 'lucide-react'; // You might need to install lucide-react or use your own icons
-import { ToolBarDataType } from '@/types/type';
+  import {  ChevronUp, Settings2, } from 'lucide-react'; 
+
 import { TOOLBAR_ITEM } from '@/types/toolbarData';
 import { BoundaryStyle, FillStyle, useAppStore } from '@/Store/store';
 import { actionType, elementType } from '@/types/type';
@@ -101,7 +101,7 @@ export default function RoughSketchToolbox() {
     strokeColor, setActiveToolbarId, toolbar, setCurrentTool, setIsDragging, setIsSelecting, setStrokeColor,
     fillColor, setFillColor, isFillTransparent, setIsFillTransparent, strokeWidth, setStrokeWidth,
     setRoughness, fillStyle, setFillStyle, fillWeight, setFillWeight, roughness,
-    boundaryStyle, setBoundaryStyle, hasShadow, setHasShadow, opacity, setOpacity, rotation, setRotation
+    boundaryStyle, setBoundaryStyle, hasShadow, setHasShadow, opacity, setOpacity, 
   } = useAppStore();
 
   const colorRef = useRef<HTMLInputElement | null>(null);

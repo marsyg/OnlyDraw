@@ -1,4 +1,4 @@
-import { elementType, OnlyDrawElement } from '@/types/type';
+import { elementType } from '@/types/type';
 import getStroke from 'perfect-freehand';
 import { getSvgPathFromStroke } from './getSVGStroke';
 import * as Y from 'yjs';

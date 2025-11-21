@@ -1,5 +1,5 @@
 import { LucideIcon } from 'lucide-react';
-import { Interface } from 'readline';
+
 import * as Y from 'yjs';
 export type PointsFreeHand = [number, number, number];
 export type Stroke = {

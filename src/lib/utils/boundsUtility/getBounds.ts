@@ -1,5 +1,5 @@
-import { elementType, OnlyDrawElement } from '@/types/type';
-import { Point } from 'roughjs/bin/geometry';
+import { elementType,  } from '@/types/type';
+
 import * as Y from 'yjs';
 
 type args = {
@@ -46,9 +46,7 @@ export const getBounds = ({ element }: args): boundType => {
         return { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
       }
 
-      const absPoints = points.map(([px, py]) => [x + px, y + py] as Point);
-      const xs = absPoints.map(([px]) => px);
-      const ys = absPoints.map(([py]) => py);
+     
       const pad = 11;
       return {
         x: Number(element.get('x')) - pad,

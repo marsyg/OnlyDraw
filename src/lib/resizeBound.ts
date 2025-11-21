@@ -1,5 +1,5 @@
 import { point } from '@/types/type';
-import { boundType } from './utils/boundsUtility/getBounds';
+
 function resizeBound(
   handle: string,
   initialPosition: point,
