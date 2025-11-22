@@ -2,7 +2,7 @@
 
 import rough from 'roughjs';
 
-import { useCallback, useEffect,  useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAppStore } from '@/Store/store';
 import { RoughGenerator } from 'roughjs/bin/generator';
 import { RoughCanvas } from 'roughjs/bin/canvas';
@@ -15,13 +15,13 @@ import { isPointInsideElement } from '@/lib/utils/drawingUtility/hitTest';
 import { DrawBounds } from '@/lib/drawBounds';
 import { getBounds } from '@/lib/utils/boundsUtility/getBounds';
 import { isPointInPaddedBounds } from '@/lib/utils/boundsUtility/isPointInPaddedBounds';
-
+import { UndoManager } from '@/Store/yjs-store';
 import canvasDoc from '@/Store/yjs-store';
 import * as Y from 'yjs';
 import { Point } from 'roughjs/bin/geometry';
 import yUtils from '@/lib/utils/createYElement';
 import { handleUndo, handleRedo } from '@/lib/helperfunc/undo-redo';
-
+import { LOCAL_ORIGIN, LIVE_ORIGIN } from '@/Store/yjs-store';
 import detectResizeHandle from '@/lib/hitTest/detectResizeHandler';
 import resizeBound from '@/lib/resizeBound';
 import { resizeElement } from '@/lib/resizeElement';
@@ -394,27 +394,27 @@ export default function App() {
           stroke: { points: relPoints },
         } as Extract<OnlyDrawElement, { type: elementType.Freehand }>;
 
-        console.log(
-          "Updated Element Values:",
-          {
-            x: minX,
-            y: minY,
-            width: maxX - minX,
-            height: maxY - minY,
-            elementJSON,
-          }
-        );
+        // console.log(
+        //   "Updated Element Values:",
+        //   {
+        //     x: minX,
+        //     y: minY,
+        //     width: maxX - minX,
+        //     height: maxY - minY,
+        //     elementJSON,
+        //   }
+        // );
 
-        console.log(
-          '[Move] Updating Freehand:',
-          `x: ${updatedElement.x}, y: ${updatedElement.y}`,
-          `Points (Count: ${updatedElement.stroke.points.length}):`,
-          JSON.parse(JSON.stringify(updatedElement.stroke.points))
-        );
+        // console.log(
+        //   '[Move] Updating Freehand:',
+        //   `x: ${updatedElement.x}, y: ${updatedElement.y}`,
+        //   `Points (Count: ${updatedElement.stroke.points.length}):`,
+        //   JSON.parse(JSON.stringify(updatedElement.stroke.points))
+        // );
 
         doc.transact(() => {
           yUtils.updateYElement(updatedElement, selectedYElement);
-        }, doc.clientID)
+        }, LIVE_ORIGIN)
 
         scheduleRender();
 
@@ -426,7 +426,7 @@ export default function App() {
         };
         doc.transact(() => {
           yUtils.updateYElement(updatedElement, selectedYElement);
-        }, doc.clientID)
+        }, LIVE_ORIGIN)
         scheduleRender();
       }
       return;
@@ -446,7 +446,7 @@ export default function App() {
           selectedYElement.set("x", Number(selectedYElement.get("x")) + dx);
           selectedYElement.set("y", Number(selectedYElement.get("y")) + dy);
           setBound(getBounds({ element: selectedYElement }));
-        }, doc.clientID);
+        }, LIVE_ORIGIN);
       } catch (err) {
         console.error("Error updating Y element during drag:", err);
       }
@@ -481,7 +481,7 @@ export default function App() {
           oldBounds: originalBound,
           originalPoints: originalPoint
         })
-      }, doc.clientID)
+      }, LIVE_ORIGIN)
 
     }
 
@@ -490,20 +490,31 @@ export default function App() {
     freehandPoint, doc, scheduleRender, GlobalPointerPosition, resizeHandle]);
 
   const handlePointerUp = (e: React.PointerEvent) => {
-    flagRef.current = false;
+
+    if (!selectedYElement) return
     setIsDrawing(false);
     setIsDragging(false);
 
+
+    flagRef.current = false;
+
+
+
     setFreehandPoint(null)
-    setSelectedElementId(null);
+
     resizeHandleRef.current = null;
     setIsResizing(false);
+    const element = selectedYElement?.toJSON() as OnlyDrawElement
+    doc.transact(() => {
+      yUtils.updateYElement(element, selectedYElement)
+    }, LOCAL_ORIGIN)
+    UndoManager.stopCapturing();
     setResizeHandle(null);
     setCursorStyle("default")
     resizeStartPointerRef.current = null;
     resizeOriginalRectRef.current = null;
 
-    
+
   };
 
 
@@ -542,7 +553,7 @@ export default function App() {
           if (index > -1) {
             order.delete(index, 1);
           }
-        }, doc.clientID);
+        }, LOCAL_ORIGIN);
       }
 
     }
@@ -557,15 +568,15 @@ export default function App() {
 
     type YElementsObserver = (event: Y.YMapEvent<YElement>) => void;
 
-    const observer: YElementsObserver = () => {
+    const observer: YElementsObserver = (event) => {
       scheduleRender();
-      // event.target.forEach((element: YElement, key: string) => {
-      //   console.log('Y.Element Key:', key, 'Value:', element.toJSON());
-      // });
+      event.target.forEach((element: YElement, key: string) => {
+        console.log('Y.Element Key:', key, 'Value:', element.toJSON());
+      });
     }
 
-    // console.log(`[UNDO] Undo Stack Size: ${undoManager.undoStack.length}`)
-    // console.log(`[UNDO] Redo Stack Size: ${undoManager.redoStack.length}`)
+    console.log(`[UNDO] Undo Stack Size: ${UndoManager.undoStack.length}`)
+    console.log(`[UNDO] Redo Stack Size: ${UndoManager.redoStack.length}`)
     canvasDoc.yElement.observe(observer);
     return () => {
       canvasDoc.yElement.unobserve(observer);
