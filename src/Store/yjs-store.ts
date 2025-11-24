@@ -8,21 +8,21 @@ if (!doc) {
 }
 console.log('Yjs store initialized');
 
-const wsProvider = new WebsocketProvider(
-  'ws://localhost:1234',
-  'my-roomname',
-  doc
-);
+// const wsProvider = new WebsocketProvider(
+//   'ws://localhost:1234',
+//   'my-roomname',
+//   doc
+// );
 export const LOCAL_ORIGIN = { local: true };
 export const LIVE_ORIGIN = { live: true };
 
 const elements = doc.getMap<Y.Map<unknown>>('elements');
 const order = doc.getArray<string>('order');
-wsProvider.on('status', (event) => {
-  console.log('Provider Status:', event.status);
-});
+// wsProvider.on('status', (event) => {
+//   console.log('Provider Status:', event.status);
+// });
 
-const UndoManager = new Y.UndoManager([elements ], {
+const UndoManager = new Y.UndoManager([elements], {
   captureTimeout: 500,
   trackedOrigins: new Set([LOCAL_ORIGIN]),
 });

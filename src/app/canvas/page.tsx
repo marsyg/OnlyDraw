@@ -182,7 +182,7 @@ export default function App() {
         setIsDragging(false);
       }
       if (resizeHandleRef.current) {
-        console.log("Resize Handle Found on Pointer Down:", resizeHandleRef.current.direction);
+        // console.log("Resize Handle Found on Pointer Down:", resizeHandleRef.current.direction);
         setIsResizing(true);
         setResizeHandle(resizeHandleRef.current.direction);
         setIsDragging(false);
@@ -192,7 +192,7 @@ export default function App() {
         if (type === 'freehand') {
 
           const stroke = selectedYElement?.get('points') as Y.Array<Y.Map<number>>;
-          console.log(selectedYElement?.toJSON(), "yaha se ----------------------------------")
+          // console.log(selectedYElement?.toJSON(), "yaha se ----------------------------------")
 
           const points: PointsFreeHand[] = stroke
             .toArray()
@@ -251,13 +251,14 @@ export default function App() {
         if (!doc) throw new Error("Y.Doc is not initialized");
         let createdYEl: Y.Map<unknown> | null = null;
         doc.transact(() => {
+          `x`
           createdYEl = yUtils.createYElement(element);
 
           if (!yElement.get(element.id) && createdYEl) {
             yElement.set(element.id, createdYEl);
             order.push([element.id]);
           }
-        }, doc.clientID);
+        }, LOCAL_ORIGIN);
 
         if (createdYEl) {
           setYElement(createdYEl);
@@ -307,8 +308,8 @@ export default function App() {
       if (hit && !lockedBounds) {
         foundElementToSelect = hit.yEl;
         setBound(getBounds({ element: foundElementToSelect }));
-        console.log({ pt })
-        console.log("bounds calculated at resizing ", getBounds({ element: foundElementToSelect }))
+        // console.log({ pt })
+        // console.log("bounds calculated at resizing ", getBounds({ element: foundElementToSelect }))
 
       }
       let newCursorStyle = 'default';
@@ -353,9 +354,10 @@ export default function App() {
     if (currentTool.action === actionType.Drawing) {
       if (!selectedYElement) return;
 
+
       const elementJSON = selectedYElement.toJSON() as OnlyDrawElement;
-      console.log('Original seed:', selectedYElement.get('seed'));
-      console.log('JSON seed:', elementJSON.seed);
+      // console.log('Original seed:', selectedYElement.get('seed'));
+      // console.log('JSON seed:', elementJSON.seed);
       const type = selectedYElement.get('type') as unknown as elementType;
 
       if (type === elementType.Freehand && freehandPoint) {
@@ -414,7 +416,7 @@ export default function App() {
 
         doc.transact(() => {
           yUtils.updateYElement(updatedElement, selectedYElement);
-        }, LIVE_ORIGIN)
+        }, LOCAL_ORIGIN)
 
         scheduleRender();
 
@@ -426,7 +428,7 @@ export default function App() {
         };
         doc.transact(() => {
           yUtils.updateYElement(updatedElement, selectedYElement);
-        }, LIVE_ORIGIN)
+        }, LOCAL_ORIGIN)
         scheduleRender();
       }
       return;
@@ -446,7 +448,7 @@ export default function App() {
           selectedYElement.set("x", Number(selectedYElement.get("x")) + dx);
           selectedYElement.set("y", Number(selectedYElement.get("y")) + dy);
           setBound(getBounds({ element: selectedYElement }));
-        }, LIVE_ORIGIN);
+        }, LOCAL_ORIGIN);
       } catch (err) {
         console.error("Error updating Y element during drag:", err);
       }
@@ -456,13 +458,13 @@ export default function App() {
 
     }
     if (isResizing) {
-      console.log("Resizing in progress...");
-      console.log({ GlobalPointerPosition })
-      console.log({ selectedYElement })
-      console.log({ resizeHandle })
+      // console.log("Resizing in progress...");
+      // console.log({ GlobalPointerPosition })
+      // console.log({ selectedYElement })
+      // console.log({ resizeHandle })
       if (!GlobalPointerPosition || !selectedYElement || !resizeHandle) return;
 
-      console.log("are we resizing ?")
+      // console.log("are we resizing ?")
 
 
       const startPointer = resizeStartPointerRef.current
@@ -481,7 +483,7 @@ export default function App() {
           oldBounds: originalBound,
           originalPoints: originalPoint
         })
-      }, LIVE_ORIGIN)
+      }, LOCAL_ORIGIN)
 
     }
 
@@ -539,9 +541,17 @@ export default function App() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.key === 'z') {
         handleUndo()
+        setYElement(null);
+        setBound(null);
+        setLockedBounds(false);
+        scheduleRender();
       }
       if (e.ctrlKey && e.key === 'y') {
         handleRedo()
+        setYElement(null);
+        setBound(null);
+        setLockedBounds(false);
+        scheduleRender();
       }
       console.log("Key pressed:", selectedYElement, e.key);
       if (e.key === 'Delete' && selectedYElement) {
@@ -554,34 +564,38 @@ export default function App() {
             order.delete(index, 1);
           }
         }, LOCAL_ORIGIN);
+        setYElement(null);
+        setBound(null);
+        setLockedBounds(false);
+        scheduleRender();
       }
 
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
 
-  }, [doc, selectedYElement, yElement, order]);
+  }, [doc, selectedYElement, yElement, order, scheduleRender, setYElement, setBound]);
 
   useEffect(() => {
 
-    type YElement = Y.Map<unknown>;
 
-    type YElementsObserver = (event: Y.YMapEvent<YElement>) => void;
-
-    const observer: YElementsObserver = (event) => {
+    const observerDeep = (events: Array<unknown>, transaction: Y.Transaction) => {
       scheduleRender();
-      event.target.forEach((element: YElement, key: string) => {
-        console.log('Y.Element Key:', key, 'Value:', element.toJSON());
-      });
-    }
+      // // Log simple useful info
+      // console.log('order:', canvasDoc.order.toArray());
+      // console.log('yElements snapshot (string):', JSON.stringify(canvasDoc.yElement.toJSON()));
+      // console.log('observeDeep events count', events.length, 'origin:', transaction.origin);
+    
+    };
 
-    console.log(`[UNDO] Undo Stack Size: ${UndoManager.undoStack.length}`)
-    console.log(`[UNDO] Redo Stack Size: ${UndoManager.redoStack.length}`)
-    canvasDoc.yElement.observe(observer);
+    // console.log(`[UNDO] Undo Stack Size: ${UndoManager.undoStack.length}`);
+    // console.log(`[UNDO] Redo Stack Size: ${UndoManager.redoStack.length}`);
+
+    canvasDoc.yElement.observeDeep(observerDeep);
     return () => {
-      canvasDoc.yElement.unobserve(observer);
-    }
-  }, []);
+      canvasDoc.yElement.unobserveDeep(observerDeep);
+    };
+  }, [scheduleRender, yElement]);
 
   useEffect(() => {
     const canvas = canvasRef.current;

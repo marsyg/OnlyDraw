@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-  import {  ChevronUp, Settings2, } from 'lucide-react'; 
+import { ChevronUp, Settings2, } from 'lucide-react';
 
 import { TOOLBAR_ITEM } from '@/types/toolbarData';
 import { BoundaryStyle, FillStyle, useAppStore } from '@/Store/store';
@@ -15,7 +15,7 @@ const getRoughnessLabel = (value: number) => {
   return "Chaotic";
 };
 
-// --- Updated Modern Styles ---
+
 const RoughStyles = () => (
   <style>{`
     @import url('https://fonts.googleapis.com/css2?family=Kalam:wght@300;400;700&display=swap');
@@ -101,7 +101,7 @@ export default function RoughSketchToolbox() {
     strokeColor, setActiveToolbarId, toolbar, setCurrentTool, setIsDragging, setIsSelecting, setStrokeColor,
     fillColor, setFillColor, isFillTransparent, setIsFillTransparent, strokeWidth, setStrokeWidth,
     setRoughness, fillStyle, setFillStyle, fillWeight, setFillWeight, roughness,
-    boundaryStyle, setBoundaryStyle, hasShadow, setHasShadow, opacity, setOpacity, 
+    boundaryStyle, setBoundaryStyle, hasShadow, setHasShadow, opacity, setOpacity, setBound,
   } = useAppStore();
 
   const colorRef = useRef<HTMLInputElement | null>(null);
@@ -126,6 +126,7 @@ export default function RoughSketchToolbox() {
     setCurrentTool({ action, elementType });
     setIsSelecting(action === actionType.Selecting);
     setIsDragging(action === actionType.Dragging);
+    setBound(null)
   };
 
   const handleChange: React.ChangeEventHandler<HTMLInputElement> = (e) => {
@@ -143,7 +144,7 @@ export default function RoughSketchToolbox() {
     <>
       <RoughStyles />
 
-      
+
       <motion.div
         layout
         className="fixed top-4 left-4 z-50 sketch-font modern-panel flex flex-col select-none overflow-hidden"
@@ -152,10 +153,10 @@ export default function RoughSketchToolbox() {
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
       >
 
-        
+
         <div className={`flex ${isExpanded ? 'flex-row flex-wrap p-3 gap-2 justify-between items-center' : 'flex-col p-2 gap-3 items-center'}`}>
 
-         
+
           {!isExpanded && (
             <div className="mb-2">
               <motion.button
@@ -167,10 +168,10 @@ export default function RoughSketchToolbox() {
             </div>
           )}
 
-         
+
           <div className={`grid ${isExpanded ? 'grid-cols-4 gap-2 w-full' : 'flex flex-col gap-2'}`}>
             {TOOLBAR_ITEM.map((item) => {
-              
+
               if (!isExpanded && toolbar.activeToolId !== item.id) return null;
 
               return (
@@ -179,7 +180,7 @@ export default function RoughSketchToolbox() {
                   className={`rough-btn flex items-center justify-center ${isExpanded ? 'h-10 w-full text-xl' : 'h-10 w-10 text-xl'} ${toolbar.activeToolId === item.id ? 'active' : ''}`}
                   onClick={() => {
                     handleClick(item.id, item.actionType, item.elementType)
-                    if (!isExpanded) setIsExpanded(true); 
+                    if (!isExpanded) setIsExpanded(true);
                   }}
                   whileTap={{ scale: 0.95 }}
                   title={item.id}

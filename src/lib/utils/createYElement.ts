@@ -49,15 +49,15 @@ const createYElement = (element: OnlyDrawElement) => {
   return newElement;
 };
 const updateYElement = (element: OnlyDrawElement, yElement: Y.Map<unknown>) => {
-  console.log(`[DEBUG] Updating element ${element.id}`);
-  console.log(
-    `[DEBUG] Input seed: ${element.seed}, type: ${typeof element.seed}`
-  );
+  // console.log(`[DEBUG] Updating element ${element.id}`);
+  // console.log(
+  //   `[DEBUG] Input seed: ${element.seed}, type: ${typeof element.seed}`
+  // );
 
-  const existingSeed = yElement.get('seed');
-  console.log(
-    `[DEBUG] Existing Yjs seed: ${existingSeed}, type: ${typeof existingSeed}`
-  );
+  // const existingSeed = yElement.get('seed');
+  // console.log(
+  //   `[DEBUG] Existing Yjs seed: ${existingSeed}, type: ${typeof existingSeed}`
+  // );
 
   yElement.set('x', element.x);
   yElement.set('y', element.y);
