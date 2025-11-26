@@ -794,11 +794,52 @@ export default function App() {
     checkTouch();
   }, []);
 
-  return (
+  const handleDelete = useCallback(() => {
+    if (!selectedYElement) return;
 
+    let elementKeyToDelete: string | null = null;
+    yElement.forEach((value, key) => {
+      if (value === selectedYElement) {
+        elementKeyToDelete = key;
+      }
+    });
+
+    if (elementKeyToDelete) {
+      doc.transact(() => {
+        yElement.delete(elementKeyToDelete!);
+        const index = order.toArray().indexOf(elementKeyToDelete!);
+        if (index > -1) {
+          order.delete(index, 1);
+        }
+      }, LOCAL_ORIGIN);
+
+      setYElement(null);
+      setBound(null);
+      setLockedBounds(false);
+      scheduleRender();
+    }
+  }, [selectedYElement, doc, yElement, order, setYElement, setBound, setLockedBounds, scheduleRender]);
+
+  const handleUndoClick = useCallback(() => {
+    handleUndo();
+    setYElement(null);
+    setBound(null);
+    setLockedBounds(false);
+    scheduleRender();
+  }, [setYElement, setBound, setLockedBounds, scheduleRender]);
+
+  const handleRedoClick = useCallback(() => {
+    handleRedo();
+    setYElement(null);
+    setBound(null);
+    setLockedBounds(false);
+    scheduleRender();
+  }, [setYElement, setBound, setLockedBounds, scheduleRender]);
+
+  return (
     <div className='bg-white relative w-full h-screen overflow-hidden touch-none'>
-      {/* <Toolbar className='absolute top-2 left-2 z-10' /> */}
-      <RoughSketchToolbox />
+      <RoughSketchToolbox onDelete={handleDelete} />
+
       <motion.div
         className={`fixed ${isTouchDevice ? 'top-2 right-2' : 'top-4 right-4'} z-50 sketch-font select-none`}
         initial={false}
@@ -898,6 +939,33 @@ export default function App() {
         )}
       </motion.div>
 
+      {/* Undo/Redo Buttons */}
+      <motion.div
+        className={`fixed ${isTouchDevice ? 'bottom-2 right-2' : 'bottom-4 right-4'} z-50 flex gap-2 sketch-font select-none`}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+      >
+        <motion.button
+          onClick={handleUndoClick}
+          className={`${isTouchDevice ? 'w-10 h-10' : 'w-12 h-12'} rough-btn font-bold flex items-center justify-center`}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          title="Undo (Ctrl+Z)"
+        >
+          <span className={isTouchDevice ? 'text-base' : 'text-lg'}>↶</span>
+        </motion.button>
+
+        <motion.button
+          onClick={handleRedoClick}
+          className={`${isTouchDevice ? 'w-10 h-10' : 'w-12 h-12'} rough-btn font-bold flex items-center justify-center`}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          title="Redo (Ctrl+Y)"
+        >
+          <span className={isTouchDevice ? 'text-base' : 'text-lg'}>↷</span>
+        </motion.button>
+      </motion.div>
 
       <canvas
         ref={canvasRef}
@@ -911,7 +979,8 @@ export default function App() {
         onTouchEnd={handleTouchEnd}
         style={{
           border: '1px solid black',
-          cursor: CursorStyle
+          cursor: CursorStyle,
+          touchAction: 'none',
         }}
       />
     </div>

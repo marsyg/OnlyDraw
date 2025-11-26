@@ -90,8 +90,11 @@ const RoughStyles = () => (
     }
   `}</style>
 );
+interface RoughSketchToolboxProps {
+  onDelete?: () => void;
+}
 
-export default function RoughSketchToolbox() {
+export default function RoughSketchToolbox({ onDelete }: RoughSketchToolboxProps) {
 
   const [isMobile, setIsMobile] = useState(false);
   const [isExpanded, setIsExpanded] = useState(true);
@@ -131,7 +134,10 @@ export default function RoughSketchToolbox() {
   ];
 
   // Handlers
-  const handleClick = (id: string, action: actionType, elementType: elementType) => {
+  const handleClick = (id: string, action: actionType, elementType: elementType, func: (() => void) | undefined) => {
+    if (action === actionType.Delete) {
+      if (func) func();
+    }
     setActiveToolbarId(id);
     setCurrentTool({ action, elementType });
     setIsSelecting(action === actionType.Selecting);
@@ -189,7 +195,7 @@ export default function RoughSketchToolbox() {
                   key={item.id}
                   className={`rough-btn flex items-center justify-center ${isExpanded ? 'h-10 w-full text-xl' : 'h-10 w-10 text-xl'} ${toolbar.activeToolId === item.id ? 'active' : ''}`}
                   onClick={() => {
-                    handleClick(item.id, item.actionType, item.elementType)
+                    handleClick(item.id, item.actionType, item.elementType, onDelete)
                     if (!isExpanded) setIsExpanded(true);
                   }}
                   whileTap={{ scale: 0.95 }}
