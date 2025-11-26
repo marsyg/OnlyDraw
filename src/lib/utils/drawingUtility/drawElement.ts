@@ -5,6 +5,8 @@ import * as Y from 'yjs';
 import { Drawable } from 'roughjs/bin/core';
 import { RoughCanvas } from 'roughjs/bin/canvas';
 import { RoughGenerator } from 'roughjs/bin/generator';
+import getStrokeLineDash from '@/lib/helperfunc/getStrokedLine';
+import { BoundaryStyle } from '@/Store/store';
 type DrawingArgs = {
   ctx: CanvasRenderingContext2D;
   element: Y.Map<unknown>;
@@ -100,6 +102,10 @@ function getOrCreateDrawable(
             fill: String(element.get('fillColor')),
             fillStyle: String(element.get('fillStyle')),
             hachureGap: hachureGap,
+            strokeLineDash: getStrokeLineDash(
+              String(element.get('boundaryStyle')) as BoundaryStyle,
+              Number(element.get('strokeWidth'))
+            ),
           }
         );
 
@@ -113,6 +119,10 @@ function getOrCreateDrawable(
           stroke: String(element.get('strokeColor')),
           strokeWidth: Number(element.get('strokeWidth')),
           roughness: Number(element.get('roughness')),
+          strokeLineDash: getStrokeLineDash(
+            String(element.get('boundaryStyle')) as BoundaryStyle,
+            Number(element.get('strokeWidth'))
+          ),
         });
       }
 
@@ -129,6 +139,10 @@ function getOrCreateDrawable(
           fill: String(element.get('fillColor')),
           fillStyle: String(element.get('fillStyle')),
           hachureGap: hachureGap,
+          strokeLineDash: getStrokeLineDash(
+            String(element.get('boundaryStyle')) as BoundaryStyle,
+            Number(element.get('strokeWidth'))
+          ),
         });
       }
 
@@ -196,7 +210,6 @@ export const DrawElements = ({ ctx, element, rc }: DrawingArgs) => {
     return;
   }
 
-  // For rectangle/ellipse/line: get cached drawable and draw it
   const drawable = getOrCreateDrawable(generator, element);
   if (drawable) {
     rc.draw(drawable);
@@ -216,6 +229,10 @@ export const DrawElements = ({ ctx, element, rc }: DrawingArgs) => {
           fill: String(element.get('fillColor')),
           fillStyle: String(element.get('fillStyle')),
           hachureGap: Number(element.get('fillWeight')),
+          strokeLineDash: getStrokeLineDash(
+            String(element.get('fillStyle')) as BoundaryStyle,
+            Number(element.get('strokeWidth'))
+          ),
         }
       )
     );

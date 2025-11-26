@@ -17,6 +17,7 @@ type baseType = {
   strokeColor: string;
   strokeWidth: number;
   roughness: number;
+
 };
 export type rectangleElement = baseType & {
   type: elementType.Rectangle;
@@ -24,6 +25,7 @@ export type rectangleElement = baseType & {
   fillStyle: string;
   fillWeight: number;
   boundaryStyle: string;
+  
 };
 
 export type ellipseElement = baseType & {
@@ -32,12 +34,15 @@ export type ellipseElement = baseType & {
   fillStyle: string;
   fillWeight: number;
   boundaryStyle: string;
+  
 };
 
 export type lineElement = baseType & {
   type: elementType.Line;
   boundaryStyle: string;
+  
 };
+
 
 export type freeHandElement = baseType & {
   stroke: Stroke;
@@ -107,4 +112,5 @@ export type ElementOptions = {
   fillStyle: string;
   fillWeight: number;
   boundaryStyle: string;
+  
 };
