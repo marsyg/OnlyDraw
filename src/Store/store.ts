@@ -96,7 +96,7 @@ export const useAppStore = create<AppState>((set) => ({
 
   isFillTransparent: false,
   strokeWidth: 5,
-  roughness: 25,
+  roughness: 5,
   fillStyle: 'solid',
   fillWeight: 10,
   shapeType: 'rect',

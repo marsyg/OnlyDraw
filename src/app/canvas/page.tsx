@@ -64,7 +64,7 @@ export default function App() {
     boundaryStyle,
 
   } = useAppStore();
-
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
   const [freehandPoint, setFreehandPoint] = useState<PointsFreeHand[] | null>([
     [pointerPosition[0], pointerPosition[1], 1] as PointsFreeHand,
   ]);
@@ -114,12 +114,27 @@ export default function App() {
   }, [renderCanvas]);
 
 
-  const getMOuseCoordinate = useCallback((e: React.PointerEvent) => {
+  const getPointerCoordinates = useCallback((e: React.PointerEvent | React.TouchEvent) => {
     const canvas = canvasRef.current;
     if (!canvas) return [0, 0] as [number, number];
+
     const rect = canvas.getBoundingClientRect();
-    const X = e.clientX - rect.left;
-    const Y = e.clientY - rect.top;
+    let clientX: number, clientY: number;
+
+    if ('touches' in e && e.touches.length > 0) {
+      // Touch event
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else if ('clientX' in e) {
+      // Pointer/Mouse event
+      clientX = e.clientX;
+      clientY = e.clientY;
+    } else {
+      return [0, 0] as [number, number];
+    }
+
+    const X = clientX - rect.left;
+    const Y = clientY - rect.top;
     setPointerPosition([X, Y]);
     return [X, Y] as [number, number];
   }, [setPointerPosition]);
@@ -145,8 +160,8 @@ export default function App() {
     const context = canvas.getContext('2d');
     if (!context) return;
 
-    const [x, y] = getMOuseCoordinate(e);
-    console.log({ getMOuseCoordinate })
+    const [x, y] = getPointerCoordinates(e);
+    console.log({ getPointerCoordinates })
     const initialPoint: point = [x, y];
 
 
@@ -274,7 +289,7 @@ export default function App() {
       }
       return;
     }
-  }, [getMOuseCoordinate, currentTool, bound, lockedBounds, selectedYElement, hitTestAtPoint,
+  }, [getPointerCoordinates, currentTool, bound, lockedBounds, selectedYElement, hitTestAtPoint,
     setYElement, setBound, setIsDragging, setIsResizing, setResizeHandle, strokeColor,
     strokeWidth, fillColor, fillStyle, roughness, boundaryStyle, fillWeight, doc, yElement,
     order, setSelectedElementId, setIsDrawing]
@@ -284,7 +299,7 @@ export default function App() {
   const MOVE_THROTTLE_MS = 16;
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
-    const [x, y] = getMOuseCoordinate(e);
+    const [x, y] = getPointerCoordinates(e);
     const pt: point = [x, y];
     // console.log([x, y])
     // console.log("resizing status ", isResizing)
@@ -488,11 +503,11 @@ export default function App() {
 
     }
 
-  }, [getMOuseCoordinate, currentTool, isDragging, isResizing, lockedBounds, bound,
+  }, [getPointerCoordinates, currentTool, isDragging, isResizing, lockedBounds, bound,
     selectedYElement, hitTestAtPoint, setBound, setYElement, setIsDragging, isDrawing,
     freehandPoint, doc, scheduleRender, GlobalPointerPosition, resizeHandle]);
 
-  const handlePointerUp = (e: React.PointerEvent) => {
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
 
     if (!selectedYElement) return
     setIsDrawing(false);
@@ -518,11 +533,58 @@ export default function App() {
     resizeOriginalRectRef.current = null;
 
 
-  };
+  }, [selectedYElement, setIsDragging, setIsDrawing, setIsResizing, setResizeHandle]);
 
 
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    e.preventDefault(); // Prevent scrolling
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const [x, y] = getPointerCoordinates(e);
+    const syntheticEvent = {
+      clientX: e.touches[0].clientX,
+      clientY: e.touches[0].clientY,
+      currentTarget: canvas,
+      target: canvas,
+    } as unknown as React.PointerEvent;
+
+    handlePointerDown(syntheticEvent);
+  }, [getPointerCoordinates, handlePointerDown]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    e.preventDefault(); // Prevent scrolling
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const syntheticEvent = {
+      clientX: e.touches[0].clientX,
+      clientY: e.touches[0].clientY,
+      currentTarget: canvas,
+      target: canvas,
+    } as unknown as React.PointerEvent;
+
+    handlePointerMove(syntheticEvent);
+  }, [, handlePointerMove]);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const syntheticEvent = {
+      clientX: e.changedTouches[0]?.clientX || 0,
+      clientY: e.changedTouches[0]?.clientY || 0,
+      currentTarget: canvas,
+      target: canvas,
+    } as unknown as React.PointerEvent;
+
+    handlePointerUp(syntheticEvent);
+  }, [handlePointerUp]);
   const [isCollaborating, setIsCollaborating] = useState(false);
   const [roomId, setRoomId] = useState('');
+  const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
   const [showRoomInput, setShowRoomInput] = useState(false);
   const providerRef = useRef<WebsocketProvider | null>(null);
   const startCollaboration = useCallback(() => {
@@ -539,6 +601,11 @@ export default function App() {
         return;
       }
       console.log(serverUrl)
+
+      setConnectionStatus('connecting');
+      setIsCollaborating(true);
+      setShowRoomInput(false);
+
       providerRef.current = new WebsocketProvider(
         serverUrl,
         roomId,
@@ -547,15 +614,20 @@ export default function App() {
 
       providerRef.current.on('status', (event: { status: string }) => {
         console.log('Provider status:', event.status);
+        if (event.status === 'connected') {
+          setConnectionStatus('connected');
+        } else if (event.status === 'disconnected') {
+          setConnectionStatus('connecting');
+        }
       });
 
-
-      setIsCollaborating(true);
-      setShowRoomInput(false);
-      console.log(`Joined room: ${roomId}`);
+      console.log(`Joining room: ${roomId}`);
     } catch (error) {
       console.error('Failed to start collaboration:', error);
       alert('Failed to connect to room');
+      setConnectionStatus('disconnected');
+      setIsCollaborating(false);
+      setConnectionStatus('disconnected');
     }
   }, [roomId, doc]);
 
@@ -696,6 +768,12 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    const checkTouch = () => {
+      setIsTouchDevice('ontouchstart' in window || navigator.maxTouchPoints > 0);
+    };
+    checkTouch();
+  }, []);
 
   return (
 
@@ -703,7 +781,7 @@ export default function App() {
       {/* <Toolbar className='absolute top-2 left-2 z-10' /> */}
       <RoughSketchToolbox />
       <motion.div
-        className="fixed top-4 right-4 z-50 sketch-font select-none"
+        className={`fixed ${isTouchDevice ? 'top-2 right-2' : 'top-4 right-4'} z-50 sketch-font select-none`}
         initial={false}
       >
         {!isCollaborating ? (
@@ -711,19 +789,19 @@ export default function App() {
             {!showRoomInput ? (
               <motion.button
                 onClick={() => setShowRoomInput(true)}
-                className="px-3 py-2 rough-btn font-bold text-xs uppercase tracking-wide flex items-center gap-2"
+                className={`${isTouchDevice ? 'px-2 py-1.5 text-[10px]' : 'px-3 py-2 text-xs'} rough-btn font-bold uppercase tracking-wide flex items-center gap-1`}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
-                <span className="text-sm">🌐</span>
-                Collab
+                <span className={isTouchDevice ? 'text-xs' : 'text-sm'}>🌐</span>
+                {!isTouchDevice && 'Collab'}
               </motion.button>
             ) : (
               <motion.div
                 initial={{ opacity: 0, y: -20, scale: 0.9 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -20, scale: 0.9 }}
-                className="modern-panel p-3 space-y-2 w-[220px]"
+                className={`modern-panel p-3 space-y-2 ${isTouchDevice ? 'w-[180px]' : 'w-[220px]'}`}
                 transition={{ type: "spring", stiffness: 400, damping: 25 }}
               >
                 <input
@@ -731,7 +809,7 @@ export default function App() {
                   value={roomId}
                   onChange={(e) => setRoomId(e.target.value)}
                   placeholder='Room ID'
-                  className='w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-xs'
+                  className={`w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 ${isTouchDevice ? 'text-[10px]' : 'text-xs'}`}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') startCollaboration();
                     if (e.key === 'Escape') {
@@ -739,12 +817,12 @@ export default function App() {
                       setRoomId('');
                     }
                   }}
-                  autoFocus
+                  autoFocus={!isTouchDevice}
                 />
                 <div className='flex gap-2'>
                   <button
                     onClick={startCollaboration}
-                    className='flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs uppercase tracking-wide transition-all active:scale-95 border border-blue-800 shadow-[2px_2px_0px_0px_#1e3a8a]'
+                    className={`flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold ${isTouchDevice ? 'text-[10px]' : 'text-xs'} uppercase tracking-wide transition-all active:scale-95 border border-blue-800 shadow-[2px_2px_0px_0px_#1e3a8a]`}
                   >
                     Join
                   </button>
@@ -753,7 +831,7 @@ export default function App() {
                       setShowRoomInput(false);
                       setRoomId('');
                     }}
-                    className='px-3 py-2 rough-btn text-xs uppercase font-bold'
+                    className={`px-3 py-2 rough-btn ${isTouchDevice ? 'text-[10px]' : 'text-xs'} uppercase font-bold`}
                     title="Cancel"
                   >
                     ✕
@@ -766,14 +844,25 @@ export default function App() {
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className='modern-panel p-2 space-y-2 w-[180px]'
+            className={`modern-panel p-2 space-y-2 ${isTouchDevice ? 'w-[140px]' : 'w-[180px]'}`}
           >
             <div className='flex items-center justify-between'>
               <div className='flex items-center gap-2'>
-                <div className='w-2 h-2 bg-green-500 rounded-full animate-pulse'></div>
-                <span className='text-[10px] font-bold uppercase text-gray-100'>
-                  Live
-                </span>
+                {connectionStatus === 'connecting' ? (
+                  <>
+                    <div className='w-2 h-2 bg-yellow-500 rounded-full animate-pulse'></div>
+                    <span className='text-[10px] font-bold uppercase text-gray-100'>
+                      Connecting
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <div className='w-2 h-2 bg-green-500 rounded-full animate-pulse'></div>
+                    <span className='text-[10px] font-bold uppercase text-gray-100'>
+                      Live
+                    </span>
+                  </>
+                )}
               </div>
               <button
                 onClick={stopCollaboration}
@@ -798,6 +887,9 @@ export default function App() {
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
         style={{
           border: '1px solid black',
           cursor: CursorStyle

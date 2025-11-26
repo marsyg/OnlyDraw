@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronUp, Settings2, } from 'lucide-react';
 
@@ -28,7 +28,7 @@ const RoughStyles = () => (
     .modern-panel {
       background-color: #6c242c;             /* Dark surface */
       border: 1px solid #262b36;             /* Subtle dark border */
-      box-shadow: 10px 10px 0px 0px #000;    /* Hard dark shadow */
+      
       border-radius: 12px;
       transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
       color: #e5e7eb;
@@ -93,8 +93,18 @@ const RoughStyles = () => (
 
 export default function RoughSketchToolbox() {
 
+  const [isMobile, setIsMobile] = useState(false);
   const [isExpanded, setIsExpanded] = useState(true);
   const [target, setTarget] = useState<string | null>(null);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Store
   const {
