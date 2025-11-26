@@ -648,7 +648,26 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    const preventDefault = (e: TouchEvent) => {
+      if (e.touches.length > 1) return; // Allow pinch zoom
+      e.preventDefault();
+    };
 
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.width = '100%';
+    document.body.style.height = '100%';
+    document.addEventListener('touchmove', preventDefault, { passive: false });
+
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+      document.body.style.height = '';
+      document.removeEventListener('touchmove', preventDefault);
+    };
+  }, []);
 
 
 
@@ -777,7 +796,7 @@ export default function App() {
 
   return (
 
-    <div className='bg-white relative w-full h-screen'>
+    <div className='bg-white relative w-full h-screen overflow-hidden touch-none'>
       {/* <Toolbar className='absolute top-2 left-2 z-10' /> */}
       <RoughSketchToolbox />
       <motion.div
@@ -882,7 +901,7 @@ export default function App() {
 
       <canvas
         ref={canvasRef}
-        className={`w-full h-screen `}
+        className='w-full h-screen touch-none select-none'
         id='canvas'
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
