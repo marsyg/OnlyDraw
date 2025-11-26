@@ -25,8 +25,9 @@ import { LOCAL_ORIGIN, LIVE_ORIGIN } from '@/Store/yjs-store';
 import detectResizeHandle from '@/lib/hitTest/detectResizeHandler';
 import resizeBound from '@/lib/resizeBound';
 import { resizeElement } from '@/lib/resizeElement';
-
+import { WebsocketProvider } from 'y-websocket';
 import RoughSketchToolbox from '@/component/crazyToolbar';
+import { motion } from 'framer-motion';
 
 
 
@@ -506,10 +507,10 @@ export default function App() {
 
     resizeHandleRef.current = null;
     setIsResizing(false);
-    const element = selectedYElement?.toJSON() as OnlyDrawElement
-    doc.transact(() => {
-      yUtils.updateYElement(element, selectedYElement)
-    }, LOCAL_ORIGIN)
+    // const element = selectedYElement?.toJSON() as OnlyDrawElement
+    // doc.transact(() => {
+    //   yUtils.updateYElement(element, selectedYElement)
+    // }, LOCAL_ORIGIN)
     UndoManager.stopCapturing();
     setResizeHandle(null);
     setCursorStyle("default")
@@ -520,34 +521,76 @@ export default function App() {
   };
 
 
+  const [isCollaborating, setIsCollaborating] = useState(false);
+  const [roomId, setRoomId] = useState('');
+  const [showRoomInput, setShowRoomInput] = useState(false);
+  const providerRef = useRef<WebsocketProvider | null>(null);
+  const startCollaboration = useCallback(() => {
+    if (!roomId.trim()) {
+      alert('Please enter a room ID');
+      return;
+    }
 
-  // useEffect(() => {
-  //   const canvas = canvasRef.current;
-  //   if (!canvas) return;
-  //   const context = canvas.getContext('2d');
-  //   if (!context) {
-  //     return;
-  //   }
-  //   console.log("selectedYElement changed ", selectedYElement?.toJSON());
-  //   console.log("bound changed ", bound);
+    try {
+      const serverUrl = process.env.NEXT_PUBLIC_URL;
+      if (!serverUrl) {
+        console.error('NEXT_PUBLIC_URL is not set');
+        alert('Collaboration server URL is not configured.');
+        return;
+      }
+      console.log(serverUrl)
+      providerRef.current = new WebsocketProvider(
+        serverUrl,
+        roomId,
+        doc
+      );
 
-  //   if (selectedYElement && bound) {
-  //     DrawBounds({ context, bounds: bound })
-  //   }
-  // }, [selectedYElement, bound]);
+      providerRef.current.on('status', (event: { status: string }) => {
+        console.log('Provider status:', event.status);
+      });
+
+
+      setIsCollaborating(true);
+      setShowRoomInput(false);
+      console.log(`Joined room: ${roomId}`);
+    } catch (error) {
+      console.error('Failed to start collaboration:', error);
+      alert('Failed to connect to room');
+    }
+  }, [roomId, doc]);
+
+  const stopCollaboration = useCallback(() => {
+    if (providerRef.current) {
+      providerRef.current.destroy();
+      providerRef.current = null;
+      setIsCollaborating(false);
+      console.log('Disconnected from room');
+    }
+  }, []);
 
   useEffect(() => {
+    return () => {
+      if (providerRef.current) {
+        providerRef.current.destroy();
+      }
+    };
+  }, []);
 
+
+
+
+
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.key === 'z') {
-        handleUndo()
+        handleUndo();
         setYElement(null);
         setBound(null);
         setLockedBounds(false);
         scheduleRender();
       }
       if (e.ctrlKey && e.key === 'y') {
-        handleRedo()
+        handleRedo();
         setYElement(null);
         setBound(null);
         setLockedBounds(false);
@@ -556,25 +599,44 @@ export default function App() {
       console.log("Key pressed:", selectedYElement, e.key);
       if (e.key === 'Delete' && selectedYElement) {
         console.log("Deleting selected element");
-        doc.transact(() => {
-          const elementId = selectedYElement.get("id") as string;
-          yElement.delete(elementId);
-          const index = order.toArray().indexOf(elementId);
-          if (index > -1) {
-            order.delete(index, 1);
-          }
-        }, LOCAL_ORIGIN);
-        setYElement(null);
-        setBound(null);
-        setLockedBounds(false);
-        scheduleRender();
-      }
 
-    }
+        // Find the outer key (the actual Map key in yElement)
+        let elementKeyToDelete: string | null = null;
+        yElement.forEach((value, key) => {
+          if (value === selectedYElement) {
+            elementKeyToDelete = key;
+          }
+        });
+
+        if (elementKeyToDelete) {
+          console.log("Found element key to delete:", elementKeyToDelete);
+          console.log("yElement before delete:", yElement.toJSON());
+          console.log("order before delete:", order.toArray());
+
+          doc.transact(() => {
+            yElement.delete(elementKeyToDelete!);
+            const index = order.toArray().indexOf(elementKeyToDelete!);
+            if (index > -1) {
+              order.delete(index, 1);
+            }
+          }, LOCAL_ORIGIN);
+
+          console.log("yElement after delete:", yElement.toJSON());
+          console.log("order after delete:", order.toArray());
+
+          setYElement(null);
+          setBound(null);
+          setLockedBounds(false);
+          scheduleRender();
+        } else {
+          console.error("Could not find element key in yElement Map");
+        }
+      }
+    };
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-
-  }, [doc, selectedYElement, yElement, order, scheduleRender, setYElement, setBound]);
+  }, [doc, selectedYElement, yElement, order, scheduleRender, setYElement, setLockedBounds, setBound]);
 
   useEffect(() => {
 
@@ -585,7 +647,7 @@ export default function App() {
       // console.log('order:', canvasDoc.order.toArray());
       // console.log('yElements snapshot (string):', JSON.stringify(canvasDoc.yElement.toJSON()));
       // console.log('observeDeep events count', events.length, 'origin:', transaction.origin);
-    
+
     };
 
     // console.log(`[UNDO] Undo Stack Size: ${UndoManager.undoStack.length}`);
@@ -640,6 +702,93 @@ export default function App() {
     <div className='bg-white relative w-full h-screen'>
       {/* <Toolbar className='absolute top-2 left-2 z-10' /> */}
       <RoughSketchToolbox />
+      <motion.div
+        className="fixed top-4 right-4 z-50 sketch-font select-none"
+        initial={false}
+      >
+        {!isCollaborating ? (
+          <>
+            {!showRoomInput ? (
+              <motion.button
+                onClick={() => setShowRoomInput(true)}
+                className="px-3 py-2 rough-btn font-bold text-xs uppercase tracking-wide flex items-center gap-2"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <span className="text-sm">🌐</span>
+                Collab
+              </motion.button>
+            ) : (
+              <motion.div
+                initial={{ opacity: 0, y: -20, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -20, scale: 0.9 }}
+                className="modern-panel p-3 space-y-2 w-[220px]"
+                transition={{ type: "spring", stiffness: 400, damping: 25 }}
+              >
+                <input
+                  type='text'
+                  value={roomId}
+                  onChange={(e) => setRoomId(e.target.value)}
+                  placeholder='Room ID'
+                  className='w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-xs'
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') startCollaboration();
+                    if (e.key === 'Escape') {
+                      setShowRoomInput(false);
+                      setRoomId('');
+                    }
+                  }}
+                  autoFocus
+                />
+                <div className='flex gap-2'>
+                  <button
+                    onClick={startCollaboration}
+                    className='flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs uppercase tracking-wide transition-all active:scale-95 border border-blue-800 shadow-[2px_2px_0px_0px_#1e3a8a]'
+                  >
+                    Join
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowRoomInput(false);
+                      setRoomId('');
+                    }}
+                    className='px-3 py-2 rough-btn text-xs uppercase font-bold'
+                    title="Cancel"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </>
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className='modern-panel p-2 space-y-2 w-[180px]'
+          >
+            <div className='flex items-center justify-between'>
+              <div className='flex items-center gap-2'>
+                <div className='w-2 h-2 bg-green-500 rounded-full animate-pulse'></div>
+                <span className='text-[10px] font-bold uppercase text-gray-100'>
+                  Live
+                </span>
+              </div>
+              <button
+                onClick={stopCollaboration}
+                className='px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-[10px] font-bold uppercase transition-all active:scale-95 border border-red-900'
+                title="Disconnect"
+              >
+                ✕
+              </button>
+            </div>
+            <div className='text-[10px] text-gray-300 font-mono bg-gray-950 px-2 py-1 rounded border border-gray-800 truncate'>
+              {roomId}
+            </div>
+          </motion.div>
+        )}
+      </motion.div>
 
 
       <canvas
