@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAppStore } from '@/Store/store';
 import { RoughGenerator } from 'roughjs/bin/generator';
 import { RoughCanvas } from 'roughjs/bin/canvas';
-
+import { generateUsername } from "unique-username-generator";
 import { OnlyDrawElement, point, PointsFreeHand } from '@/types/type';
 import { actionType, elementType } from '@/types/type';
 import { handleDrawElement } from '@/lib/handleElement';
@@ -28,6 +28,7 @@ import { resizeElement } from '@/lib/resizeElement';
 import { WebsocketProvider } from 'y-websocket';
 import RoughSketchToolbox from '@/component/crazyToolbar';
 import { motion } from 'framer-motion';
+import getRandomColor from '@/lib/helperfunc/getRandomColor';
 
 
 
@@ -71,6 +72,7 @@ export default function App() {
   const [CursorStyle, setCursorStyle] = useState("default")
   const [lockedBounds, setLockedBounds] = useState<boolean>(false)
   const roughGeneratorRef = useRef<RoughGenerator | null>(null);
+  const [userName, setUserName] = useState<string>('');
   const roughCanvasRef = useRef<RoughCanvas | null>(null);
 
 
@@ -587,6 +589,9 @@ export default function App() {
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
   const [showRoomInput, setShowRoomInput] = useState(false);
   const providerRef = useRef<WebsocketProvider | null>(null);
+  const [participants, setParticipants] = useState<Array<{ clientId: number; name: string; color: string, cursor?: { x: number; y: number } }>>([]);
+  const awarenessHandlerRef = useRef<(() => void) | null>(null);
+  const unloadHandlerRef = useRef<(() => void) | null>(null);
   const startCollaboration = useCallback(() => {
     if (!roomId.trim()) {
       alert('Please enter a room ID');
@@ -611,6 +616,34 @@ export default function App() {
         roomId,
         doc
       );
+      const awareness = providerRef.current.awareness;
+      const finalUserName = userName.trim() !== '' ? userName.trim() : generateUsername("", 3, 5);
+      awareness.setLocalState({
+        user: {
+          name: finalUserName,
+          color: getRandomColor()
+        },
+        cursor: { x: pointerPosition[0], y: pointerPosition[1] }
+      });
+
+      const updateParticipants = () => {
+        console.log('awareness change', Array.from(awareness.getStates().keys()));
+        const arr: Array<{ clientId: number; name: string; color: string; cursor?: { x: number; y: number } }> = [];
+        for (const [clientId, state] of awareness.getStates()) {
+
+          if (clientId === awareness.clientID) continue;
+
+          const name = state?.user?.name ?? '';
+          const color = state?.user?.color ?? '#777';
+          const cursor = state?.cursor;
+          arr.push({ clientId: Number(clientId), name, color, cursor });
+          console.log('client', clientId, 'state', state);
+        }
+        setParticipants(arr);
+      };
+      awareness.on('change', updateParticipants);
+      awarenessHandlerRef.current = updateParticipants;
+      updateParticipants();
 
       providerRef.current.on('status', (event: { status: string }) => {
         console.log('Provider status:', event.status);
@@ -621,6 +654,9 @@ export default function App() {
         }
       });
 
+      const onUnload = () => providerRef.current?.destroy();
+      window.addEventListener('beforeunload', onUnload);
+      unloadHandlerRef.current = onUnload;
       console.log(`Joining room: ${roomId}`);
     } catch (error) {
       console.error('Failed to start collaboration:', error);
@@ -629,13 +665,31 @@ export default function App() {
       setIsCollaborating(false);
       setConnectionStatus('disconnected');
     }
-  }, [roomId, doc]);
+  }, [roomId, doc, userName, pointerPosition]);
+
 
   const stopCollaboration = useCallback(() => {
     if (providerRef.current) {
+      try {
+        const awareness = providerRef.current.awareness;
+        if (awareness && awarenessHandlerRef.current) {
+          awareness.off('change', awarenessHandlerRef.current);
+          awarenessHandlerRef.current = null;
+        }
+      } catch (e) {
+
+      }
+
+      if (unloadHandlerRef.current) {
+        window.removeEventListener('beforeunload', unloadHandlerRef.current);
+        unloadHandlerRef.current = null;
+      }
+
       providerRef.current.destroy();
       providerRef.current = null;
+      setParticipants([]);
       setIsCollaborating(false);
+      setConnectionStatus('disconnected');
       console.log('Disconnected from room');
     }
   }, []);
@@ -643,7 +697,18 @@ export default function App() {
   useEffect(() => {
     return () => {
       if (providerRef.current) {
+        try {
+          const awareness = providerRef.current.awareness;
+          if (awareness && awarenessHandlerRef.current) {
+            awareness.off('change', awarenessHandlerRef.current);
+          }
+        } catch (e) { }
         providerRef.current.destroy();
+        providerRef.current = null;
+      }
+      if (unloadHandlerRef.current) {
+        window.removeEventListener('beforeunload', unloadHandlerRef.current);
+        unloadHandlerRef.current = null;
       }
     };
   }, []);
@@ -836,10 +901,82 @@ export default function App() {
     scheduleRender();
   }, [setYElement, setBound, setLockedBounds, scheduleRender]);
 
+  useEffect(() => {
+    if (isCollaborating && providerRef.current) {
+      const awareness = providerRef.current.awareness;
+      const localState = awareness.getLocalState();
+      if (localState) {
+        awareness.setLocalStateField('cursor', { x: pointerPosition[0], y: pointerPosition[1] });
+      }
+    }
+  }, [pointerPosition, isCollaborating]);
+
   return (
     <div className='bg-white relative w-full h-screen overflow-hidden touch-none'>
       <RoughSketchToolbox onDelete={handleDelete} />
+      {isCollaborating && connectionStatus === 'connected' && participants.map(p => {
 
+        if (!p.cursor || p.clientId === providerRef.current?.awareness.clientID) return null;
+        return (
+          <motion.div
+            key={p.clientId}
+            className="fixed pointer-events-none z-40"
+            style={{
+              left: p.cursor.x,
+              top: p.cursor.y,
+              color: p.color,
+            }}
+            initial={{ opacity: 0, scale: 0 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0 }}
+          >
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))' }}
+            >
+              <path
+                d="M5.65376 12.3673H5.46026L5.31717 12.4976L0.500002 16.8829L0.500002 1.19841L11.7841 12.3673H5.65376Z"
+                fill={p.color}
+                stroke="white"
+                strokeWidth="1"
+              />
+            </svg>
+            <div
+              className="absolute left-6 top-1 px-2 py-1 rounded text-xs font-bold text-white whitespace-nowrap"
+              style={{
+                backgroundColor: p.color,
+                boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+              }}
+            >
+              {p.name}
+            </div>
+          </motion.div>
+        );
+      })}
+      {isCollaborating && connectionStatus === 'connected' && participants.length > 0 && (
+        <motion.div
+          className={`fixed top-4 left-1/2 z-50 transform -translate-x-1/2`}
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <div className="modern-panel px-2 py-1 flex items-center gap-2">
+            {participants.map(p => (
+              <div
+                key={p.clientId}
+                title={p.name}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold text-white select-none"
+                style={{ backgroundColor: p.color }}
+              >
+                {p.name ? p.name.charAt(0).toUpperCase() : '?'}
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
       <motion.div
         className={`fixed ${isTouchDevice ? 'top-2 right-2' : 'top-4 right-4'} z-50 sketch-font select-none`}
         initial={false}
@@ -874,6 +1011,22 @@ export default function App() {
                     if (e.key === 'Enter') startCollaboration();
                     if (e.key === 'Escape') {
                       setShowRoomInput(false);
+                      setRoomId('');
+                    }
+                  }}
+                  autoFocus={!isTouchDevice}
+                />
+                <input
+                  type='text'
+                  value={userName}
+                  onChange={(e) => setUserName(e.target.value)}
+                  placeholder='username'
+                  className={`w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 ${isTouchDevice ? 'text-[10px]' : 'text-xs'}`}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && roomId) startCollaboration();
+                    if (e.key === 'Escape') {
+                      setShowRoomInput(false);
+                      setUserName('')
                       setRoomId('');
                     }
                   }}
@@ -939,7 +1092,7 @@ export default function App() {
         )}
       </motion.div>
 
-      {/* Undo/Redo Buttons */}
+
       <motion.div
         className={`fixed ${isTouchDevice ? 'bottom-2 right-2' : 'bottom-4 right-4'} z-50 flex gap-2 sketch-font select-none`}
         initial={{ opacity: 0, y: 20 }}
