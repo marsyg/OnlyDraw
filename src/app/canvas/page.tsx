@@ -27,6 +27,7 @@ import resizeBound from '@/lib/resizeBound';
 import { resizeElement } from '@/lib/resizeElement';
 import { WebsocketProvider } from 'y-websocket';
 import RoughSketchToolbox from '@/component/crazyToolbar';
+import FeaturePanel from '@/component/FeaturePanel';
 import { motion } from 'framer-motion';
 import getRandomColor from '@/lib/helperfunc/getRandomColor';
 
@@ -66,6 +67,12 @@ export default function App() {
 
   } = useAppStore();
   const [isTouchDevice, setIsTouchDevice] = useState(false);
+  const [isDark, setIsDark] = useState(false);
+
+  // Sync dark mode with <html> class so any CSS vars respect it
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', isDark);
+  }, [isDark]);
   const [freehandPoint, setFreehandPoint] = useState<PointsFreeHand[] | null>([
     [pointerPosition[0], pointerPosition[1], 1] as PointsFreeHand,
   ]);
@@ -756,7 +763,7 @@ export default function App() {
       if (e.key === 'Delete' && selectedYElement) {
         console.log("Deleting selected element");
 
-        // Find the outer key (the actual Map key in yElement)
+        
         let elementKeyToDelete: string | null = null;
         yElement.forEach((value, key) => {
           if (value === selectedYElement) {
@@ -912,8 +919,12 @@ export default function App() {
   }, [pointerPosition, isCollaborating]);
 
   return (
-    <div className='bg-white relative w-full h-screen overflow-hidden touch-none'>
+    <div
+      className='relative w-full h-screen overflow-hidden touch-none'
+      style={{ background: isDark ? '#0f172a' : '#ffffff', transition: 'background 0.3s ease' }}
+    >
       <RoughSketchToolbox onDelete={handleDelete} />
+      <FeaturePanel isDark={isDark} onToggleDark={() => setIsDark(d => !d)} />
       {isCollaborating && connectionStatus === 'connected' && participants.map(p => {
 
         if (!p.cursor || p.clientId === providerRef.current?.awareness.clientID) return null;
@@ -963,7 +974,7 @@ export default function App() {
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
         >
-          <div className="modern-panel px-2 py-1 flex items-center gap-2">
+          <div className=" px-2 py-1 flex items-center gap-2">
             {participants.map(p => (
               <div
                 key={p.clientId}
@@ -1131,7 +1142,7 @@ export default function App() {
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         style={{
-          border: '1px solid black',
+          border: isDark ? '1px solid #1e293b' : '1px solid #e2e8f0',
           cursor: CursorStyle,
           touchAction: 'none',
         }}
