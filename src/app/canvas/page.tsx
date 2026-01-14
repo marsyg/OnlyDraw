@@ -21,7 +21,7 @@ import * as Y from 'yjs';
 import { Point } from 'roughjs/bin/geometry';
 import yUtils from '@/lib/utils/createYElement';
 import { handleUndo, handleRedo } from '@/lib/helperfunc/undo-redo';
-import { LOCAL_ORIGIN, LIVE_ORIGIN } from '@/Store/yjs-store';
+import { LOCAL_ORIGIN, persistence } from '@/Store/yjs-store';
 import detectResizeHandle from '@/lib/hitTest/detectResizeHandler';
 import resizeBound from '@/lib/resizeBound';
 import { resizeElement } from '@/lib/resizeElement';
@@ -30,6 +30,7 @@ import RoughSketchToolbox from '@/component/crazyToolbar';
 import FeaturePanel from '@/component/FeaturePanel';
 import { motion } from 'framer-motion';
 import getRandomColor from '@/lib/helperfunc/getRandomColor';
+import { ZoomIn, ZoomOut, Maximize2, Download } from 'lucide-react';
 
 
 
@@ -64,6 +65,12 @@ export default function App() {
     fillStyle,
     fillWeight,
     boundaryStyle,
+    opacity,
+    hasShadow,
+    camera,
+    panCamera,
+    zoomCamera,
+    resetCamera,
 
   } = useAppStore();
   const [isTouchDevice, setIsTouchDevice] = useState(false);
@@ -82,8 +89,14 @@ export default function App() {
   const [userName, setUserName] = useState<string>('');
   const roughCanvasRef = useRef<RoughCanvas | null>(null);
 
+  // Infinite canvas pan state
+  const isPanningRef = useRef<boolean>(false);
+  const isSpacePressedRef = useRef<boolean>(false);
+  const panStartRef = useRef<{ x: number; y: number; camX: number; camY: number } | null>(null);
+  // Keep a ref to camera so event handlers always see latest value without re-creating
+  const cameraRef = useRef(camera);
+  useEffect(() => { cameraRef.current = camera; }, [camera]);
 
-  const [GlobalPointerPosition, setGlobalPointerPosition] = useState<Point | null>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const resizeStartPointerRef = useRef<point | null>(null);
@@ -106,16 +119,37 @@ export default function App() {
       roughGeneratorRef.current = roughCanvasRef.current.generator;
     }
     const rc = roughCanvasRef.current;
-    if (isDragging || isResizing || isDrawing) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-    } else {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const cam = cameraRef.current;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // --- Draw adaptive infinite dot grid ---
+    const gridColor = isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.12)';
+    let gridSpacing = 30 * cam.scale;
+    while (gridSpacing < 18) gridSpacing *= 2;
+    while (gridSpacing > 100) gridSpacing /= 2;
+    const dotR = Math.max(0.75, Math.min(2.5, 1.2 * cam.scale));
+    const offsetX = ((cam.x % gridSpacing) + gridSpacing) % gridSpacing;
+    const offsetY = ((cam.y % gridSpacing) + gridSpacing) % gridSpacing;
+    ctx.fillStyle = gridColor;
+    for (let gx = offsetX; gx < canvas.width; gx += gridSpacing) {
+      for (let gy = offsetY; gy < canvas.height; gy += gridSpacing) {
+        ctx.beginPath();
+        ctx.arc(gx, gy, dotR, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
 
-    ;
+    // --- Apply camera transform ---
+    ctx.save();
+    ctx.setTransform(cam.scale, 0, 0, cam.scale, cam.x, cam.y);
+
     yElement.forEach(el => DrawElements({ ctx, element: el, rc: rc }));
     if (selectedYElement && bound) DrawBounds({ context: ctx, bounds: bound });
-  }, [isDragging, isResizing, isDrawing, yElement, selectedYElement, bound]);
+
+    ctx.restore();
+  }, [isDark, isDragging, isResizing, isDrawing, yElement, selectedYElement, bound]);
+
 
   const scheduleRender = useCallback(() => {
     if (animationFrameIdRef.current) cancelAnimationFrame(animationFrameIdRef.current);
@@ -131,24 +165,50 @@ export default function App() {
     let clientX: number, clientY: number;
 
     if ('touches' in e && e.touches.length > 0) {
-      // Touch event
       clientX = e.touches[0].clientX;
       clientY = e.touches[0].clientY;
     } else if ('clientX' in e) {
-      // Pointer/Mouse event
       clientX = e.clientX;
       clientY = e.clientY;
     } else {
       return [0, 0] as [number, number];
     }
 
-    const X = clientX - rect.left;
-    const Y = clientY - rect.top;
-    setPointerPosition([X, Y]);
-    return [X, Y] as [number, number];
+    const screenX = clientX - rect.left;
+    const screenY = clientY - rect.top;
+    // Convert screen → world space
+    const cam = cameraRef.current;
+    const worldX = (screenX - cam.x) / cam.scale;
+    const worldY = (screenY - cam.y) / cam.scale;
+    setPointerPosition([screenX, screenY]);
+    return [worldX, worldY] as [number, number];
   }, [setPointerPosition]);
 
+  const [GlobalPointerPosition, setGlobalPointerPosition] = useState<Point | null>(null);
+
+  // ── Wheel: zoom + ctrl-scroll ──────────────────────────────────────────────
+  const handleWheel = useCallback((e: WheelEvent) => {
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const centerX = e.clientX - rect.left;
+    const centerY = e.clientY - rect.top;
+    if (e.ctrlKey || e.metaKey) {
+      // Pinch-zoom (trackpad) or ctrl+scroll
+      zoomCamera(-e.deltaY, centerX, centerY);
+    } else if (e.shiftKey) {
+      // Shift + scroll: horizontal pan
+      panCamera(-e.deltaY, 0);
+    } else {
+      // Pan
+      panCamera(-e.deltaX, -e.deltaY);
+    }
+    scheduleRender();
+  }, [zoomCamera, panCamera, scheduleRender]);
+
   const hitTestAtPoint = useCallback((pt: point) => {
+
 
     for (let i = order.length - 1; i >= 0; i--) {
       const elementId = order.get(i) as string;
@@ -169,8 +229,18 @@ export default function App() {
     const context = canvas.getContext('2d');
     if (!context) return;
 
+    // Middle-mouse or space+left-click: start panning
+    if (e.button === 1 || (e.button === 0 && isSpacePressedRef.current)) {
+      e.preventDefault();
+      isPanningRef.current = true;
+      const cam = cameraRef.current;
+      panStartRef.current = { x: e.clientX, y: e.clientY, camX: cam.x, camY: cam.y };
+      setCursorStyle('grabbing');
+      canvas.setPointerCapture(e.pointerId);
+      return;
+    }
+
     const [x, y] = getPointerCoordinates(e);
-    console.log({ getPointerCoordinates })
     const initialPoint: point = [x, y];
 
 
@@ -264,6 +334,8 @@ export default function App() {
           roughness: roughness,
           boundaryStyle: boundaryStyle,
           fillWeight: fillWeight,
+          opacity: opacity,
+          hasShadow: hasShadow,
         },
         stroke: {
           points: [[initialPoint[0], initialPoint[1], 1]],
@@ -276,7 +348,6 @@ export default function App() {
         if (!doc) throw new Error("Y.Doc is not initialized");
         let createdYEl: Y.Map<unknown> | null = null;
         doc.transact(() => {
-          `x`
           createdYEl = yUtils.createYElement(element);
 
           if (!yElement.get(element.id) && createdYEl) {
@@ -308,15 +379,26 @@ export default function App() {
   const MOVE_THROTTLE_MS = 16;
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    // Handle panning (middle-mouse or space+drag)
+    if (isPanningRef.current && panStartRef.current) {
+      const { x: startX, y: startY, camX, camY } = panStartRef.current;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      const newCam = { ...cameraRef.current, x: camX + dx, y: camY + dy };
+      cameraRef.current = newCam;
+      useAppStore.setState({ camera: newCam });
+      scheduleRender();
+      return;
+    }
+
     const [x, y] = getPointerCoordinates(e);
     const pt: point = [x, y];
-    // console.log([x, y])
-    // console.log("resizing status ", isResizing)
     const now = Date.now();
     if (now - lastMoveTimeRef.current < MOVE_THROTTLE_MS && !isDrawing && !isDragging && !isResizing) {
       return;
     }
     lastMoveTimeRef.current = now;
+
     if (currentTool.action === actionType.Selecting && !isDragging && !isResizing) {
       // console.log("inside hover logic")
       let foundElementToSelect: Y.Map<unknown> | null = null;
@@ -517,32 +599,31 @@ export default function App() {
     freehandPoint, doc, scheduleRender, GlobalPointerPosition, resizeHandle]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    if (isPanningRef.current) {
+      isPanningRef.current = false;
+      panStartRef.current = null;
+      try {
+        canvasRef.current?.releasePointerCapture(e.pointerId);
+      } catch {}
+      setCursorStyle(isSpacePressedRef.current ? 'grab' : 'default');
+      return;
+    }
 
-    if (!selectedYElement) return
     setIsDrawing(false);
     setIsDragging(false);
 
-
     flagRef.current = false;
 
-
-
-    setFreehandPoint(null)
+    setFreehandPoint(null);
 
     resizeHandleRef.current = null;
     setIsResizing(false);
-    // const element = selectedYElement?.toJSON() as OnlyDrawElement
-    // doc.transact(() => {
-    //   yUtils.updateYElement(element, selectedYElement)
-    // }, LOCAL_ORIGIN)
     UndoManager.stopCapturing();
     setResizeHandle(null);
-    setCursorStyle("default")
+    setCursorStyle(isSpacePressedRef.current ? 'grab' : 'default');
     resizeStartPointerRef.current = null;
     resizeOriginalRectRef.current = null;
-
-
-  }, [selectedYElement, setIsDragging, setIsDrawing, setIsResizing, setResizeHandle]);
+  }, [setIsDragging, setIsDrawing, setIsResizing, setResizeHandle]);
 
 
 
@@ -743,129 +824,6 @@ export default function App() {
 
 
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.key === 'z') {
-        handleUndo();
-        setYElement(null);
-        setBound(null);
-        setLockedBounds(false);
-        scheduleRender();
-      }
-      if (e.ctrlKey && e.key === 'y') {
-        handleRedo();
-        setYElement(null);
-        setBound(null);
-        setLockedBounds(false);
-        scheduleRender();
-      }
-      console.log("Key pressed:", selectedYElement, e.key);
-      if (e.key === 'Delete' && selectedYElement) {
-        console.log("Deleting selected element");
-
-        
-        let elementKeyToDelete: string | null = null;
-        yElement.forEach((value, key) => {
-          if (value === selectedYElement) {
-            elementKeyToDelete = key;
-          }
-        });
-
-        if (elementKeyToDelete) {
-          console.log("Found element key to delete:", elementKeyToDelete);
-          console.log("yElement before delete:", yElement.toJSON());
-          console.log("order before delete:", order.toArray());
-
-          doc.transact(() => {
-            yElement.delete(elementKeyToDelete!);
-            const index = order.toArray().indexOf(elementKeyToDelete!);
-            if (index > -1) {
-              order.delete(index, 1);
-            }
-          }, LOCAL_ORIGIN);
-
-          console.log("yElement after delete:", yElement.toJSON());
-          console.log("order after delete:", order.toArray());
-
-          setYElement(null);
-          setBound(null);
-          setLockedBounds(false);
-          scheduleRender();
-        } else {
-          console.error("Could not find element key in yElement Map");
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [doc, selectedYElement, yElement, order, scheduleRender, setYElement, setLockedBounds, setBound]);
-
-  useEffect(() => {
-
-
-    const observerDeep = (events: Array<unknown>, transaction: Y.Transaction) => {
-      scheduleRender();
-      // // Log simple useful info
-      // console.log('order:', canvasDoc.order.toArray());
-      // console.log('yElements snapshot (string):', JSON.stringify(canvasDoc.yElement.toJSON()));
-      // console.log('observeDeep events count', events.length, 'origin:', transaction.origin);
-
-    };
-
-    // console.log(`[UNDO] Undo Stack Size: ${UndoManager.undoStack.length}`);
-    // console.log(`[UNDO] Redo Stack Size: ${UndoManager.redoStack.length}`);
-
-    canvasDoc.yElement.observeDeep(observerDeep);
-    return () => {
-      canvasDoc.yElement.unobserveDeep(observerDeep);
-    };
-  }, [scheduleRender, yElement]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    roughCanvasRef.current = rough.canvas(canvas);
-    roughGeneratorRef.current = roughCanvasRef.current.generator;
-    const setSize = () => {
-      canvas.width = canvas.offsetWidth;
-      canvas.height = canvas.offsetHeight;
-      scheduleRender();
-    };
-
-    setSize();
-    window.addEventListener('resize', setSize);
-    return () => window.removeEventListener('resize', setSize);
-  }, [scheduleRender]);
-  // useEffect(() => {
-
-
-  //   console.log("isdragging ---> ", isDragging)
-  //   console.log("isDrawing ---> ", isDrawing)
-  //   console.log("CursorStyle ---> ", CursorStyle)
-  //   console.log("currentTool ---> ", currentTool)
-  //   console.log("selectedYElement ---> ", selectedYElement)
-  //   console.log("resizeHandle ---> ", resizeHandle)
-  //   console.log("isResizing ---> ", isResizing)
-  //   console.log({ bound })
-  //   console.log("lockedBounds ---> ", lockedBounds)
-  // }, [isDragging, isDrawing, CursorStyle, currentTool, selectedYElement, resizeHandle, isResizing, lockedBounds, bound]);
-  useEffect(() => {
-    return () => {
-      if (animationFrameIdRef.current) {
-        cancelAnimationFrame(animationFrameIdRef.current);
-        animationFrameIdRef.current = null;
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    const checkTouch = () => {
-      setIsTouchDevice('ontouchstart' in window || navigator.maxTouchPoints > 0);
-    };
-    checkTouch();
-  }, []);
-
   const handleDelete = useCallback(() => {
     if (!selectedYElement) return;
 
@@ -891,6 +849,177 @@ export default function App() {
       scheduleRender();
     }
   }, [selectedYElement, doc, yElement, order, setYElement, setBound, setLockedBounds, scheduleRender]);
+
+  const handleExportPNG = useCallback(() => {
+    const elementIds = order.toArray();
+    if (elementIds.length === 0) {
+      alert('Canvas is empty — draw something first!');
+      return;
+    }
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    elementIds.forEach((id) => {
+      const el = yElement.get(id);
+      if (!el || el.get('isDeleted')) return;
+      const b = getBounds({ element: el });
+      if (b) {
+        minX = Math.min(minX, b.x);
+        minY = Math.min(minY, b.y);
+        maxX = Math.max(maxX, b.x + b.width);
+        maxY = Math.max(maxY, b.y + b.height);
+      }
+    });
+
+    if (!isFinite(minX) || !isFinite(minY)) {
+      alert('No visible elements to export.');
+      return;
+    }
+
+    const padding = 50;
+    const width = Math.ceil(maxX - minX + padding * 2);
+    const height = Math.ceil(maxY - minY + padding * 2);
+
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = width;
+    exportCanvas.height = height;
+    const expCtx = exportCanvas.getContext('2d');
+    if (!expCtx) return;
+
+    expCtx.fillStyle = isDark ? '#0f172a' : '#ffffff';
+    expCtx.fillRect(0, 0, width, height);
+    expCtx.translate(-minX + padding, -minY + padding);
+    const expRc = rough.canvas(exportCanvas);
+
+    elementIds.forEach((id) => {
+      const el = yElement.get(id);
+      if (el && !el.get('isDeleted')) {
+        DrawElements({ ctx: expCtx, element: el, rc: expRc });
+      }
+    });
+
+    const link = document.createElement('a');
+    link.download = `canvas-sketch-${Date.now()}.png`;
+    link.href = exportCanvas.toDataURL('image/png');
+    link.click();
+  }, [order, yElement, isDark]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeTag = (document.activeElement as HTMLElement)?.tagName;
+      if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return;
+
+      if (e.code === 'Space' && !e.repeat) {
+        isSpacePressedRef.current = true;
+        if (!isDrawing && !isDragging && !isResizing) {
+          setCursorStyle('grab');
+        }
+      }
+
+      if (e.ctrlKey && e.key === 'z') {
+        handleUndo();
+        setYElement(null);
+        setBound(null);
+        setLockedBounds(false);
+        scheduleRender();
+      }
+      if (e.ctrlKey && e.key === 'y') {
+        handleRedo();
+        setYElement(null);
+        setBound(null);
+        setLockedBounds(false);
+        scheduleRender();
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === '0') {
+        e.preventDefault();
+        resetCamera();
+        scheduleRender();
+      }
+
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedYElement) {
+        handleDelete();
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        isSpacePressedRef.current = false;
+        if (!isPanningRef.current) {
+          setCursorStyle('default');
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [handleDelete, resetCamera, scheduleRender, isDrawing, isDragging, isResizing, selectedYElement, setBound, setLockedBounds, setYElement]);
+
+  // IndexedDB local storage sync listener
+  useEffect(() => {
+    if (!persistence) return;
+    const p = persistence;
+    const handleSynced = () => {
+      scheduleRender();
+    };
+    p.on('synced', handleSynced);
+    return () => {
+      p.off('synced', handleSynced);
+    };
+  }, [scheduleRender]);
+
+  useEffect(() => {
+    const observerDeep = (events: Array<unknown>, transaction: Y.Transaction) => {
+      scheduleRender();
+    };
+
+    canvasDoc.yElement.observeDeep(observerDeep);
+    return () => {
+      canvasDoc.yElement.unobserveDeep(observerDeep);
+    };
+  }, [scheduleRender, yElement]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    roughCanvasRef.current = rough.canvas(canvas);
+    roughGeneratorRef.current = roughCanvasRef.current.generator;
+    const setSize = () => {
+      canvas.width = canvas.offsetWidth;
+      canvas.height = canvas.offsetHeight;
+      scheduleRender();
+    };
+
+    setSize();
+    window.addEventListener('resize', setSize);
+
+    // Non-passive wheel listener for smooth infinite pan & zoom
+    canvas.addEventListener('wheel', handleWheel, { passive: false });
+
+    return () => {
+      window.removeEventListener('resize', setSize);
+      canvas.removeEventListener('wheel', handleWheel);
+    };
+  }, [scheduleRender, handleWheel]);
+
+  useEffect(() => {
+    return () => {
+      if (animationFrameIdRef.current) {
+        cancelAnimationFrame(animationFrameIdRef.current);
+        animationFrameIdRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const checkTouch = () => {
+      setIsTouchDevice('ontouchstart' in window || navigator.maxTouchPoints > 0);
+    };
+    checkTouch();
+  }, []);
 
   const handleUndoClick = useCallback(() => {
     handleUndo();
@@ -1105,14 +1234,76 @@ export default function App() {
 
 
       <motion.div
-        className={`fixed ${isTouchDevice ? 'bottom-2 right-2' : 'bottom-4 right-4'} z-50 flex gap-2 sketch-font select-none`}
+        className={`fixed ${isTouchDevice ? 'bottom-2 right-2' : 'bottom-4 right-4'} z-50 flex items-center gap-2 sketch-font select-none`}
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
       >
+        {/* Zoom & View Controls */}
+        <div className="flex items-center bg-gray-900/95 backdrop-blur-md border border-gray-800 rounded-xl p-1 shadow-xl text-white">
+          <button
+            onClick={() => {
+              const canvas = canvasRef.current;
+              const cx = canvas ? canvas.width / 2 : window.innerWidth / 2;
+              const cy = canvas ? canvas.height / 2 : window.innerHeight / 2;
+              zoomCamera(-100, cx, cy);
+              scheduleRender();
+            }}
+            className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-800 text-gray-300 hover:text-white transition-colors"
+            title="Zoom Out"
+          >
+            <ZoomOut size={15} />
+          </button>
+
+          <button
+            onClick={() => {
+              resetCamera();
+              scheduleRender();
+            }}
+            className="px-2 h-8 rounded-lg flex items-center justify-center hover:bg-gray-800 text-xs font-mono font-bold text-gray-200 hover:text-white transition-colors min-w-[50px]"
+            title="Reset Zoom (100% / Ctrl+0)"
+          >
+            {Math.round(camera.scale * 100)}%
+          </button>
+
+          <button
+            onClick={() => {
+              const canvas = canvasRef.current;
+              const cx = canvas ? canvas.width / 2 : window.innerWidth / 2;
+              const cy = canvas ? canvas.height / 2 : window.innerHeight / 2;
+              zoomCamera(100, cx, cy);
+              scheduleRender();
+            }}
+            className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-800 text-gray-300 hover:text-white transition-colors"
+            title="Zoom In"
+          >
+            <ZoomIn size={15} />
+          </button>
+
+          <button
+            onClick={() => {
+              resetCamera();
+              scheduleRender();
+            }}
+            className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-800 text-gray-300 hover:text-white transition-colors border-l border-gray-800 ml-1 pl-1"
+            title="Reset View"
+          >
+            <Maximize2 size={14} />
+          </button>
+
+          <button
+            onClick={handleExportPNG}
+            className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-800 text-gray-300 hover:text-white transition-colors border-l border-gray-800 ml-1 pl-1"
+            title="Export to PNG"
+          >
+            <Download size={14} />
+          </button>
+        </div>
+
+        {/* Undo / Redo */}
         <motion.button
           onClick={handleUndoClick}
-          className={`${isTouchDevice ? 'w-10 h-10' : 'w-12 h-12'} rough-btn font-bold flex items-center justify-center`}
+          className={`${isTouchDevice ? 'w-9 h-9' : 'w-10 h-10'} rough-btn font-bold flex items-center justify-center`}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           title="Undo (Ctrl+Z)"
@@ -1122,7 +1313,7 @@ export default function App() {
 
         <motion.button
           onClick={handleRedoClick}
-          className={`${isTouchDevice ? 'w-10 h-10' : 'w-12 h-12'} rough-btn font-bold flex items-center justify-center`}
+          className={`${isTouchDevice ? 'w-9 h-9' : 'w-10 h-10'} rough-btn font-bold flex items-center justify-center`}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           title="Redo (Ctrl+Y)"
@@ -1138,6 +1329,7 @@ export default function App() {
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}

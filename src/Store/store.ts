@@ -16,6 +16,7 @@ type CurrentTool = {
 export type ShapeType = 'rect' | 'circle' | 'line' | 'freehand';
 export type FillStyle = 'solid' | 'hachure' | 'dots' | 'zigzag';
 export type BoundaryStyle = 'solid' | 'dashed' | 'dotted';
+export type Camera = { x: number; y: number; scale: number };
 export type AppState = {
   elements: OnlyDrawElement[];
   currentTool: CurrentTool;
@@ -44,6 +45,7 @@ export type AppState = {
   hasShadow: boolean;
   opacity: number;
   rotation: number;
+  camera: Camera;
   //actions
   setBound: (bound: boundType | null) => void;
   setStrokeColor: (color: string) => void;
@@ -71,6 +73,10 @@ export type AppState = {
   setHasShadow: (v: boolean) => void;
   setOpacity: (v: number) => void;
   setRotation: (v: number) => void;
+  setCamera: (camera: Camera) => void;
+  panCamera: (dx: number, dy: number) => void;
+  zoomCamera: (delta: number, centerX: number, centerY: number) => void;
+  resetCamera: () => void;
 };
 
 export const useAppStore = create<AppState>((set) => ({
@@ -105,6 +111,7 @@ export const useAppStore = create<AppState>((set) => ({
   hasShadow: false,
   opacity: 1,
   rotation: 0,
+  camera: { x: 0, y: 0, scale: 1 },
 
   setBound: (bound) => set({ bound }),
   setStrokeColor: (strokeColor) => set({ strokeColor }),
@@ -162,4 +169,25 @@ export const useAppStore = create<AppState>((set) => ({
   setHasShadow: (v) => set({ hasShadow: v }),
   setOpacity: (v) => set({ opacity: v }),
   setRotation: (v) => set({ rotation: v }),
+  setCamera: (camera) => set({ camera }),
+  panCamera: (dx, dy) =>
+    set((state) => ({
+      camera: { ...state.camera, x: state.camera.x + dx, y: state.camera.y + dy },
+    })),
+  zoomCamera: (delta, centerX, centerY) =>
+    set((state) => {
+      const MIN_SCALE = 0.05;
+      const MAX_SCALE = 20;
+      const zoomFactor = delta > 0 ? 1.1 : 0.9;
+      const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, state.camera.scale * zoomFactor));
+      const scaleRatio = newScale / state.camera.scale;
+      return {
+        camera: {
+          x: centerX - scaleRatio * (centerX - state.camera.x),
+          y: centerY - scaleRatio * (centerY - state.camera.y),
+          scale: newScale,
+        },
+      };
+    }),
+  resetCamera: () => set({ camera: { x: 0, y: 0, scale: 1 } }),
 }));

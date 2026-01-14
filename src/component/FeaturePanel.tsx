@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Moon, Sun, Zap, Users, Pencil, Shapes, RotateCcw, MousePointer2, ChevronRight } from 'lucide-react';
+import { X, Moon, Sun, Zap, Users, Pencil, Shapes, RotateCcw, MousePointer2, ChevronRight, Move, Database, Download } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface FeaturePanelProps {
@@ -12,6 +12,18 @@ interface FeaturePanelProps {
 
 // ─── Feature data ─────────────────────────────────────────────────────────────
 const FEATURES = [
+  {
+    icon: Move,
+    title: 'Infinite Canvas',
+    desc: 'Pan and zoom smoothly across an unlimited canvas with Space+drag or mouse wheel.',
+    color: '#06b6d4',
+  },
+  {
+    icon: Database,
+    title: 'Local Persistence (IndexedDB)',
+    desc: 'Your sketches are automatically saved locally in your browser and restored on refresh.',
+    color: '#8b5cf6',
+  },
   {
     icon: Pencil,
     title: 'Freehand Drawing',
@@ -45,12 +57,22 @@ const FEATURES = [
   {
     icon: Zap,
     title: 'Rich Style Options',
-    desc: 'Control stroke width, fill patterns, roughness, opacity & shadows.',
+    desc: 'Control stroke width, fill patterns, roughness, opacity & drop shadows.',
     color: '#f97316',
+  },
+  {
+    icon: Download,
+    title: 'PNG Export',
+    desc: 'Export your artwork as a crisp, cropped PNG image with one click.',
+    color: '#14b8a6',
   },
 ];
 
 const SHORTCUTS = [
+  { keys: ['Space', 'Drag'], action: 'Pan infinite canvas' },
+  { keys: ['Ctrl', 'Scroll'], action: 'Zoom in / out' },
+  { keys: ['Ctrl', '0'], action: 'Reset view (100%)' },
+  { keys: ['Middle-Click'], action: 'Drag to pan' },
   { keys: ['Ctrl', 'Z'], action: 'Undo' },
   { keys: ['Ctrl', 'Y'], action: 'Redo' },
   { keys: ['Del'], action: 'Delete selected' },

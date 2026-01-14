@@ -37,6 +37,8 @@ export const handleDrawElement = ({
     strokeColor: options.strokeColor,
     strokeWidth: options.strokeWidth,
     roughness: options.roughness,
+    opacity: options.opacity ?? 1,
+    hasShadow: options.hasShadow ?? false,
   };
   switch (element) {
     case elementType.Rectangle:

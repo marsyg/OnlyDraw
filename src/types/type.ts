@@ -17,7 +17,8 @@ type baseType = {
   strokeColor: string;
   strokeWidth: number;
   roughness: number;
-
+  opacity?: number;
+  hasShadow?: boolean;
 };
 export type rectangleElement = baseType & {
   type: elementType.Rectangle;
@@ -112,5 +113,6 @@ export type ElementOptions = {
   fillStyle: string;
   fillWeight: number;
   boundaryStyle: string;
-  
+  opacity?: number;
+  hasShadow?: boolean;
 };

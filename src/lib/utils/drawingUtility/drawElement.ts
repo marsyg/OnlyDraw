@@ -165,6 +165,22 @@ export const DrawElements = ({ ctx, element, rc }: DrawingArgs) => {
   ctx.save();
   const type = element.get('type') as unknown as elementType;
 
+  // Apply opacity
+  const opacity = element.get('opacity') as number | undefined;
+  if (opacity !== undefined && opacity !== null) {
+    ctx.globalAlpha = Math.max(0, Math.min(1, opacity));
+  }
+
+  // Apply shadow
+  const hasShadow = element.get('hasShadow') as boolean | undefined;
+  if (hasShadow) {
+    const strokeColor = String(element.get('strokeColor') || '#000000');
+    ctx.shadowColor = strokeColor + '88';
+    ctx.shadowBlur = 12;
+    ctx.shadowOffsetX = 3;
+    ctx.shadowOffsetY = 3;
+  }
+
   if (type === elementType.Freehand) {
     const x = Number(element.get('x'));
     const y = Number(element.get('y'));
@@ -179,7 +195,10 @@ export const DrawElements = ({ ctx, element, rc }: DrawingArgs) => {
         Number(p.get('pressure') ?? 0.5),
       ]);
 
-    if (!points) return;
+    if (!points || points.length === 0) {
+      ctx.restore();
+      return;
+    }
 
     const options = {
       size: Number(element.get('strokeWidth')),

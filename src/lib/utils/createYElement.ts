@@ -45,6 +45,9 @@ const createYElement = (element: OnlyDrawElement) => {
   }
   newElement.set('isDeleted', element.isDeleted);
   newElement.set('author', canvasDoc.doc.clientID);
+  // Visual properties
+  newElement.set('opacity', (element as OnlyDrawElement & { opacity?: number }).opacity ?? 1);
+  newElement.set('hasShadow', (element as OnlyDrawElement & { hasShadow?: boolean }).hasShadow ?? false);
 
   return newElement;
 };
@@ -93,6 +96,13 @@ const updateYElement = (element: OnlyDrawElement, yElement: Y.Map<unknown>) => {
     yElement.set('roughness', element.roughness);
   }
   yElement.set('isDeleted', element.isDeleted);
+  // Visual properties
+  if ((element as OnlyDrawElement & { opacity?: number }).opacity !== undefined) {
+    yElement.set('opacity', (element as OnlyDrawElement & { opacity?: number }).opacity);
+  }
+  if ((element as OnlyDrawElement & { hasShadow?: boolean }).hasShadow !== undefined) {
+    yElement.set('hasShadow', (element as OnlyDrawElement & { hasShadow?: boolean }).hasShadow);
+  }
 
   return yElement;
 };

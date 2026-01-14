@@ -1,6 +1,5 @@
 import * as Y from 'yjs';
-// import { YElement } from '@/types/type';
-import { WebsocketProvider } from 'y-websocket';
+import { IndexeddbPersistence } from 'y-indexeddb';
 
 const doc = new Y.Doc();
 if (!doc) {
@@ -8,19 +7,23 @@ if (!doc) {
 }
 console.log('Yjs store initialized');
 
-// const wsProvider = new WebsocketProvider(
-//   'ws://localhost:1234',
-//   'my-roomname',
-//   doc
-// );
 export const LOCAL_ORIGIN = { local: true };
 export const LIVE_ORIGIN = { live: true };
 
 const elements = doc.getMap<Y.Map<unknown>>('elements');
 const order = doc.getArray<string>('order');
-// wsProvider.on('status', (event) => {
-//   console.log('Provider Status:', event.status);
-// });
+
+// IndexedDB persistence — syncs on load, persists all changes automatically
+export const persistence: IndexeddbPersistence | null =
+  typeof window !== 'undefined'
+    ? new IndexeddbPersistence('canvas-v1', doc)
+    : null;
+
+if (persistence) {
+  persistence.on('synced', () => {
+    console.log('[IndexedDB] Content loaded from local storage');
+  });
+}
 
 const UndoManager = new Y.UndoManager([elements], {
   captureTimeout: 500,
