@@ -46,7 +46,9 @@ export type AppState = {
   opacity: number;
   rotation: number;
   camera: Camera;
+  clipboard: Record<string, unknown> | null;
   //actions
+  setClipboard: (item: Record<string, unknown> | null) => void;
   setBound: (bound: boundType | null) => void;
   setStrokeColor: (color: string) => void;
   setFillColor: (color: string) => void;
@@ -112,7 +114,9 @@ export const useAppStore = create<AppState>((set) => ({
   opacity: 1,
   rotation: 0,
   camera: { x: 0, y: 0, scale: 1 },
+  clipboard: null,
 
+  setClipboard: (item) => set({ clipboard: item }),
   setBound: (bound) => set({ bound }),
   setStrokeColor: (strokeColor) => set({ strokeColor }),
   setFillColor: (fillColor) => set({ fillColor }),

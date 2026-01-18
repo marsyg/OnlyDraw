@@ -2,7 +2,7 @@
 
 import rough from 'roughjs';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '@/Store/store';
 import { RoughGenerator } from 'roughjs/bin/generator';
 import { RoughCanvas } from 'roughjs/bin/canvas';
@@ -30,7 +30,10 @@ import RoughSketchToolbox from '@/component/crazyToolbar';
 import FeaturePanel from '@/component/FeaturePanel';
 import { motion } from 'framer-motion';
 import getRandomColor from '@/lib/helperfunc/getRandomColor';
-import { ZoomIn, ZoomOut, Maximize2, Download } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize2, Download, Keyboard } from 'lucide-react';
+import { useKeybindings } from '@/hooks/useKeybindings';
+import KeybindingsDialog from '@/component/KeybindingsDialog';
+import { serializeYElement, deserializeYElement } from '@/lib/clipboard';
 
 
 
@@ -71,7 +74,11 @@ export default function App() {
     panCamera,
     zoomCamera,
     resetCamera,
-
+    clipboard,
+    setClipboard,
+    setActiveToolbarId,
+    setCurrentTool,
+    setIsSelecting,
   } = useAppStore();
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   const [isDark, setIsDark] = useState(false);
@@ -903,60 +910,164 @@ export default function App() {
     link.click();
   }, [order, yElement, isDark]);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const activeTag = (document.activeElement as HTMLElement)?.tagName;
-      if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return;
+  const [isKeybindingsOpen, setIsKeybindingsOpen] = useState(false);
 
-      if (e.code === 'Space' && !e.repeat) {
-        isSpacePressedRef.current = true;
-        if (!isDrawing && !isDragging && !isResizing) {
-          setCursorStyle('grab');
+  const handleUndoClick = useCallback(() => {
+    handleUndo();
+    setYElement(null);
+    setBound(null);
+    setLockedBounds(false);
+    scheduleRender();
+  }, [setYElement, setBound, setLockedBounds, scheduleRender]);
+
+  const handleRedoClick = useCallback(() => {
+    handleRedo();
+    setYElement(null);
+    setBound(null);
+    setLockedBounds(false);
+    scheduleRender();
+  }, [setYElement, setBound, setLockedBounds, scheduleRender]);
+
+  const selectTool = useCallback(
+    (id: string, action: actionType, elType: elementType) => {
+      setActiveToolbarId(id);
+      setCurrentTool({ action, elementType: elType });
+      setIsSelecting(action === actionType.Selecting);
+      setIsDragging(action === actionType.Dragging);
+      setBound(null);
+    },
+    [setActiveToolbarId, setCurrentTool, setIsSelecting, setIsDragging, setBound]
+  );
+
+  const handleCopy = useCallback(() => {
+    if (!selectedYElement) return;
+    const serialized = serializeYElement(selectedYElement);
+    setClipboard(serialized);
+  }, [selectedYElement, setClipboard]);
+
+  const handlePaste = useCallback(() => {
+    if (!clipboard) return;
+    const newYElement = deserializeYElement(clipboard, { x: 30, y: 30 });
+    const newId = newYElement.get('id') as string;
+    doc.transact(() => {
+      yElement.set(newId, newYElement);
+      order.push([newId]);
+    }, LOCAL_ORIGIN);
+
+    setClipboard({
+      ...clipboard,
+      x: (Number(clipboard.x) || 0) + 30,
+      y: (Number(clipboard.y) || 0) + 30,
+    });
+
+    setYElement(newYElement);
+    const bounds = getBounds({ element: newYElement });
+    setBound(bounds);
+    scheduleRender();
+  }, [clipboard, doc, yElement, order, setClipboard, setYElement, setBound, scheduleRender]);
+
+  const handleDuplicate = useCallback(() => {
+    if (!selectedYElement) return;
+    const serialized = serializeYElement(selectedYElement);
+    const newYElement = deserializeYElement(serialized, { x: 30, y: 30 });
+    const newId = newYElement.get('id') as string;
+    doc.transact(() => {
+      yElement.set(newId, newYElement);
+      order.push([newId]);
+    }, LOCAL_ORIGIN);
+
+    setYElement(newYElement);
+    const bounds = getBounds({ element: newYElement });
+    setBound(bounds);
+    scheduleRender();
+  }, [selectedYElement, doc, yElement, order, setYElement, setBound, scheduleRender]);
+
+  const handleCut = useCallback(() => {
+    if (!selectedYElement) return;
+    handleCopy();
+    handleDelete();
+  }, [selectedYElement, handleCopy, handleDelete]);
+
+  const handleDeselect = useCallback(() => {
+    setYElement(null);
+    setBound(null);
+    setLockedBounds(false);
+    setCurrentTool({ action: actionType.Selecting, elementType: elementType.Select });
+    setActiveToolbarId('select');
+    scheduleRender();
+  }, [setYElement, setBound, setLockedBounds, setCurrentTool, setActiveToolbarId, scheduleRender]);
+
+  const keybindingActions = useMemo(
+    () => ({
+      'tool.select': () => selectTool('select', actionType.Selecting, elementType.Select),
+      'tool.rectangle': () => selectTool('rectangle', actionType.Drawing, elementType.Rectangle),
+      'tool.ellipse': () => selectTool('circle', actionType.Drawing, elementType.Ellipse),
+      'tool.line': () => selectTool('line', actionType.Drawing, elementType.Line),
+      'tool.freehand': () => selectTool('freeHand', actionType.Drawing, elementType.Freehand),
+      'tool.text': () => {
+        if ('Text' in elementType) {
+          selectTool('text', actionType.Drawing, (elementType as any).Text);
         }
-      }
-
-      if (e.ctrlKey && e.key === 'z') {
-        handleUndo();
-        setYElement(null);
-        setBound(null);
-        setLockedBounds(false);
-        scheduleRender();
-      }
-      if (e.ctrlKey && e.key === 'y') {
-        handleRedo();
-        setYElement(null);
-        setBound(null);
-        setLockedBounds(false);
-        scheduleRender();
-      }
-
-      if ((e.ctrlKey || e.metaKey) && e.key === '0') {
-        e.preventDefault();
+      },
+      'edit.undo': handleUndoClick,
+      'edit.redo': handleRedoClick,
+      'edit.copy': handleCopy,
+      'edit.paste': handlePaste,
+      'edit.duplicate': handleDuplicate,
+      'edit.cut': handleCut,
+      'edit.delete': handleDelete,
+      'edit.deselect': handleDeselect,
+      'view.resetZoom': () => {
         resetCamera();
         scheduleRender();
-      }
+      },
+      'view.zoomIn': () => {
+        const canvas = canvasRef.current;
+        const cx = canvas ? canvas.width / 2 : window.innerWidth / 2;
+        const cy = canvas ? canvas.height / 2 : window.innerHeight / 2;
+        zoomCamera(100, cx, cy);
+        scheduleRender();
+      },
+      'view.zoomOut': () => {
+        const canvas = canvasRef.current;
+        const cx = canvas ? canvas.width / 2 : window.innerWidth / 2;
+        const cy = canvas ? canvas.height / 2 : window.innerHeight / 2;
+        zoomCamera(-100, cx, cy);
+        scheduleRender();
+      },
+      'help.toggle': () => setIsKeybindingsOpen((prev) => !prev),
+    }),
+    [
+      selectTool,
+      handleUndoClick,
+      handleRedoClick,
+      handleCopy,
+      handlePaste,
+      handleDuplicate,
+      handleCut,
+      handleDelete,
+      handleDeselect,
+      resetCamera,
+      zoomCamera,
+      scheduleRender,
+    ]
+  );
 
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedYElement) {
-        handleDelete();
+  useKeybindings({
+    actionMap: keybindingActions,
+    onSpaceDown: () => {
+      isSpacePressedRef.current = true;
+      if (!isDrawing && !isDragging && !isResizing) {
+        setCursorStyle('grab');
       }
-    };
-
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.code === 'Space') {
-        isSpacePressedRef.current = false;
-        if (!isPanningRef.current) {
-          setCursorStyle('default');
-        }
+    },
+    onSpaceUp: () => {
+      isSpacePressedRef.current = false;
+      if (!isPanningRef.current) {
+        setCursorStyle('default');
       }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-    };
-  }, [handleDelete, resetCamera, scheduleRender, isDrawing, isDragging, isResizing, selectedYElement, setBound, setLockedBounds, setYElement]);
+    },
+  });
 
   // IndexedDB local storage sync listener
   useEffect(() => {
@@ -1020,22 +1131,6 @@ export default function App() {
     };
     checkTouch();
   }, []);
-
-  const handleUndoClick = useCallback(() => {
-    handleUndo();
-    setYElement(null);
-    setBound(null);
-    setLockedBounds(false);
-    scheduleRender();
-  }, [setYElement, setBound, setLockedBounds, scheduleRender]);
-
-  const handleRedoClick = useCallback(() => {
-    handleRedo();
-    setYElement(null);
-    setBound(null);
-    setLockedBounds(false);
-    scheduleRender();
-  }, [setYElement, setBound, setLockedBounds, scheduleRender]);
 
   useEffect(() => {
     if (isCollaborating && providerRef.current) {
@@ -1298,6 +1393,14 @@ export default function App() {
           >
             <Download size={14} />
           </button>
+
+          <button
+            onClick={() => setIsKeybindingsOpen(true)}
+            className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-800 text-gray-300 hover:text-white transition-colors border-l border-gray-800 ml-1 pl-1"
+            title="Keyboard Shortcuts (?)"
+          >
+            <Keyboard size={14} />
+          </button>
         </div>
 
         {/* Undo / Redo */}
@@ -1338,6 +1441,11 @@ export default function App() {
           cursor: CursorStyle,
           touchAction: 'none',
         }}
+      />
+
+      <KeybindingsDialog
+        isOpen={isKeybindingsOpen}
+        onClose={() => setIsKeybindingsOpen(false)}
       />
     </div>
   );
