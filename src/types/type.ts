@@ -50,13 +50,24 @@ export type freeHandElement = baseType & {
 
   type: elementType.Freehand;
 };
+export type textElement = baseType & {
+  type: elementType.Text;
+  text: string;
+  fontSize: number;
+  fontFamily: string;
+  textAlign: 'left' | 'center' | 'right';
+  fillColor: string;
+  lineHeight: number;
+};
+
 export type Degrees = number;
 
 export type OnlyDrawElement =
   | rectangleElement
   | lineElement
   | ellipseElement
-  | freeHandElement;
+  | freeHandElement
+  | textElement;
 
 export type YElement = OnlyDrawElement & {
   author: number;
@@ -93,6 +104,7 @@ export enum elementType {
   Ellipse = 'ellipse',
   Line = 'line',
   Freehand = 'freehand',
+  Text = 'text',
   Select = 'select',
   Delete = 'delete',
 }
@@ -115,4 +127,8 @@ export type ElementOptions = {
   boundaryStyle: string;
   opacity?: number;
   hasShadow?: boolean;
+  text?: string;
+  fontSize?: number;
+  fontFamily?: string;
+  textAlign?: 'left' | 'center' | 'right';
 };

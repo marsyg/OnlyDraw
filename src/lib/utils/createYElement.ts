@@ -33,6 +33,13 @@ const createYElement = (element: OnlyDrawElement) => {
       points.push([initialPoint]);
     }
     newElement.set('points', points);
+  } else if (element.type === 'text') {
+    newElement.set('text', element.text);
+    newElement.set('fontSize', element.fontSize);
+    newElement.set('fontFamily', element.fontFamily);
+    newElement.set('textAlign', element.textAlign);
+    newElement.set('fillColor', element.fillColor);
+    newElement.set('lineHeight', element.lineHeight);
   } else if (element.type === 'line') {
     newElement.set('boundaryStyle', element.boundaryStyle);
     newElement.set('roughness', element.roughness);
@@ -85,6 +92,13 @@ const updateYElement = (element: OnlyDrawElement, yElement: Y.Map<unknown>) => {
       points.push([initialPoint]);
     }
     yElement.set('points', points);
+  } else if (element.type === 'text') {
+    yElement.set('text', element.text);
+    yElement.set('fontSize', element.fontSize);
+    yElement.set('fontFamily', element.fontFamily);
+    yElement.set('textAlign', element.textAlign);
+    yElement.set('fillColor', element.fillColor);
+    yElement.set('lineHeight', element.lineHeight);
   } else if (element.type === 'line') {
     yElement.set('boundaryStyle', element.boundaryStyle);
     yElement.set('roughness', element.roughness);

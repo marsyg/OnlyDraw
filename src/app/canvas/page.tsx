@@ -96,6 +96,25 @@ export default function App() {
   const [userName, setUserName] = useState<string>('');
   const roughCanvasRef = useRef<RoughCanvas | null>(null);
 
+  type EditingTextState = {
+    id: string;
+    text: string;
+    x: number;
+    y: number;
+    fontSize: number;
+    fontFamily: string;
+    textAlign: string;
+    fillColor: string;
+  };
+  const [editingTextElement, setEditingTextElement] = useState<EditingTextState | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (editingTextElement && textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, [editingTextElement]);
+
   // Infinite canvas pan state
   const isPanningRef = useRef<boolean>(false);
   const isSpacePressedRef = useRef<boolean>(false);
@@ -164,7 +183,7 @@ export default function App() {
   }, [renderCanvas]);
 
 
-  const getPointerCoordinates = useCallback((e: React.PointerEvent | React.TouchEvent) => {
+  const getPointerCoordinates = useCallback((e: React.PointerEvent | React.TouchEvent | React.MouseEvent) => {
     const canvas = canvasRef.current;
     if (!canvas) return [0, 0] as [number, number];
 
@@ -229,7 +248,80 @@ export default function App() {
     return null;
   }, [order, yElement]);
 
+  const finishEditingText = useCallback(() => {
+    if (!editingTextElement) return;
+    const { id, text } = editingTextElement;
+    const targetYEl = yElement.get(id);
+    if (!targetYEl) {
+      setEditingTextElement(null);
+      return;
+    }
+
+    const trimmed = text.trim();
+    if (!trimmed) {
+      doc.transact(() => {
+        yElement.delete(id);
+        const idx = order.toArray().indexOf(id);
+        if (idx > -1) order.delete(idx, 1);
+      }, LOCAL_ORIGIN);
+      setYElement(null);
+      setBound(null);
+    } else {
+      const fontSize = Number(targetYEl.get('fontSize')) || 24;
+      const fontFamily = String(targetYEl.get('fontFamily') || 'sans-serif');
+      const lines = text.split('\n');
+
+      const canvas = canvasRef.current;
+      const ctx = canvas ? canvas.getContext('2d') : null;
+      let maxWidth = 60;
+      if (ctx) {
+        ctx.font = `${fontSize}px ${fontFamily}`;
+        lines.forEach((l) => {
+          maxWidth = Math.max(maxWidth, ctx.measureText(l).width);
+        });
+      }
+      const measuredWidth = Math.ceil(maxWidth + 16);
+      const measuredHeight = Math.ceil(lines.length * fontSize * 1.3 + 8);
+
+      doc.transact(() => {
+        targetYEl.set('text', text);
+        targetYEl.set('width', measuredWidth);
+        targetYEl.set('height', measuredHeight);
+      }, LOCAL_ORIGIN);
+
+      setYElement(targetYEl);
+      setBound(getBounds({ element: targetYEl }));
+    }
+
+    setEditingTextElement(null);
+    setCurrentTool({ action: actionType.Selecting, elementType: elementType.Select });
+    setActiveToolbarId('select');
+    scheduleRender();
+  }, [editingTextElement, yElement, doc, order, setYElement, setBound, setCurrentTool, setActiveToolbarId, scheduleRender]);
+
+  const handleDoubleClick = useCallback((e: React.MouseEvent) => {
+    const [x, y] = getPointerCoordinates(e);
+    const hit = hitTestAtPoint([x, y]);
+    if (hit && hit.yEl && hit.yEl.get('type') === elementType.Text) {
+      const yEl = hit.yEl;
+      setYElement(yEl);
+      setEditingTextElement({
+        id: yEl.get('id') as string,
+        text: String(yEl.get('text') || ''),
+        x: Number(yEl.get('x')),
+        y: Number(yEl.get('y')),
+        fontSize: Number(yEl.get('fontSize')) || 24,
+        fontFamily: String(yEl.get('fontFamily') || 'sans-serif'),
+        textAlign: String(yEl.get('textAlign') || 'left'),
+        fillColor: String(yEl.get('fillColor') || yEl.get('strokeColor') || '#000000'),
+      });
+    }
+  }, [getPointerCoordinates, hitTestAtPoint, setYElement]);
+
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    if (editingTextElement) {
+      finishEditingText();
+    }
 
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -327,6 +419,57 @@ export default function App() {
     }
 
     if (currentTool.action === actionType.Drawing) {
+      if (currentTool.elementType === elementType.Text) {
+        const textElement = handleDrawElement({
+          action: actionType.Drawing,
+          element: elementType.Text,
+          startPoint: initialPoint,
+          endPoint: [initialPoint[0] + 120, initialPoint[1] + 36],
+          options: {
+            strokeColor: strokeColor,
+            strokeWidth: strokeWidth,
+            fillColor: fillColor,
+            fillStyle: fillStyle,
+            roughness: roughness,
+            boundaryStyle: boundaryStyle,
+            fillWeight: fillWeight,
+            opacity: opacity,
+            hasShadow: hasShadow,
+            text: '',
+            fontSize: 24,
+            fontFamily: 'sans-serif',
+            textAlign: 'left',
+          },
+        });
+
+        if (!textElement) return;
+        let createdYEl: Y.Map<unknown> | null = null;
+        doc.transact(() => {
+          createdYEl = yUtils.createYElement(textElement);
+          if (createdYEl) {
+            yElement.set(textElement.id, createdYEl);
+            order.push([textElement.id]);
+          }
+        }, LOCAL_ORIGIN);
+
+        if (createdYEl) {
+          setYElement(createdYEl);
+          setSelectedElementId(textElement.id);
+          setEditingTextElement({
+            id: textElement.id,
+            text: '',
+            x: textElement.x,
+            y: textElement.y,
+            fontSize: 24,
+            fontFamily: 'sans-serif',
+            textAlign: 'left',
+            fillColor: strokeColor || '#000000',
+          });
+          scheduleRender();
+        }
+        return;
+      }
+
       setCursorStyle("crosshair")
       const element = handleDrawElement({
         action: actionType.Drawing,
@@ -1004,11 +1147,7 @@ export default function App() {
       'tool.ellipse': () => selectTool('circle', actionType.Drawing, elementType.Ellipse),
       'tool.line': () => selectTool('line', actionType.Drawing, elementType.Line),
       'tool.freehand': () => selectTool('freeHand', actionType.Drawing, elementType.Freehand),
-      'tool.text': () => {
-        if ('Text' in elementType) {
-          selectTool('text', actionType.Drawing, (elementType as any).Text);
-        }
-      },
+      'tool.text': () => selectTool('text', actionType.Drawing, elementType.Text),
       'edit.undo': handleUndoClick,
       'edit.redo': handleRedoClick,
       'edit.copy': handleCopy,
@@ -1429,6 +1568,7 @@ export default function App() {
         ref={canvasRef}
         className='w-full h-screen touch-none select-none'
         id='canvas'
+        onDoubleClick={handleDoubleClick}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -1442,6 +1582,48 @@ export default function App() {
           touchAction: 'none',
         }}
       />
+
+      {editingTextElement && (
+        <textarea
+          ref={textareaRef}
+          value={editingTextElement.text}
+          onChange={(e) => {
+            setEditingTextElement((prev) =>
+              prev ? { ...prev, text: e.target.value } : null
+            );
+          }}
+          onBlur={finishEditingText}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.preventDefault();
+              finishEditingText();
+            }
+          }}
+          placeholder="Type text..."
+          style={{
+            position: 'fixed',
+            left: editingTextElement.x * camera.scale + camera.x,
+            top: editingTextElement.y * camera.scale + camera.y,
+            fontSize: `${editingTextElement.fontSize * camera.scale}px`,
+            fontFamily: editingTextElement.fontFamily,
+            color: editingTextElement.fillColor,
+            textAlign: editingTextElement.textAlign as any,
+            lineHeight: 1.3,
+            background: 'transparent',
+            border: '1.5px dashed #3b82f6',
+            borderRadius: '4px',
+            outline: 'none',
+            resize: 'none',
+            padding: '2px 4px',
+            margin: 0,
+            zIndex: 60,
+            overflow: 'hidden',
+            whiteSpace: 'pre-wrap',
+            minWidth: `${120 * camera.scale}px`,
+            minHeight: `${36 * camera.scale}px`,
+          }}
+        />
+      )}
 
       <KeybindingsDialog
         isOpen={isKeybindingsOpen}

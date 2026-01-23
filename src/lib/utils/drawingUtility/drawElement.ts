@@ -181,6 +181,45 @@ export const DrawElements = ({ ctx, element, rc }: DrawingArgs) => {
     ctx.shadowOffsetY = 3;
   }
 
+  if (type === elementType.Text) {
+    const x = Number(element.get('x'));
+    const y = Number(element.get('y'));
+    const text = String(element.get('text') || '');
+    const fontSize = Number(element.get('fontSize')) || 24;
+    const fontFamily = String(element.get('fontFamily') || 'sans-serif');
+    const textAlign = (element.get('textAlign') as CanvasTextAlign) || 'left';
+    const fillColor = String(element.get('fillColor') || element.get('strokeColor') || '#000000');
+    const lineHeight = Number(element.get('lineHeight')) || 1.3;
+
+    if (!text) {
+      ctx.restore();
+      return;
+    }
+
+    ctx.font = `${fontSize}px ${fontFamily}`;
+    ctx.fillStyle = fillColor;
+    ctx.textAlign = textAlign;
+    ctx.textBaseline = 'top';
+
+    const lines = text.split('\n');
+    const lineSpacing = fontSize * lineHeight;
+
+    lines.forEach((line, index) => {
+      let lineX = x;
+      if (textAlign === 'center') {
+        const width = Number(element.get('width')) || 0;
+        lineX = x + width / 2;
+      } else if (textAlign === 'right') {
+        const width = Number(element.get('width')) || 0;
+        lineX = x + width;
+      }
+      ctx.fillText(line, lineX, y + index * lineSpacing);
+    });
+
+    ctx.restore();
+    return;
+  }
+
   if (type === elementType.Freehand) {
     const x = Number(element.get('x'));
     const y = Number(element.get('y'));

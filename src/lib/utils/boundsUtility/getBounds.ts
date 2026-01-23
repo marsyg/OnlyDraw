@@ -20,7 +20,8 @@ export const getBounds = ({ element }: args): boundType => {
   switch (type) {
     case elementType.Line:
     case elementType.Rectangle:
-    case elementType.Ellipse: {
+    case elementType.Ellipse:
+    case elementType.Text: {
       const x1 = Math.min(x, x + width);
       const y1 = Math.min(y, y + height);
       const x2 = Math.max(x, x + width);

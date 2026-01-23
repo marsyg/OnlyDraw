@@ -5,6 +5,7 @@ import { isInsideRectangle } from '../../hitTest/rectangle';
 import { isInsideEllipse } from '../../hitTest/ellipse';
 import { isNearLine } from '../../hitTest/line';
 import { isNearFreehand } from '../../hitTest/free-hand';
+import { isInsideText } from '../../hitTest/text';
 export const isPointInsideElement = ({ point, element }: args): boolean => {
   const type = element.get('type') as unknown as elementType;
   switch (type) {
@@ -20,6 +21,9 @@ export const isPointInsideElement = ({ point, element }: args): boolean => {
     }
     case elementType.Freehand: {
       return isNearFreehand({point, element});
+    }
+    case elementType.Text: {
+      return isInsideText({ point, element });
     }
     default:
       return false;

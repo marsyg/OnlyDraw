@@ -76,6 +76,20 @@ export const handleDrawElement = ({
         stroke: stroke,
       };
 
+    case elementType.Text:
+      return {
+        ...baseProperties,
+        type: elementType.Text,
+        text: options.text ?? '',
+        fontSize: options.fontSize ?? 24,
+        fontFamily: options.fontFamily ?? 'sans-serif',
+        textAlign: options.textAlign ?? 'left',
+        fillColor: options.strokeColor || '#000000',
+        lineHeight: 1.4,
+        width: Math.max(60, Math.abs(endPoint[0] - startPoint[0]) || 120),
+        height: Math.max(30, Math.abs(endPoint[1] - startPoint[1]) || 36),
+      };
+
     default:
       return null;
   }
