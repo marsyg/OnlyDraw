@@ -4,7 +4,8 @@ function resizeBound(
   handle: string,
   initialPosition: point,
   currentPosition: point,
-  originalRect: { x: number; y: number; width: number; height: number }
+  originalRect: { x: number; y: number; width: number; height: number },
+  isProportional = false
 ) {
   const [startX, startY] = initialPosition;
   const [x, y] = currentPosition;
@@ -53,6 +54,30 @@ function resizeBound(
       break;
   }
 
+  // Preserve aspect ratio if Shift is held and it is a corner handle
+  if (
+    isProportional &&
+    originalRect.width > 0 &&
+    originalRect.height > 0 &&
+    ['nw', 'ne', 'sw', 'se'].includes(handle)
+  ) {
+    const aspectRatio = originalRect.width / originalRect.height;
+    if (Math.abs(newWidth - originalRect.width) > Math.abs(newHeight - originalRect.height)) {
+      newHeight = Math.max(1, newWidth / aspectRatio);
+    } else {
+      newWidth = Math.max(1, newHeight * aspectRatio);
+    }
+
+    if (handle === 'nw') {
+      newX = originalRect.x + (originalRect.width - newWidth);
+      newY = originalRect.y + (originalRect.height - newHeight);
+    } else if (handle === 'ne') {
+      newY = originalRect.y + (originalRect.height - newHeight);
+    } else if (handle === 'sw') {
+      newX = originalRect.x + (originalRect.width - newWidth);
+    }
+  }
+
   if (newWidth < 0) {
     newX += newWidth;
     newWidth = Math.abs(newWidth);
@@ -64,4 +89,5 @@ function resizeBound(
 
   return { x: newX, y: newY, width: newWidth, height: newHeight };
 }
+
 export default resizeBound;

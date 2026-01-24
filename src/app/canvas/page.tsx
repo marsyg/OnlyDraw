@@ -728,7 +728,7 @@ export default function App() {
       const originalBound = resizeOriginalRectRef.current
 
       if (!startPointer || !originalBound || !selectedYElement || !resizeHandle || !bound) return;
-      const resizedBound = resizeBound(resizeHandle, startPointer, [x, y], originalBound);
+      const resizedBound = resizeBound(resizeHandle, startPointer, [x, y], originalBound, e.shiftKey);
 
       const originalPoint = originalPointRef.current
       setBound(resizedBound)

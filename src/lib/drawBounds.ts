@@ -1,4 +1,6 @@
 import { boundType } from './utils/boundsUtility/getBounds';
+import { BOUNDS_PADDING } from './hitTest/detectResizeHandler';
+
 type args = {
   context: CanvasRenderingContext2D;
   bounds: boundType;
@@ -6,16 +8,16 @@ type args = {
 
 export const DrawBounds = ({ context, bounds }: args) => {
   const { x, y, width, height } = bounds;
-  const padding = 6;
-  const handleRadius = 4;
+  const padding = BOUNDS_PADDING;
+  const handleSize = 8;
+  const halfHandle = handleSize / 2;
 
   context.save();
 
-  
-  context.strokeStyle = 'rgba(0, 120, 255, 0.8)';
-  context.lineWidth = 2;
-  context.shadowColor = 'rgba(0, 120, 255, 0.3)';
-  context.shadowBlur = 8;
+  // Bounding box outline
+  context.strokeStyle = 'rgba(59, 130, 246, 0.9)';
+  context.lineWidth = 1.5;
+  context.setLineDash([4, 4]);
 
   const boxX = x - padding;
   const boxY = y - padding;
@@ -23,13 +25,13 @@ export const DrawBounds = ({ context, bounds }: args) => {
   const boxHeight = height + padding * 2;
 
   context.strokeRect(boxX, boxY, boxWidth, boxHeight);
- 
-  context.shadowBlur = 0;
-  context.fillStyle = 'white';
-  context.strokeStyle = 'rgba(0, 120, 255, 0.9)';
+
+  // Reset line dash for handles
+  context.setLineDash([]);
+  context.fillStyle = '#ffffff';
+  context.strokeStyle = '#2563eb';
   context.lineWidth = 1.5;
 
- 
   const handleMinX = boxX;
   const handleMinY = boxY;
   const handleMaxX = boxX + boxWidth;
@@ -38,21 +40,22 @@ export const DrawBounds = ({ context, bounds }: args) => {
   const handleMidY = boxY + boxHeight / 2;
 
   const handles = [
-    [handleMinX, handleMinY], 
-    [handleMidX, handleMinY], 
-    [handleMaxX, handleMinY],
-    [handleMaxX, handleMidY], 
-    [handleMaxX, handleMaxY], 
-    [handleMidX, handleMaxY], // bottom-middle
-    [handleMinX, handleMaxY], // bottom-left
-    [handleMinX, handleMidY], // middle-left
+    [handleMinX, handleMinY], // nw
+    [handleMidX, handleMinY], // n
+    [handleMaxX, handleMinY], // ne
+    [handleMaxX, handleMidY], // e
+    [handleMaxX, handleMaxY], // se
+    [handleMidX, handleMaxY], // s
+    [handleMinX, handleMaxY], // sw
+    [handleMinX, handleMidY], // w
   ];
 
   handles.forEach(([hx, hy]) => {
     context.beginPath();
-    context.arc(hx, hy, handleRadius, 0, Math.PI * 2);
+    context.rect(hx - halfHandle, hy - halfHandle, handleSize, handleSize);
     context.fill();
     context.stroke();
   });
+
   context.restore();
 };
