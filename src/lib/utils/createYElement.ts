@@ -55,6 +55,8 @@ const createYElement = (element: OnlyDrawElement) => {
   // Visual properties
   newElement.set('opacity', (element as OnlyDrawElement & { opacity?: number }).opacity ?? 1);
   newElement.set('hasShadow', (element as OnlyDrawElement & { hasShadow?: boolean }).hasShadow ?? false);
+  newElement.set('angle', (element as OnlyDrawElement & { angle?: number }).angle ?? 0);
+  newElement.set('rotationAxis', (element as OnlyDrawElement & { rotationAxis?: string }).rotationAxis ?? 'center');
 
   return newElement;
 };
@@ -116,6 +118,12 @@ const updateYElement = (element: OnlyDrawElement, yElement: Y.Map<unknown>) => {
   }
   if ((element as OnlyDrawElement & { hasShadow?: boolean }).hasShadow !== undefined) {
     yElement.set('hasShadow', (element as OnlyDrawElement & { hasShadow?: boolean }).hasShadow);
+  }
+  if ((element as OnlyDrawElement & { angle?: number }).angle !== undefined) {
+    yElement.set('angle', (element as OnlyDrawElement & { angle?: number }).angle);
+  }
+  if ((element as OnlyDrawElement & { rotationAxis?: string }).rotationAxis !== undefined) {
+    yElement.set('rotationAxis', (element as OnlyDrawElement & { rotationAxis?: string }).rotationAxis);
   }
 
   return yElement;

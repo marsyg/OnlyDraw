@@ -10,12 +10,16 @@ export type boundType = {
   y: number;
   width: number;
   height: number;
+  angle?: number;
+  rotationAxis?: string;
 };
 export const getBounds = ({ element }: args): boundType => {
   const x = Number(element.get('x'));
   const y = Number(element.get('y'));
   const width = Number(element.get('width'));
   const height = Number(element.get('height'));
+  const angle = Number(element.get('angle')) || 0;
+  const rotationAxis = String(element.get('rotationAxis') || 'center');
   const type = element.get('type') as unknown as elementType;
   switch (type) {
     case elementType.Line:
@@ -26,7 +30,7 @@ export const getBounds = ({ element }: args): boundType => {
       const y1 = Math.min(y, y + height);
       const x2 = Math.max(x, x + width);
       const y2 = Math.max(y, y + height);
-      return { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
+      return { x: x1, y: y1, width: x2 - x1, height: y2 - y1, angle, rotationAxis };
     }
 
     case elementType.Freehand: {
@@ -44,7 +48,7 @@ export const getBounds = ({ element }: args): boundType => {
         const y1 = Math.min(y, y + height);
         const x2 = Math.max(x, x + width);
         const y2 = Math.max(y, y + height);
-        return { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
+        return { x: x1, y: y1, width: x2 - x1, height: y2 - y1, angle, rotationAxis };
       }
 
      
@@ -54,9 +58,11 @@ export const getBounds = ({ element }: args): boundType => {
         y: Number(element.get('y')) - pad,
         width: Number(element.get('width')) + 2 * pad,
         height: Number(element.get('height')) + 2 * pad,
+        angle,
+        rotationAxis,
       };
     }
     default:
-      return { x: 0, y: 0, width: 0, height: 0 };
+      return { x: 0, y: 0, width: 0, height: 0, angle: 0, rotationAxis: 'center' };
   }
 };

@@ -45,6 +45,7 @@ export type AppState = {
   hasShadow: boolean;
   opacity: number;
   rotation: number;
+  rotationAxis: 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
   camera: Camera;
   clipboard: Record<string, unknown> | null;
   //actions
@@ -75,6 +76,7 @@ export type AppState = {
   setHasShadow: (v: boolean) => void;
   setOpacity: (v: number) => void;
   setRotation: (v: number) => void;
+  setRotationAxis: (axis: 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right') => void;
   setCamera: (camera: Camera) => void;
   panCamera: (dx: number, dy: number) => void;
   zoomCamera: (delta: number, centerX: number, centerY: number) => void;
@@ -113,6 +115,7 @@ export const useAppStore = create<AppState>((set) => ({
   hasShadow: false,
   opacity: 1,
   rotation: 0,
+  rotationAxis: 'center',
   camera: { x: 0, y: 0, scale: 1 },
   clipboard: null,
 
@@ -173,6 +176,7 @@ export const useAppStore = create<AppState>((set) => ({
   setHasShadow: (v) => set({ hasShadow: v }),
   setOpacity: (v) => set({ opacity: v }),
   setRotation: (v) => set({ rotation: v }),
+  setRotationAxis: (axis) => set({ rotationAxis: axis }),
   setCamera: (camera) => set({ camera }),
   panCamera: (dx, dy) =>
     set((state) => ({

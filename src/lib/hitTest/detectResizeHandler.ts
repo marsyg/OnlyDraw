@@ -1,11 +1,13 @@
 import { point } from '@/types/type';
 import { boundType } from '../utils/boundsUtility/getBounds';
+import { getPivotPoint, unrotatePoint } from '../math/pivot';
 
 export const BOUNDS_PADDING = 8;
+export const ROTATION_HANDLE_OFFSET = 24;
 
 export type args = {
   point: point;
-  element: boundType;
+  element: boundType & { angle?: number; rotationAxis?: string };
   tolerance: number;
 };
 
@@ -15,8 +17,16 @@ export type ResizeHandleInfo = {
 };
 
 function detectResizeHandle({ point, element, tolerance }: args): ResizeHandleInfo | null {
-  const pointerX = point[0];
-  const pointerY = point[1];
+  const angle = element.angle || 0;
+  let testPoint = point;
+
+  if (angle !== 0) {
+    const pivot = getPivotPoint(element, element.rotationAxis || 'center');
+    testPoint = unrotatePoint(point, pivot, angle);
+  }
+
+  const pointerX = testPoint[0];
+  const pointerY = testPoint[1];
   const x = element.x;
   const y = element.y;
   const w = element.width;
@@ -26,6 +36,15 @@ function detectResizeHandle({ point, element, tolerance }: args): ResizeHandleIn
   const boxY = y - BOUNDS_PADDING;
   const boxWidth = w + BOUNDS_PADDING * 2;
   const boxHeight = h + BOUNDS_PADDING * 2;
+
+  // Check rotation handle first
+  const rotX = boxX + boxWidth / 2;
+  const rotY = boxY - ROTATION_HANDLE_OFFSET;
+  const rotDx = pointerX - rotX;
+  const rotDy = pointerY - rotY;
+  if (Math.sqrt(rotDx * rotDx + rotDy * rotDy) <= tolerance + 4) {
+    return { direction: 'rotate', cursor: 'grab' };
+  }
 
   const corners: Record<string, { x: number; y: number; cursor: string }> = {
     nw: { x: boxX, y: boxY, cursor: 'nwse-resize' },

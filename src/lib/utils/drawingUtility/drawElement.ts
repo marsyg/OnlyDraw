@@ -7,6 +7,7 @@ import { RoughCanvas } from 'roughjs/bin/canvas';
 import { RoughGenerator } from 'roughjs/bin/generator';
 import getStrokeLineDash from '@/lib/helperfunc/getStrokedLine';
 import { BoundaryStyle } from '@/Store/store';
+import { getPivotPoint } from '@/lib/math/pivot';
 type DrawingArgs = {
   ctx: CanvasRenderingContext2D;
   element: Y.Map<unknown>;
@@ -179,6 +180,20 @@ export const DrawElements = ({ ctx, element, rc }: DrawingArgs) => {
     ctx.shadowBlur = 12;
     ctx.shadowOffsetX = 3;
     ctx.shadowOffsetY = 3;
+  }
+
+  // Apply rotation
+  const angle = Number(element.get('angle')) || 0;
+  if (angle !== 0) {
+    const elX = Number(element.get('x'));
+    const elY = Number(element.get('y'));
+    const elW = Number(element.get('width'));
+    const elH = Number(element.get('height'));
+    const axis = String(element.get('rotationAxis') || 'center');
+    const [cx, cy] = getPivotPoint({ x: elX, y: elY, width: elW, height: elH }, axis);
+    ctx.translate(cx, cy);
+    ctx.rotate(angle);
+    ctx.translate(-cx, -cy);
   }
 
   if (type === elementType.Text) {

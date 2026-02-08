@@ -34,6 +34,7 @@ import { ZoomIn, ZoomOut, Maximize2, Download, Keyboard } from 'lucide-react';
 import { useKeybindings } from '@/hooks/useKeybindings';
 import KeybindingsDialog from '@/component/KeybindingsDialog';
 import { serializeYElement, deserializeYElement } from '@/lib/clipboard';
+import { getPivotPoint } from '@/lib/math/pivot';
 
 
 
@@ -132,7 +133,11 @@ export default function App() {
   const animationFrameIdRef = useRef<number | null>(null);
 
   const resizeHandleRef = useRef<{ direction: string; cursor: string } | null>(null);
-  const originalPointRef = useRef<PointsFreeHand[] | null>(null)
+  const originalPointRef = useRef<PointsFreeHand[] | null>(null);
+  const isRotatingRef = useRef<boolean>(false);
+  const rotationCenterRef = useRef<[number, number]>([0, 0]);
+  const rotationInitialAngleRef = useRef<number>(0);
+  const rotationStartPointerAngleRef = useRef<number>(0);
 
   const renderCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -376,7 +381,23 @@ export default function App() {
         setIsDragging(false);
       }
       if (resizeHandleRef.current) {
-        // console.log("Resize Handle Found on Pointer Down:", resizeHandleRef.current.direction);
+        if (resizeHandleRef.current.direction === 'rotate') {
+          isRotatingRef.current = true;
+          const targetEl = hit?.yEl || selectedYElement;
+          const currentBounds = targetEl ? getBounds({ element: targetEl }) : (bound || { x: 0, y: 0, width: 0, height: 0 });
+          const axis = String(targetEl?.get('rotationAxis') || 'center');
+          const pivot = getPivotPoint(currentBounds, axis);
+          rotationCenterRef.current = pivot;
+          rotationInitialAngleRef.current = Number(targetEl?.get('angle')) || 0;
+          rotationStartPointerAngleRef.current = Math.atan2(y - pivot[1], x - pivot[0]);
+
+          setIsResizing(true);
+          setResizeHandle('rotate');
+          setIsDragging(false);
+          if (bound) setLockedBounds(true);
+          return;
+        }
+
         setIsResizing(true);
         setResizeHandle(resizeHandleRef.current.direction);
         setIsDragging(false);
@@ -715,19 +736,34 @@ export default function App() {
 
     }
     if (isResizing) {
-      // console.log("Resizing in progress...");
-      // console.log({ GlobalPointerPosition })
-      // console.log({ selectedYElement })
-      // console.log({ resizeHandle })
-      if (!GlobalPointerPosition || !selectedYElement || !resizeHandle) return;
+      if (!selectedYElement || !resizeHandle) return;
 
-      // console.log("are we resizing ?")
+      if (resizeHandle === 'rotate') {
+        const [cx, cy] = rotationCenterRef.current;
+        const currentPointerAngle = Math.atan2(y - cy, x - cx);
+        const deltaAngle = currentPointerAngle - rotationStartPointerAngleRef.current;
+        let newAngle = rotationInitialAngleRef.current + deltaAngle;
 
+        if (e.shiftKey) {
+          const snapStep = Math.PI / 12; // 15 degrees snap
+          newAngle = Math.round(newAngle / snapStep) * snapStep;
+        }
 
-      const startPointer = resizeStartPointerRef.current
-      const originalBound = resizeOriginalRectRef.current
+        doc.transact(() => {
+          selectedYElement.set('angle', newAngle);
+        }, LOCAL_ORIGIN);
 
-      if (!startPointer || !originalBound || !selectedYElement || !resizeHandle || !bound) return;
+        setBound(getBounds({ element: selectedYElement }));
+        scheduleRender();
+        return;
+      }
+
+      if (!GlobalPointerPosition) return;
+
+      const startPointer = resizeStartPointerRef.current;
+      const originalBound = resizeOriginalRectRef.current;
+
+      if (!startPointer || !originalBound || !bound) return;
       const resizedBound = resizeBound(resizeHandle, startPointer, [x, y], originalBound, e.shiftKey);
 
       const originalPoint = originalPointRef.current
@@ -768,6 +804,7 @@ export default function App() {
 
     resizeHandleRef.current = null;
     setIsResizing(false);
+    isRotatingRef.current = false;
     UndoManager.stopCapturing();
     setResizeHandle(null);
     setCursorStyle(isSpacePressedRef.current ? 'grab' : 'default');

@@ -115,6 +115,7 @@ export default function RoughSketchToolbox({ onDelete }: RoughSketchToolboxProps
     fillColor, setFillColor, isFillTransparent, setIsFillTransparent, strokeWidth, setStrokeWidth,
     setRoughness, fillStyle, setFillStyle, fillWeight, setFillWeight, roughness,
     boundaryStyle, setBoundaryStyle, hasShadow, setHasShadow, opacity, setOpacity, setBound,
+    rotation, setRotation, rotationAxis, setRotationAxis, selectedYElement,
   } = useAppStore();
 
   const colorRef = useRef<HTMLInputElement | null>(null);
@@ -369,6 +370,75 @@ export default function RoughSketchToolbox({ onDelete }: RoughSketchToolboxProps
                         className="w-12 text-right bg-gray-800 text-gray-100 border-none rounded text-xs p-1"
                       />
                       <span className="text-xs text-gray-300">%</span>
+                    </div>
+                  </div>
+
+                  {/* Rotation & Rotation Axis */}
+                  <div className="space-y-2 pt-2 border-t border-gray-700">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-gray-100">Rotation</label>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min="0"
+                          max="360"
+                          value={Math.round((selectedYElement ? (Number(selectedYElement.get('angle')) || 0) * 180 / Math.PI : rotation) % 360)}
+                          onChange={(e) => {
+                            const deg = Number(e.target.value) || 0;
+                            setRotation(deg);
+                            if (selectedYElement) {
+                              selectedYElement.set('angle', (deg * Math.PI) / 180);
+                            }
+                          }}
+                          className="w-12 text-right bg-gray-800 text-gray-100 border-none rounded text-xs p-1"
+                        />
+                        <span className="text-xs text-gray-300">°</span>
+                      </div>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="360"
+                      value={Math.round((selectedYElement ? (Number(selectedYElement.get('angle')) || 0) * 180 / Math.PI : rotation) % 360)}
+                      onChange={(e) => {
+                        const deg = Number(e.target.value) || 0;
+                        setRotation(deg);
+                        if (selectedYElement) {
+                          selectedYElement.set('angle', (deg * Math.PI) / 180);
+                        }
+                      }}
+                      className="modern-slider"
+                    />
+
+                    {/* Rotation Axis */}
+                    <div className="space-y-1 pt-1">
+                      <label className="text-[10px] uppercase font-bold text-gray-100">Axis of Rotation</label>
+                      <div className="grid grid-cols-3 gap-1">
+                        {[
+                          { id: 'center', label: 'Center' },
+                          { id: 'top-left', label: 'Top-L' },
+                          { id: 'top-right', label: 'Top-R' },
+                          { id: 'bottom-left', label: 'Btm-L' },
+                          { id: 'bottom-right', label: 'Btm-R' },
+                        ].map((ax) => (
+                          <button
+                            key={ax.id}
+                            onClick={() => {
+                              setRotationAxis(ax.id as any);
+                              if (selectedYElement) {
+                                selectedYElement.set('rotationAxis', ax.id);
+                              }
+                            }}
+                            className={`text-[9px] py-1 px-1 rounded border font-medium transition-colors ${
+                              (selectedYElement ? (selectedYElement.get('rotationAxis') || 'center') : rotationAxis) === ax.id
+                                ? 'bg-blue-900/40 border-blue-500 text-blue-300'
+                                : 'bg-gray-900 border-gray-700 text-gray-300 hover:border-gray-500'
+                            }`}
+                          >
+                            {ax.label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>

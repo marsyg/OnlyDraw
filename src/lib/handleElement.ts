@@ -39,6 +39,8 @@ export const handleDrawElement = ({
     roughness: options.roughness,
     opacity: options.opacity ?? 1,
     hasShadow: options.hasShadow ?? false,
+    angle: options.angle ?? 0,
+    rotationAxis: options.rotationAxis ?? 'center',
   };
   switch (element) {
     case elementType.Rectangle:

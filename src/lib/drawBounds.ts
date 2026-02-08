@@ -1,20 +1,29 @@
 import { boundType } from './utils/boundsUtility/getBounds';
-import { BOUNDS_PADDING } from './hitTest/detectResizeHandler';
+import { BOUNDS_PADDING, ROTATION_HANDLE_OFFSET } from './hitTest/detectResizeHandler';
+import { getPivotPoint } from './math/pivot';
 
 type args = {
   context: CanvasRenderingContext2D;
-  bounds: boundType;
+  bounds: boundType & { angle?: number; rotationAxis?: string };
 };
 
 export const DrawBounds = ({ context, bounds }: args) => {
-  const { x, y, width, height } = bounds;
+  const { x, y, width, height, angle } = bounds;
   const padding = BOUNDS_PADDING;
   const handleSize = 8;
   const halfHandle = handleSize / 2;
 
   context.save();
 
-  // Bounding box outline
+  // Apply rotation around pivot if specified
+  if (angle && angle !== 0) {
+    const pivot = getPivotPoint(bounds, bounds.rotationAxis || 'center');
+    context.translate(pivot[0], pivot[1]);
+    context.rotate(angle);
+    context.translate(-pivot[0], -pivot[1]);
+  }
+
+  // Bounding box dashed outline
   context.strokeStyle = 'rgba(59, 130, 246, 0.9)';
   context.lineWidth = 1.5;
   context.setLineDash([4, 4]);
@@ -26,17 +35,36 @@ export const DrawBounds = ({ context, bounds }: args) => {
 
   context.strokeRect(boxX, boxY, boxWidth, boxHeight);
 
-  // Reset line dash for handles
+  // Rotation handle stem line
+  const handleMidX = boxX + boxWidth / 2;
+  const handleMinY = boxY;
+  const rotY = boxY - ROTATION_HANDLE_OFFSET;
+
   context.setLineDash([]);
+  context.beginPath();
+  context.moveTo(handleMidX, handleMinY);
+  context.lineTo(handleMidX, rotY);
+  context.strokeStyle = 'rgba(59, 130, 246, 0.7)';
+  context.lineWidth = 1.5;
+  context.stroke();
+
+  // Rotation handle circular knob
+  context.beginPath();
+  context.arc(handleMidX, rotY, 5, 0, Math.PI * 2);
+  context.fillStyle = '#ffffff';
+  context.fill();
+  context.strokeStyle = '#2563eb';
+  context.lineWidth = 1.5;
+  context.stroke();
+
+  // 8 scale handles
   context.fillStyle = '#ffffff';
   context.strokeStyle = '#2563eb';
   context.lineWidth = 1.5;
 
   const handleMinX = boxX;
-  const handleMinY = boxY;
   const handleMaxX = boxX + boxWidth;
   const handleMaxY = boxY + boxHeight;
-  const handleMidX = boxX + boxWidth / 2;
   const handleMidY = boxY + boxHeight / 2;
 
   const handles = [

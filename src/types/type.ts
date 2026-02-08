@@ -19,6 +19,8 @@ type baseType = {
   roughness: number;
   opacity?: number;
   hasShadow?: boolean;
+  angle?: number;
+  rotationAxis?: 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 };
 export type rectangleElement = baseType & {
   type: elementType.Rectangle;
@@ -131,4 +133,6 @@ export type ElementOptions = {
   fontSize?: number;
   fontFamily?: string;
   textAlign?: 'left' | 'center' | 'right';
+  angle?: number;
+  rotationAxis?: 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 };

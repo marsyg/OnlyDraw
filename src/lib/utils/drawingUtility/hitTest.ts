@@ -6,24 +6,38 @@ import { isInsideEllipse } from '../../hitTest/ellipse';
 import { isNearLine } from '../../hitTest/line';
 import { isNearFreehand } from '../../hitTest/free-hand';
 import { isInsideText } from '../../hitTest/text';
+import { getPivotPoint, unrotatePoint } from '@/lib/math/pivot';
+
 export const isPointInsideElement = ({ point, element }: args): boolean => {
+  const angle = Number(element.get('angle')) || 0;
+  let testPoint = point;
+
+  if (angle !== 0) {
+    const elX = Number(element.get('x'));
+    const elY = Number(element.get('y'));
+    const elW = Number(element.get('width'));
+    const elH = Number(element.get('height'));
+    const axis = String(element.get('rotationAxis') || 'center');
+    const pivot = getPivotPoint({ x: elX, y: elY, width: elW, height: elH }, axis);
+    testPoint = unrotatePoint(point, pivot, angle);
+  }
+
   const type = element.get('type') as unknown as elementType;
   switch (type) {
     case elementType.Rectangle: {
-      return isInsideRectangle({ point, element });
+      return isInsideRectangle({ point: testPoint, element });
     }
     case elementType.Ellipse: {
-      console.log('ellipse is being checked ');
-      return isInsideEllipse({ point, element });
+      return isInsideEllipse({ point: testPoint, element });
     }
     case elementType.Line: {
-      return isNearLine({ point, element });
+      return isNearLine({ point: testPoint, element });
     }
     case elementType.Freehand: {
-      return isNearFreehand({point, element});
+      return isNearFreehand({ point: testPoint, element });
     }
     case elementType.Text: {
-      return isInsideText({ point, element });
+      return isInsideText({ point: testPoint, element });
     }
     default:
       return false;
