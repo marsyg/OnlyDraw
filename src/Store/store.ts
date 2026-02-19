@@ -21,6 +21,7 @@ export type AppState = {
   elements: OnlyDrawElement[];
   currentTool: CurrentTool;
   selectedElementId?: string | null;
+  selectedElementIds: string[];
   toolbar: {
     activeToolId: string | null;
   };
@@ -47,9 +48,9 @@ export type AppState = {
   rotation: number;
   rotationAxis: 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
   camera: Camera;
-  clipboard: Record<string, unknown> | null;
+  clipboard: Record<string, unknown> | Record<string, unknown>[] | null;
   //actions
-  setClipboard: (item: Record<string, unknown> | null) => void;
+  setClipboard: (item: Record<string, unknown> | Record<string, unknown>[] | null) => void;
   setBound: (bound: boundType | null) => void;
   setStrokeColor: (color: string) => void;
   setFillColor: (color: string) => void;
@@ -59,6 +60,7 @@ export type AppState = {
   addElement: (el: OnlyDrawElement) => void;
   updateElement: (id: string, data: Partial<OnlyDrawElement>) => void;
   setSelectedElementId: (id: string | null) => void;
+  setSelectedElementIds: (ids: string[]) => void;
   setIsDragging: (drag: boolean) => void;
   setIsDrawing: (draw: boolean) => void;
   setIsSelecting: (draw: boolean) => void;
@@ -87,6 +89,7 @@ export const useAppStore = create<AppState>((set) => ({
   elements: [],
   bound: null,
   selectedElementId: null,
+  selectedElementIds: [],
   resizeHandle: null,
   currentTool: {
     action: actionType.Selecting,
@@ -153,6 +156,7 @@ export const useAppStore = create<AppState>((set) => ({
     })),
 
   setSelectedElementId: (id) => set({ selectedElementId: id }),
+  setSelectedElementIds: (ids) => set({ selectedElementIds: ids }),
 
   setIsDragging: (drag) => set({ isDragging: drag }),
 

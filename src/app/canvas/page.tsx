@@ -33,8 +33,9 @@ import getRandomColor from '@/lib/helperfunc/getRandomColor';
 import { ZoomIn, ZoomOut, Maximize2, Download, Keyboard } from 'lucide-react';
 import { useKeybindings } from '@/hooks/useKeybindings';
 import KeybindingsDialog from '@/component/KeybindingsDialog';
-import { serializeYElement, deserializeYElement } from '@/lib/clipboard';
+import { serializeYElement, serializeYElements, deserializeYElement, deserializeYElements } from '@/lib/clipboard';
 import { getPivotPoint } from '@/lib/math/pivot';
+import { getCompoundBounds, isRectIntersecting } from '@/lib/utils/boundsUtility/compoundBounds';
 
 
 
@@ -80,6 +81,8 @@ export default function App() {
     setActiveToolbarId,
     setCurrentTool,
     setIsSelecting,
+    selectedElementIds,
+    setSelectedElementIds,
   } = useAppStore();
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   const [isDark, setIsDark] = useState(false);
@@ -139,6 +142,10 @@ export default function App() {
   const rotationInitialAngleRef = useRef<number>(0);
   const rotationStartPointerAngleRef = useRef<number>(0);
 
+  const [marqueeBox, setMarqueeBox] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const isMarqueeRef = useRef<boolean>(false);
+  const marqueeStartRef = useRef<point | null>(null);
+
   const renderCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -176,10 +183,23 @@ export default function App() {
     ctx.setTransform(cam.scale, 0, 0, cam.scale, cam.x, cam.y);
 
     yElement.forEach(el => DrawElements({ ctx, element: el, rc: rc }));
-    if (selectedYElement && bound) DrawBounds({ context: ctx, bounds: bound });
+    if ((selectedYElement || selectedElementIds.length > 0) && bound) {
+      DrawBounds({ context: ctx, bounds: bound });
+    }
+
+    if (marqueeBox) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(59, 130, 246, 0.9)';
+      ctx.fillStyle = 'rgba(59, 130, 246, 0.12)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.fillRect(marqueeBox.x, marqueeBox.y, marqueeBox.width, marqueeBox.height);
+      ctx.strokeRect(marqueeBox.x, marqueeBox.y, marqueeBox.width, marqueeBox.height);
+      ctx.restore();
+    }
 
     ctx.restore();
-  }, [isDark, isDragging, isResizing, isDrawing, yElement, selectedYElement, bound]);
+  }, [isDark, isDragging, isResizing, isDrawing, yElement, selectedYElement, selectedElementIds, bound, marqueeBox]);
 
 
   const scheduleRender = useCallback(() => {
@@ -350,40 +370,15 @@ export default function App() {
 
     setFreehandPoint([[initialPoint[0], initialPoint[1], 1] as PointsFreeHand]);
     if (currentTool.action === actionType.Selecting) {
-
       const handleHit = bound ? detectResizeHandle({ point: initialPoint, element: bound, tolerance: 10 }) : null;
       if (handleHit) {
         resizeHandleRef.current = handleHit;
       }
 
-      let hit = null;
-      if (lockedBounds && bound && isPointInPaddedBounds(initialPoint, bound)) {
-        if (selectedYElement) {
-          hit = { id: selectedYElement.get('id') as string, yEl: selectedYElement };
-        }
-      } else {
-        hit = hitTestAtPoint(initialPoint);
-      }
-
-      if (hit && hit.yEl) {
-        const currentBounds = getBounds({ element: hit.yEl });
-        setYElement(hit.yEl);
-        setBound(getBounds({ element: hit.yEl }));
-        setIsDragging(true);
-        const offsetXToBound = x - currentBounds.x;
-        const offsetYToBound = y - currentBounds.y;
-        setGlobalPointerPosition([offsetXToBound, offsetYToBound])
-
-        flagRef.current = true;
-      }
-      else {
-        setLockedBounds(false)
-        setIsDragging(false);
-      }
       if (resizeHandleRef.current) {
         if (resizeHandleRef.current.direction === 'rotate') {
           isRotatingRef.current = true;
-          const targetEl = hit?.yEl || selectedYElement;
+          const targetEl = selectedYElement || (selectedElementIds.length === 1 ? yElement.get(selectedElementIds[0]) : null);
           const currentBounds = targetEl ? getBounds({ element: targetEl }) : (bound || { x: 0, y: 0, width: 0, height: 0 });
           const axis = String(targetEl?.get('rotationAxis') || 'center');
           const pivot = getPivotPoint(currentBounds, axis);
@@ -405,10 +400,7 @@ export default function App() {
 
         const type = selectedYElement?.get('type') as unknown as elementType;
         if (type === 'freehand') {
-
           const stroke = selectedYElement?.get('points') as Y.Array<Y.Map<number>>;
-          // console.log(selectedYElement?.toJSON(), "yaha se ----------------------------------")
-
           const points: PointsFreeHand[] = stroke
             .toArray()
             .map((p) => [
@@ -416,27 +408,67 @@ export default function App() {
               (p.get('y') as number),
               p.get('pressure') as number,
             ]);
-
-          originalPointRef.current = points
+          originalPointRef.current = points;
         }
 
-        if (hit && hit.yEl) {
-          resizeOriginalRectRef.current = (getBounds({ element: hit.yEl })) as { x: number; y: number; width: number; height: number };
-        } else if (bound) {
-          resizeOriginalRectRef.current = (bound) as { x: number; y: number; width: number; height: number };
+        if (bound) {
+          resizeOriginalRectRef.current = bound;
         }
-
-      }
-      if (bound) setLockedBounds(true)
-      else setLockedBounds(false)
-
-      if (!hit && !resizeHandleRef.current) {
-        setYElement(null)
-        setBound(null)
-        setLockedBounds(false)
-
+        setLockedBounds(true);
+        return;
       }
 
+      const hit = hitTestAtPoint(initialPoint);
+
+      if (hit && hit.yEl) {
+        if (e.shiftKey) {
+          const isSelected = selectedElementIds.includes(hit.id);
+          const nextIds = isSelected
+            ? selectedElementIds.filter((id) => id !== hit.id)
+            : [...selectedElementIds, hit.id];
+
+          setSelectedElementIds(nextIds);
+          if (nextIds.length === 1) {
+            setYElement(yElement.get(nextIds[0]) || null);
+          } else {
+            setYElement(null);
+          }
+          const cBound = getCompoundBounds(nextIds, yElement);
+          setBound(cBound);
+          setIsDragging(true);
+          setLockedBounds(nextIds.length > 0);
+          if (cBound) {
+            setGlobalPointerPosition([x - cBound.x, y - cBound.y]);
+          }
+        } else {
+          if (selectedElementIds.includes(hit.id) && selectedElementIds.length > 1) {
+            setIsDragging(true);
+            setLockedBounds(true);
+            if (bound) {
+              setGlobalPointerPosition([x - bound.x, y - bound.y]);
+            }
+          } else {
+            setSelectedElementIds([hit.id]);
+            setYElement(hit.yEl);
+            const b = getBounds({ element: hit.yEl });
+            setBound(b);
+            setIsDragging(true);
+            setLockedBounds(true);
+            setGlobalPointerPosition([x - b.x, y - b.y]);
+          }
+        }
+        flagRef.current = true;
+      } else {
+        if (!e.shiftKey) {
+          setSelectedElementIds([]);
+          setYElement(null);
+          setBound(null);
+          setLockedBounds(false);
+        }
+        setIsDragging(false);
+        isMarqueeRef.current = true;
+        marqueeStartRef.current = initialPoint;
+      }
     }
 
     if (currentTool.action === actionType.Drawing) {
@@ -563,6 +595,18 @@ export default function App() {
     }
 
     const [x, y] = getPointerCoordinates(e);
+
+    if (isMarqueeRef.current && marqueeStartRef.current) {
+      const [startX, startY] = marqueeStartRef.current;
+      const boxX = Math.min(startX, x);
+      const boxY = Math.min(startY, y);
+      const boxW = Math.abs(x - startX);
+      const boxH = Math.abs(y - startY);
+      setMarqueeBox({ x: boxX, y: boxY, width: boxW, height: boxH });
+      scheduleRender();
+      return;
+    }
+
     const pt: point = [x, y];
     const now = Date.now();
     if (now - lastMoveTimeRef.current < MOVE_THROTTLE_MS && !isDrawing && !isDragging && !isResizing) {
@@ -714,8 +758,8 @@ export default function App() {
 
 
     if (isDragging) {
-      setCursorStyle("grabbing")
-      if (!GlobalPointerPosition || !selectedYElement || !bound) return;
+      setCursorStyle("grabbing");
+      if (!GlobalPointerPosition || !bound) return;
       const newBoundX = x - GlobalPointerPosition[0];
       const newBoundY = y - GlobalPointerPosition[1];
       const dx = newBoundX - bound.x;
@@ -723,17 +767,30 @@ export default function App() {
 
       try {
         doc.transact(() => {
-          selectedYElement.set("x", Number(selectedYElement.get("x")) + dx);
-          selectedYElement.set("y", Number(selectedYElement.get("y")) + dy);
-          setBound(getBounds({ element: selectedYElement }));
+          if (selectedElementIds.length > 1) {
+            selectedElementIds.forEach((id) => {
+              const el = yElement.get(id);
+              if (el && !el.get('isDeleted')) {
+                el.set("x", Number(el.get("x")) + dx);
+                el.set("y", Number(el.get("y")) + dy);
+              }
+            });
+          } else if (selectedYElement) {
+            selectedYElement.set("x", Number(selectedYElement.get("x")) + dx);
+            selectedYElement.set("y", Number(selectedYElement.get("y")) + dy);
+          }
         }, LOCAL_ORIGIN);
+
+        if (selectedElementIds.length > 1) {
+          setBound(getCompoundBounds(selectedElementIds, yElement));
+        } else if (selectedYElement) {
+          setBound(getBounds({ element: selectedYElement }));
+        }
       } catch (err) {
         console.error("Error updating Y element during drag:", err);
       }
       scheduleRender();
-
-
-
+      return;
     }
     if (isResizing) {
       if (!selectedYElement || !resizeHandle) return;
@@ -795,6 +852,52 @@ export default function App() {
       return;
     }
 
+    if (isMarqueeRef.current && marqueeStartRef.current) {
+      isMarqueeRef.current = false;
+      const [startX, startY] = marqueeStartRef.current;
+      marqueeStartRef.current = null;
+      const [endX, endY] = getPointerCoordinates(e);
+      const box = {
+        x: Math.min(startX, endX),
+        y: Math.min(startY, endY),
+        width: Math.abs(endX - startX),
+        height: Math.abs(endY - startY),
+      };
+      setMarqueeBox(null);
+
+      if (box.width > 4 || box.height > 4) {
+        const foundIds: string[] = [];
+        order.toArray().forEach((id) => {
+          const el = yElement.get(id);
+          if (el && !el.get('isDeleted')) {
+            const b = getBounds({ element: el });
+            if (b && isRectIntersecting(box, b)) {
+              foundIds.push(id);
+            }
+          }
+        });
+
+        setSelectedElementIds(foundIds);
+        if (foundIds.length === 1) {
+          const singleEl = yElement.get(foundIds[0]) || null;
+          setYElement(singleEl);
+          setBound(singleEl ? getBounds({ element: singleEl }) : null);
+          setLockedBounds(true);
+        } else if (foundIds.length > 1) {
+          setYElement(null);
+          setBound(getCompoundBounds(foundIds, yElement));
+          setLockedBounds(true);
+        } else {
+          setSelectedElementIds([]);
+          setYElement(null);
+          setBound(null);
+          setLockedBounds(false);
+        }
+      }
+      scheduleRender();
+      return;
+    }
+
     setIsDrawing(false);
     setIsDragging(false);
 
@@ -810,7 +913,20 @@ export default function App() {
     setCursorStyle(isSpacePressedRef.current ? 'grab' : 'default');
     resizeStartPointerRef.current = null;
     resizeOriginalRectRef.current = null;
-  }, [setIsDragging, setIsDrawing, setIsResizing, setResizeHandle]);
+  }, [
+    getPointerCoordinates,
+    order,
+    yElement,
+    setSelectedElementIds,
+    setYElement,
+    setBound,
+    setLockedBounds,
+    scheduleRender,
+    setIsDragging,
+    setIsDrawing,
+    setIsResizing,
+    setResizeHandle,
+  ]);
 
 
 
@@ -1012,30 +1128,35 @@ export default function App() {
 
 
   const handleDelete = useCallback(() => {
-    if (!selectedYElement) return;
-
-    let elementKeyToDelete: string | null = null;
-    yElement.forEach((value, key) => {
-      if (value === selectedYElement) {
-        elementKeyToDelete = key;
-      }
-    });
-
-    if (elementKeyToDelete) {
-      doc.transact(() => {
-        yElement.delete(elementKeyToDelete!);
-        const index = order.toArray().indexOf(elementKeyToDelete!);
-        if (index > -1) {
-          order.delete(index, 1);
+    const idsToDelete = new Set<string>();
+    if (selectedElementIds.length > 0) {
+      selectedElementIds.forEach((id) => idsToDelete.add(id));
+    } else if (selectedYElement) {
+      yElement.forEach((value, key) => {
+        if (value === selectedYElement) {
+          idsToDelete.add(key);
         }
+      });
+    }
+
+    if (idsToDelete.size > 0) {
+      doc.transact(() => {
+        idsToDelete.forEach((key) => {
+          yElement.delete(key);
+          const index = order.toArray().indexOf(key);
+          if (index > -1) {
+            order.delete(index, 1);
+          }
+        });
       }, LOCAL_ORIGIN);
 
+      setSelectedElementIds([]);
       setYElement(null);
       setBound(null);
       setLockedBounds(false);
       scheduleRender();
     }
-  }, [selectedYElement, doc, yElement, order, setYElement, setBound, setLockedBounds, scheduleRender]);
+  }, [selectedElementIds, selectedYElement, doc, yElement, order, setSelectedElementIds, setYElement, setBound, setLockedBounds, scheduleRender]);
 
   const handleExportPNG = useCallback(() => {
     const elementIds = order.toArray();
@@ -1120,62 +1241,132 @@ export default function App() {
   );
 
   const handleCopy = useCallback(() => {
-    if (!selectedYElement) return;
-    const serialized = serializeYElement(selectedYElement);
-    setClipboard(serialized);
-  }, [selectedYElement, setClipboard]);
+    if (selectedElementIds.length > 1) {
+      const els: Y.Map<unknown>[] = [];
+      selectedElementIds.forEach((id) => {
+        const el = yElement.get(id);
+        if (el && !el.get('isDeleted')) els.push(el);
+      });
+      if (els.length > 0) {
+        setClipboard(serializeYElements(els));
+      }
+    } else if (selectedYElement) {
+      const serialized = serializeYElement(selectedYElement);
+      setClipboard(serialized);
+    }
+  }, [selectedElementIds, selectedYElement, yElement, setClipboard]);
 
   const handlePaste = useCallback(() => {
     if (!clipboard) return;
-    const newYElement = deserializeYElement(clipboard, { x: 30, y: 30 });
-    const newId = newYElement.get('id') as string;
-    doc.transact(() => {
-      yElement.set(newId, newYElement);
-      order.push([newId]);
-    }, LOCAL_ORIGIN);
 
-    setClipboard({
-      ...clipboard,
-      x: (Number(clipboard.x) || 0) + 30,
-      y: (Number(clipboard.y) || 0) + 30,
-    });
+    if (Array.isArray(clipboard)) {
+      const newElements = deserializeYElements(clipboard, { x: 30, y: 30 });
+      const newIds: string[] = [];
 
-    setYElement(newYElement);
-    const bounds = getBounds({ element: newYElement });
-    setBound(bounds);
-    scheduleRender();
-  }, [clipboard, doc, yElement, order, setClipboard, setYElement, setBound, scheduleRender]);
+      doc.transact(() => {
+        newElements.forEach((el) => {
+          const id = el.get('id') as string;
+          yElement.set(id, el);
+          order.push([id]);
+          newIds.push(id);
+        });
+      }, LOCAL_ORIGIN);
+
+      setClipboard(
+        clipboard.map((item) => ({
+          ...item,
+          x: (Number(item.x) || 0) + 30,
+          y: (Number(item.y) || 0) + 30,
+        }))
+      );
+
+      setSelectedElementIds(newIds);
+      setYElement(null);
+      setBound(getCompoundBounds(newIds, yElement));
+      setLockedBounds(true);
+      scheduleRender();
+    } else {
+      const newYElement = deserializeYElement(clipboard, { x: 30, y: 30 });
+      const newId = newYElement.get('id') as string;
+      doc.transact(() => {
+        yElement.set(newId, newYElement);
+        order.push([newId]);
+      }, LOCAL_ORIGIN);
+
+      setClipboard({
+        ...clipboard,
+        x: (Number(clipboard.x) || 0) + 30,
+        y: (Number(clipboard.y) || 0) + 30,
+      });
+
+      setSelectedElementIds([newId]);
+      setYElement(newYElement);
+      const bounds = getBounds({ element: newYElement });
+      setBound(bounds);
+      setLockedBounds(true);
+      scheduleRender();
+    }
+  }, [clipboard, doc, yElement, order, setClipboard, setSelectedElementIds, setYElement, setBound, setLockedBounds, scheduleRender]);
 
   const handleDuplicate = useCallback(() => {
-    if (!selectedYElement) return;
-    const serialized = serializeYElement(selectedYElement);
-    const newYElement = deserializeYElement(serialized, { x: 30, y: 30 });
-    const newId = newYElement.get('id') as string;
-    doc.transact(() => {
-      yElement.set(newId, newYElement);
-      order.push([newId]);
-    }, LOCAL_ORIGIN);
+    if (selectedElementIds.length > 1) {
+      const els: Y.Map<unknown>[] = [];
+      selectedElementIds.forEach((id) => {
+        const el = yElement.get(id);
+        if (el && !el.get('isDeleted')) els.push(el);
+      });
+      if (els.length === 0) return;
+      const serialized = serializeYElements(els);
+      const newElements = deserializeYElements(serialized, { x: 30, y: 30 });
+      const newIds: string[] = [];
 
-    setYElement(newYElement);
-    const bounds = getBounds({ element: newYElement });
-    setBound(bounds);
-    scheduleRender();
-  }, [selectedYElement, doc, yElement, order, setYElement, setBound, scheduleRender]);
+      doc.transact(() => {
+        newElements.forEach((el) => {
+          const id = el.get('id') as string;
+          yElement.set(id, el);
+          order.push([id]);
+          newIds.push(id);
+        });
+      }, LOCAL_ORIGIN);
+
+      setSelectedElementIds(newIds);
+      setYElement(null);
+      setBound(getCompoundBounds(newIds, yElement));
+      setLockedBounds(true);
+      scheduleRender();
+    } else if (selectedYElement) {
+      const serialized = serializeYElement(selectedYElement);
+      const newYElement = deserializeYElement(serialized, { x: 30, y: 30 });
+      const newId = newYElement.get('id') as string;
+      doc.transact(() => {
+        yElement.set(newId, newYElement);
+        order.push([newId]);
+      }, LOCAL_ORIGIN);
+
+      setSelectedElementIds([newId]);
+      setYElement(newYElement);
+      const bounds = getBounds({ element: newYElement });
+      setBound(bounds);
+      setLockedBounds(true);
+      scheduleRender();
+    }
+  }, [selectedElementIds, selectedYElement, doc, yElement, order, setSelectedElementIds, setYElement, setBound, setLockedBounds, scheduleRender]);
 
   const handleCut = useCallback(() => {
-    if (!selectedYElement) return;
+    if (!selectedYElement && selectedElementIds.length === 0) return;
     handleCopy();
     handleDelete();
-  }, [selectedYElement, handleCopy, handleDelete]);
+  }, [selectedYElement, selectedElementIds, handleCopy, handleDelete]);
 
   const handleDeselect = useCallback(() => {
+    setSelectedElementIds([]);
     setYElement(null);
     setBound(null);
     setLockedBounds(false);
     setCurrentTool({ action: actionType.Selecting, elementType: elementType.Select });
     setActiveToolbarId('select');
     scheduleRender();
-  }, [setYElement, setBound, setLockedBounds, setCurrentTool, setActiveToolbarId, scheduleRender]);
+  }, [setSelectedElementIds, setYElement, setBound, setLockedBounds, setCurrentTool, setActiveToolbarId, scheduleRender]);
 
   const keybindingActions = useMemo(
     () => ({

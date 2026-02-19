@@ -6,6 +6,10 @@ export function serializeYElement(yEl: Y.Map<unknown>): Record<string, unknown> 
   return yEl.toJSON() as Record<string, unknown>;
 }
 
+export function serializeYElements(yEls: Y.Map<unknown>[]): Record<string, unknown>[] {
+  return yEls.map((el) => serializeYElement(el));
+}
+
 export function deserializeYElement(
   data: Record<string, unknown>,
   offset = { x: 20, y: 20 }
@@ -42,3 +46,11 @@ export function deserializeYElement(
 
   return newMap;
 }
+
+export function deserializeYElements(
+  data: Record<string, unknown>[],
+  offset = { x: 20, y: 20 }
+): Y.Map<unknown>[] {
+  return data.map((d) => deserializeYElement(d, offset));
+}
+
