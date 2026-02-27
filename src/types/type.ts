@@ -21,6 +21,7 @@ type baseType = {
   hasShadow?: boolean;
   angle?: number;
   rotationAxis?: 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+  groupIds?: string[];
 };
 export type rectangleElement = baseType & {
   type: elementType.Rectangle;

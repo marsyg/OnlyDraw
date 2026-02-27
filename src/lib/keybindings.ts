@@ -151,6 +151,25 @@ export const KEYBINDINGS: KeybindingDef[] = [
     description: 'Deselect / Cancel',
     displayKeys: ['Esc'],
   },
+  {
+    id: 'edit.group',
+    key: 'g',
+    ctrl: true,
+    action: 'edit.group',
+    category: 'Edit',
+    description: 'Group selected elements',
+    displayKeys: ['Ctrl', 'G'],
+  },
+  {
+    id: 'edit.ungroup',
+    key: 'g',
+    ctrl: true,
+    shift: true,
+    action: 'edit.ungroup',
+    category: 'Edit',
+    description: 'Ungroup selected elements',
+    displayKeys: ['Ctrl', 'Shift', 'G'],
+  },
 
   // View
   {

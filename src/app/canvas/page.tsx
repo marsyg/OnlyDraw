@@ -36,6 +36,7 @@ import KeybindingsDialog from '@/component/KeybindingsDialog';
 import { serializeYElement, serializeYElements, deserializeYElement, deserializeYElements } from '@/lib/clipboard';
 import { getPivotPoint } from '@/lib/math/pivot';
 import { getCompoundBounds, isRectIntersecting } from '@/lib/utils/boundsUtility/compoundBounds';
+import { getGroupMembers, groupElements, ungroupElements } from '@/lib/grouping';
 
 
 
@@ -421,11 +422,12 @@ export default function App() {
       const hit = hitTestAtPoint(initialPoint);
 
       if (hit && hit.yEl) {
+        const groupMembers = getGroupMembers(hit.yEl, yElement);
         if (e.shiftKey) {
-          const isSelected = selectedElementIds.includes(hit.id);
+          const isSelected = groupMembers.some((id) => selectedElementIds.includes(id));
           const nextIds = isSelected
-            ? selectedElementIds.filter((id) => id !== hit.id)
-            : [...selectedElementIds, hit.id];
+            ? selectedElementIds.filter((id) => !groupMembers.includes(id))
+            : [...selectedElementIds, ...groupMembers.filter((id) => !selectedElementIds.includes(id))];
 
           setSelectedElementIds(nextIds);
           if (nextIds.length === 1) {
@@ -448,13 +450,20 @@ export default function App() {
               setGlobalPointerPosition([x - bound.x, y - bound.y]);
             }
           } else {
-            setSelectedElementIds([hit.id]);
-            setYElement(hit.yEl);
-            const b = getBounds({ element: hit.yEl });
-            setBound(b);
+            setSelectedElementIds(groupMembers);
+            if (groupMembers.length === 1) {
+              setYElement(hit.yEl);
+              const b = getBounds({ element: hit.yEl });
+              setBound(b);
+              if (b) setGlobalPointerPosition([x - b.x, y - b.y]);
+            } else {
+              setYElement(null);
+              const cBound = getCompoundBounds(groupMembers, yElement);
+              setBound(cBound);
+              if (cBound) setGlobalPointerPosition([x - cBound.x, y - cBound.y]);
+            }
             setIsDragging(true);
             setLockedBounds(true);
-            setGlobalPointerPosition([x - b.x, y - b.y]);
           }
         }
         flagRef.current = true;
@@ -1368,6 +1377,22 @@ export default function App() {
     scheduleRender();
   }, [setSelectedElementIds, setYElement, setBound, setLockedBounds, setCurrentTool, setActiveToolbarId, scheduleRender]);
 
+  const handleGroup = useCallback(() => {
+    if (selectedElementIds.length < 2) return;
+    groupElements(selectedElementIds, yElement, doc);
+    setBound(getCompoundBounds(selectedElementIds, yElement));
+    scheduleRender();
+  }, [selectedElementIds, yElement, doc, scheduleRender]);
+
+  const handleUngroup = useCallback(() => {
+    const targetIds = selectedElementIds.length > 0
+      ? selectedElementIds
+      : (selectedYElement ? [selectedYElement.get('id') as string] : []);
+    if (targetIds.length === 0) return;
+    ungroupElements(targetIds, yElement, doc);
+    scheduleRender();
+  }, [selectedElementIds, selectedYElement, yElement, doc, scheduleRender]);
+
   const keybindingActions = useMemo(
     () => ({
       'tool.select': () => selectTool('select', actionType.Selecting, elementType.Select),
@@ -1384,6 +1409,8 @@ export default function App() {
       'edit.cut': handleCut,
       'edit.delete': handleDelete,
       'edit.deselect': handleDeselect,
+      'edit.group': handleGroup,
+      'edit.ungroup': handleUngroup,
       'view.resetZoom': () => {
         resetCamera();
         scheduleRender();
@@ -1414,6 +1441,8 @@ export default function App() {
       handleCut,
       handleDelete,
       handleDeselect,
+      handleGroup,
+      handleUngroup,
       resetCamera,
       zoomCamera,
       scheduleRender,
@@ -1514,7 +1543,7 @@ export default function App() {
       className='relative w-full h-screen overflow-hidden touch-none'
       style={{ background: isDark ? '#0f172a' : '#ffffff', transition: 'background 0.3s ease' }}
     >
-      <RoughSketchToolbox onDelete={handleDelete} />
+      <RoughSketchToolbox onDelete={handleDelete} onGroup={handleGroup} onUngroup={handleUngroup} />
       <FeaturePanel isDark={isDark} onToggleDark={() => setIsDark(d => !d)} />
       {isCollaborating && connectionStatus === 'connected' && participants.map(p => {
 

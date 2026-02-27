@@ -92,9 +92,11 @@ const RoughStyles = () => (
 );
 interface RoughSketchToolboxProps {
   onDelete?: () => void;
+  onGroup?: () => void;
+  onUngroup?: () => void;
 }
 
-export default function RoughSketchToolbox({ onDelete }: RoughSketchToolboxProps) {
+export default function RoughSketchToolbox({ onDelete, onGroup, onUngroup }: RoughSketchToolboxProps) {
 
   const [isMobile, setIsMobile] = useState(false);
   const [isExpanded, setIsExpanded] = useState(true);
@@ -115,7 +117,7 @@ export default function RoughSketchToolbox({ onDelete }: RoughSketchToolboxProps
     fillColor, setFillColor, isFillTransparent, setIsFillTransparent, strokeWidth, setStrokeWidth,
     setRoughness, fillStyle, setFillStyle, fillWeight, setFillWeight, roughness,
     boundaryStyle, setBoundaryStyle, hasShadow, setHasShadow, opacity, setOpacity, setBound,
-    rotation, setRotation, rotationAxis, setRotationAxis, selectedYElement,
+    rotation, setRotation, rotationAxis, setRotationAxis, selectedYElement, selectedElementIds,
   } = useAppStore();
 
   const colorRef = useRef<HTMLInputElement | null>(null);
@@ -239,6 +241,30 @@ export default function RoughSketchToolbox({ onDelete }: RoughSketchToolboxProps
             >
               <div className="p-4 space-y-5">
 
+                {(selectedElementIds.length > 0 || selectedYElement) && (
+                  <div className="flex gap-2 pb-2 border-b border-gray-700">
+                    {onGroup && selectedElementIds.length > 1 && (
+                      <button
+                        onClick={onGroup}
+                        className="flex-1 py-1.5 px-2 bg-blue-900/40 hover:bg-blue-800/60 border border-blue-500 rounded text-xs font-semibold text-blue-200 flex items-center justify-center gap-1 transition-colors"
+                        title="Group elements (Ctrl+G)"
+                      >
+                        <span>Group</span>
+                        <span className="text-[10px] text-gray-400 font-mono">^G</span>
+                      </button>
+                    )}
+                    {onUngroup && (
+                      <button
+                        onClick={onUngroup}
+                        className="flex-1 py-1.5 px-2 bg-purple-900/40 hover:bg-purple-800/60 border border-purple-500 rounded text-xs font-semibold text-purple-200 flex items-center justify-center gap-1 transition-colors"
+                        title="Ungroup elements (Ctrl+Shift+G)"
+                      >
+                        <span>Ungroup</span>
+                        <span className="text-[10px] text-gray-400 font-mono">⇧^G</span>
+                      </button>
+                    )}
+                  </div>
+                )}
 
                 <div className="flex gap-4">
                   <div className="flex-1 space-y-1">
