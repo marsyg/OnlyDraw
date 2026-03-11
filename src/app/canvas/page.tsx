@@ -37,6 +37,7 @@ import { serializeYElement, serializeYElements, deserializeYElement, deserialize
 import { getPivotPoint } from '@/lib/math/pivot';
 import { getCompoundBounds, isRectIntersecting } from '@/lib/utils/boundsUtility/compoundBounds';
 import { getGroupMembers, groupElements, ungroupElements } from '@/lib/grouping';
+import { nanoid } from 'nanoid';
 
 
 
@@ -113,6 +114,7 @@ export default function App() {
   };
   const [editingTextElement, setEditingTextElement] = useState<EditingTextState | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (editingTextElement && textareaRef.current) {
@@ -1238,8 +1240,146 @@ export default function App() {
     scheduleRender();
   }, [setYElement, setBound, setLockedBounds, scheduleRender]);
 
+  const insertImageElement = useCallback((dataUrl: string, targetX: number, targetY: number) => {
+    const img = new Image();
+    img.onload = () => {
+      let w = img.naturalWidth || 300;
+      let h = img.naturalHeight || 200;
+      const maxDim = 400;
+      if (w > maxDim || h > maxDim) {
+        if (w >= h) {
+          h = Math.round((h * maxDim) / w);
+          w = maxDim;
+        } else {
+          w = Math.round((w * maxDim) / h);
+          h = maxDim;
+        }
+      }
+
+      const id = nanoid();
+      const newMap = new canvasDoc.Y.Map<unknown>();
+      newMap.set('id', id);
+      newMap.set('type', elementType.Image);
+      newMap.set('x', targetX);
+      newMap.set('y', targetY);
+      newMap.set('width', w);
+      newMap.set('height', h);
+      newMap.set('src', dataUrl);
+      newMap.set('naturalWidth', img.naturalWidth);
+      newMap.set('naturalHeight', img.naturalHeight);
+      newMap.set('seed', Math.floor(Math.random() * 2 ** 31));
+      newMap.set('opacity', 1);
+      newMap.set('hasShadow', false);
+      newMap.set('angle', 0);
+      newMap.set('rotationAxis', 'center');
+      newMap.set('isDeleted', false);
+      newMap.set('author', doc.clientID);
+
+      doc.transact(() => {
+        yElement.set(id, newMap);
+        order.push([id]);
+      }, LOCAL_ORIGIN);
+
+      setSelectedElementIds([id]);
+      setYElement(newMap);
+      setBound(getBounds({ element: newMap }));
+      setLockedBounds(true);
+      setCurrentTool({ action: actionType.Selecting, elementType: elementType.Select });
+      setActiveToolbarId('select');
+      scheduleRender();
+    };
+    img.src = dataUrl;
+  }, [doc, yElement, order, setSelectedElementIds, setYElement, setBound, setLockedBounds, setCurrentTool, setActiveToolbarId, scheduleRender]);
+
+  const handleImageFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      if (dataUrl) {
+        const canvas = canvasRef.current;
+        const cam = cameraRef.current;
+        const screenCenterX = canvas ? canvas.width / 2 : window.innerWidth / 2;
+        const screenCenterY = canvas ? canvas.height / 2 : window.innerHeight / 2;
+        const worldX = (screenCenterX - cam.x) / cam.scale;
+        const worldY = (screenCenterY - cam.y) / cam.scale;
+        insertImageElement(dataUrl, worldX - 150, worldY - 100);
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  }, [insertImageElement]);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    const files = e.dataTransfer.files;
+    if (!files || files.length === 0) return;
+    const file = files[0];
+    if (!file.type.startsWith('image/')) return;
+
+    const [worldX, worldY] = getPointerCoordinates(e);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      if (dataUrl) {
+        insertImageElement(dataUrl, worldX, worldY);
+      }
+    };
+    reader.readAsDataURL(file);
+  }, [getPointerCoordinates, insertImageElement]);
+
+  useEffect(() => {
+    const handleWindowPaste = (e: ClipboardEvent) => {
+      if (
+        document.activeElement instanceof HTMLInputElement ||
+        document.activeElement instanceof HTMLTextAreaElement
+      ) {
+        return;
+      }
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            e.preventDefault();
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+              const dataUrl = ev.target?.result as string;
+              if (dataUrl) {
+                const canvas = canvasRef.current;
+                const cam = cameraRef.current;
+                const screenCenterX = canvas ? canvas.width / 2 : window.innerWidth / 2;
+                const screenCenterY = canvas ? canvas.height / 2 : window.innerHeight / 2;
+                const worldX = (screenCenterX - cam.x) / cam.scale;
+                const worldY = (screenCenterY - cam.y) / cam.scale;
+                insertImageElement(dataUrl, worldX - 150, worldY - 100);
+              }
+            };
+            reader.readAsDataURL(file);
+            break;
+          }
+        }
+      }
+    };
+
+    window.addEventListener('paste', handleWindowPaste);
+    return () => window.removeEventListener('paste', handleWindowPaste);
+  }, [insertImageElement]);
+
   const selectTool = useCallback(
     (id: string, action: actionType, elType: elementType) => {
+      if (id === 'image') {
+        imageInputRef.current?.click();
+        return;
+      }
       setActiveToolbarId(id);
       setCurrentTool({ action, elementType: elType });
       setIsSelecting(action === actionType.Selecting);
@@ -1401,6 +1541,7 @@ export default function App() {
       'tool.line': () => selectTool('line', actionType.Drawing, elementType.Line),
       'tool.freehand': () => selectTool('freeHand', actionType.Drawing, elementType.Freehand),
       'tool.text': () => selectTool('text', actionType.Drawing, elementType.Text),
+      'tool.image': () => imageInputRef.current?.click(),
       'edit.undo': handleUndoClick,
       'edit.redo': handleRedoClick,
       'edit.copy': handleCopy,
@@ -1542,7 +1683,16 @@ export default function App() {
     <div
       className='relative w-full h-screen overflow-hidden touch-none'
       style={{ background: isDark ? '#0f172a' : '#ffffff', transition: 'background 0.3s ease' }}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
     >
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleImageFileChange}
+      />
       <RoughSketchToolbox onDelete={handleDelete} onGroup={handleGroup} onUngroup={handleUngroup} />
       <FeaturePanel isDark={isDark} onToggleDark={() => setIsDark(d => !d)} />
       {isCollaborating && connectionStatus === 'connected' && participants.map(p => {

@@ -61,6 +61,14 @@ export const KEYBINDINGS: KeybindingDef[] = [
     description: 'Text tool',
     displayKeys: ['T'],
   },
+  {
+    id: 'tool.image',
+    key: 'i',
+    action: 'tool.image',
+    category: 'Tools',
+    description: 'Insert Image tool',
+    displayKeys: ['I'],
+  },
 
   // Edit
   {

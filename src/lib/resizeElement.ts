@@ -74,7 +74,8 @@ export const resizeElement = ({
     case elementType.Rectangle:
     case elementType.Line:
     case elementType.Ellipse:
-    case elementType.Text: {
+    case elementType.Text:
+    case elementType.Image: {
       resizeSimpleShape({ element, newBounds, oldBounds });
       break;
     }

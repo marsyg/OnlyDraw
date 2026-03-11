@@ -63,6 +63,13 @@ export type textElement = baseType & {
   lineHeight: number;
 };
 
+export type imageElement = baseType & {
+  type: elementType.Image;
+  src: string;
+  naturalWidth?: number;
+  naturalHeight?: number;
+};
+
 export type Degrees = number;
 
 export type OnlyDrawElement =
@@ -70,7 +77,8 @@ export type OnlyDrawElement =
   | lineElement
   | ellipseElement
   | freeHandElement
-  | textElement;
+  | textElement
+  | imageElement;
 
 export type YElement = OnlyDrawElement & {
   author: number;
@@ -108,6 +116,7 @@ export enum elementType {
   Line = 'line',
   Freehand = 'freehand',
   Text = 'text',
+  Image = 'image',
   Select = 'select',
   Delete = 'delete',
 }
@@ -136,4 +145,7 @@ export type ElementOptions = {
   textAlign?: 'left' | 'center' | 'right';
   angle?: number;
   rotationAxis?: 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+  src?: string;
+  naturalWidth?: number;
+  naturalHeight?: number;
 };

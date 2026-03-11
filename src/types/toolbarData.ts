@@ -4,6 +4,7 @@ import {
   MinusIcon,
   PencilIcon,
   Type,
+  ImageIcon,
   MousePointer,
   Scaling,
   Trash,
@@ -50,6 +51,14 @@ export const TOOLBAR_ITEM: ToolBarDataType[] = [
     actionType: actionType.Drawing,
     isActive: false,
     elementType: elementType.Text,
+  },
+  {
+    id: 'image',
+    name: 'image',
+    icon: ImageIcon,
+    actionType: actionType.Drawing,
+    isActive: false,
+    elementType: elementType.Image,
   },
   {
     id: 'select',

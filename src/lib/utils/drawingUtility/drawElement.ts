@@ -16,6 +16,7 @@ type DrawingArgs = {
 
 type CachedDrawable = { key: string; drawable: Drawable | null };
 const drawableCache = new WeakMap<Y.Map<unknown>, CachedDrawable>();
+const imageCache = new Map<string, HTMLImageElement>();
 
 // ---------- Small deterministic PRNG (mulberry32) & helper ----------
 function mulberry32(seed: number) {
@@ -230,6 +231,38 @@ export const DrawElements = ({ ctx, element, rc }: DrawingArgs) => {
       }
       ctx.fillText(line, lineX, y + index * lineSpacing);
     });
+
+    ctx.restore();
+    return;
+  }
+
+  if (type === elementType.Image) {
+    const x = Number(element.get('x'));
+    const y = Number(element.get('y'));
+    const width = Number(element.get('width'));
+    const height = Number(element.get('height'));
+    const src = String(element.get('src') || '');
+
+    if (src) {
+      let img = imageCache.get(src);
+      if (!img) {
+        img = new Image();
+        img.src = src;
+        imageCache.set(src, img);
+      }
+
+      if (img.complete && img.naturalWidth > 0) {
+        ctx.drawImage(img, x, y, width, height);
+      } else {
+        ctx.save();
+        ctx.strokeStyle = '#94a3b8';
+        ctx.setLineDash([4, 4]);
+        ctx.strokeRect(x, y, width, height);
+        ctx.fillStyle = 'rgba(148, 163, 184, 0.1)';
+        ctx.fillRect(x, y, width, height);
+        ctx.restore();
+      }
+    }
 
     ctx.restore();
     return;

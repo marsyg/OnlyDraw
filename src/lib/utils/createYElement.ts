@@ -40,6 +40,10 @@ const createYElement = (element: OnlyDrawElement) => {
     newElement.set('textAlign', element.textAlign);
     newElement.set('fillColor', element.fillColor);
     newElement.set('lineHeight', element.lineHeight);
+  } else if (element.type === 'image') {
+    newElement.set('src', element.src);
+    newElement.set('naturalWidth', element.naturalWidth ?? element.width);
+    newElement.set('naturalHeight', element.naturalHeight ?? element.height);
   } else if (element.type === 'line') {
     newElement.set('boundaryStyle', element.boundaryStyle);
     newElement.set('roughness', element.roughness);
@@ -61,16 +65,6 @@ const createYElement = (element: OnlyDrawElement) => {
   return newElement;
 };
 const updateYElement = (element: OnlyDrawElement, yElement: Y.Map<unknown>) => {
-  // console.log(`[DEBUG] Updating element ${element.id}`);
-  // console.log(
-  //   `[DEBUG] Input seed: ${element.seed}, type: ${typeof element.seed}`
-  // );
-
-  // const existingSeed = yElement.get('seed');
-  // console.log(
-  //   `[DEBUG] Existing Yjs seed: ${existingSeed}, type: ${typeof existingSeed}`
-  // );
-
   yElement.set('x', element.x);
   yElement.set('y', element.y);
   yElement.set('width', element.width);
@@ -101,6 +95,10 @@ const updateYElement = (element: OnlyDrawElement, yElement: Y.Map<unknown>) => {
     yElement.set('textAlign', element.textAlign);
     yElement.set('fillColor', element.fillColor);
     yElement.set('lineHeight', element.lineHeight);
+  } else if (element.type === 'image') {
+    yElement.set('src', element.src);
+    yElement.set('naturalWidth', element.naturalWidth ?? element.width);
+    yElement.set('naturalHeight', element.naturalHeight ?? element.height);
   } else if (element.type === 'line') {
     yElement.set('boundaryStyle', element.boundaryStyle);
     yElement.set('roughness', element.roughness);
