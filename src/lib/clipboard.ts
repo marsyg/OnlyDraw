@@ -28,11 +28,11 @@ export function deserializeYElement(
       newMap.set('author', canvasDoc.doc.clientID);
     } else if (key === 'points' && Array.isArray(value)) {
       const pointsArray = new canvasDoc.Y.Array<Y.Map<number>>();
-      value.forEach((pt: any) => {
+      value.forEach((pt: Record<string, unknown>) => {
         const pointMap = new Y.Map<number>();
         pointMap.set('x', Number(pt.x) || 0);
         pointMap.set('y', Number(pt.y) || 0);
-        pointMap.set('pressure', pt.pressure ?? 1);
+        pointMap.set('pressure', Number(pt.pressure) || 1);
         pointsArray.push([pointMap]);
       });
       newMap.set('points', pointsArray);

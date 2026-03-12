@@ -2014,7 +2014,7 @@ export default function App() {
             fontSize: `${editingTextElement.fontSize * camera.scale}px`,
             fontFamily: editingTextElement.fontFamily,
             color: editingTextElement.fillColor,
-            textAlign: editingTextElement.textAlign as any,
+            textAlign: editingTextElement.textAlign as React.CSSProperties['textAlign'],
             lineHeight: 1.3,
             background: 'transparent',
             border: '1.5px dashed #3b82f6',

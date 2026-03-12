@@ -450,7 +450,7 @@ export default function RoughSketchToolbox({ onDelete, onGroup, onUngroup }: Rou
                           <button
                             key={ax.id}
                             onClick={() => {
-                              setRotationAxis(ax.id as any);
+                              setRotationAxis(ax.id as 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right');
                               if (selectedYElement) {
                                 selectedYElement.set('rotationAxis', ax.id);
                               }
