@@ -1,9 +1,9 @@
 import { nanoid } from 'nanoid';
 import canvasDoc from '@/Store/yjs-store';
-import { OnlyDrawElement } from '@/types/type';
+import { OnlyDrawElement, elementType } from '@/types/type';
 import * as Y from 'yjs';
 const createYElement = (element: OnlyDrawElement) => {
-  const elementId = nanoid();
+  const elementId = element.id || nanoid();
   const safeSeed = element.seed ?? Math.floor(Math.random() * 2 ** 31);
   const newElement = new canvasDoc.Y.Map();
   newElement.set('id', elementId);
@@ -15,52 +15,64 @@ const createYElement = (element: OnlyDrawElement) => {
   newElement.set('height', element.height);
   newElement.set('strokeColor', element.strokeColor);
   newElement.set('strokeWidth', element.strokeWidth);
-  if (element.type === 'freehand') {
-    const points = new canvasDoc.Y.Array<Y.Map<number>>();
-    if (element.stroke && Array.isArray(element.stroke.points)) {
-      element.stroke.points.forEach((relPoint: number[]) => {
-        const pointMap = new Y.Map<number>();
-        pointMap.set('x', relPoint[0] || 0);
-        pointMap.set('y', relPoint[1] || 0);
-        pointMap.set('pressure', relPoint[2] || 1);
-        points.push([pointMap]);
-      });
-    } else {
-      const initialPoint = new canvasDoc.Y.Map<number>();
-      initialPoint.set('x', 0);
-      initialPoint.set('y', 0);
-      initialPoint.set('pressure', 1);
-      points.push([initialPoint]);
+  switch (element.type) {
+    case elementType.Freehand: {
+      const points = new canvasDoc.Y.Array<Y.Map<number>>();
+      if (element.stroke && Array.isArray(element.stroke.points)) {
+        element.stroke.points.forEach((relPoint: number[]) => {
+          const pointMap = new Y.Map<number>();
+          pointMap.set('x', relPoint[0] || 0);
+          pointMap.set('y', relPoint[1] || 0);
+          pointMap.set('pressure', relPoint[2] || 1);
+          points.push([pointMap]);
+        });
+      } else {
+        const initialPoint = new canvasDoc.Y.Map<number>();
+        initialPoint.set('x', 0);
+        initialPoint.set('y', 0);
+        initialPoint.set('pressure', 1);
+        points.push([initialPoint]);
+      }
+      newElement.set('points', points);
+      break;
     }
-    newElement.set('points', points);
-  } else if (element.type === 'text') {
-    newElement.set('text', element.text);
-    newElement.set('fontSize', element.fontSize);
-    newElement.set('fontFamily', element.fontFamily);
-    newElement.set('textAlign', element.textAlign);
-    newElement.set('fillColor', element.fillColor);
-    newElement.set('lineHeight', element.lineHeight);
-  } else if (element.type === 'image') {
-    newElement.set('src', element.src);
-    newElement.set('naturalWidth', element.naturalWidth ?? element.width);
-    newElement.set('naturalHeight', element.naturalHeight ?? element.height);
-  } else if (element.type === 'line') {
-    newElement.set('boundaryStyle', element.boundaryStyle);
-    newElement.set('roughness', element.roughness);
-  } else {
-    newElement.set('fillColor', element.fillColor);
-    newElement.set('fillStyle', element.fillStyle);
-    newElement.set('fillWeight', element.fillWeight);
-    newElement.set('boundaryStyle', element.boundaryStyle);
-    newElement.set('roughness', element.roughness);
+    case elementType.Text: {
+      newElement.set('text', element.text);
+      newElement.set('fontSize', element.fontSize);
+      newElement.set('fontFamily', element.fontFamily);
+      newElement.set('textAlign', element.textAlign);
+      newElement.set('fillColor', element.fillColor);
+      newElement.set('lineHeight', element.lineHeight);
+      break;
+    }
+    case elementType.Image: {
+      newElement.set('src', element.src);
+      newElement.set('naturalWidth', element.naturalWidth ?? element.width);
+      newElement.set('naturalHeight', element.naturalHeight ?? element.height);
+      break;
+    }
+    case elementType.Line: {
+      newElement.set('boundaryStyle', element.boundaryStyle);
+      newElement.set('roughness', element.roughness);
+      break;
+    }
+    case elementType.Rectangle:
+    case elementType.Ellipse: {
+      newElement.set('fillColor', element.fillColor);
+      newElement.set('fillStyle', element.fillStyle);
+      newElement.set('fillWeight', element.fillWeight);
+      newElement.set('boundaryStyle', element.boundaryStyle);
+      newElement.set('roughness', element.roughness);
+      break;
+    }
   }
   newElement.set('isDeleted', element.isDeleted);
   newElement.set('author', canvasDoc.doc.clientID);
   // Visual properties
-  newElement.set('opacity', (element as OnlyDrawElement & { opacity?: number }).opacity ?? 1);
-  newElement.set('hasShadow', (element as OnlyDrawElement & { hasShadow?: boolean }).hasShadow ?? false);
-  newElement.set('angle', (element as OnlyDrawElement & { angle?: number }).angle ?? 0);
-  newElement.set('rotationAxis', (element as OnlyDrawElement & { rotationAxis?: string }).rotationAxis ?? 'center');
+  newElement.set('opacity', element.opacity ?? 1);
+  newElement.set('hasShadow', element.hasShadow ?? false);
+  newElement.set('angle', element.angle ?? 0);
+  newElement.set('rotationAxis', element.rotationAxis ?? 'center');
 
   return newElement;
 };
@@ -70,58 +82,70 @@ const updateYElement = (element: OnlyDrawElement, yElement: Y.Map<unknown>) => {
   yElement.set('width', element.width);
   yElement.set('height', element.height);
 
-  if (element.type === 'freehand') {
-    const points = new canvasDoc.Y.Array<Y.Map<number>>();
-    if (element.stroke && Array.isArray(element.stroke.points)) {
-      element.stroke.points.forEach((relPoint: number[]) => {
-        const pointMap = new Y.Map<number>();
-        pointMap.set('x', relPoint[0] || 0);
-        pointMap.set('y', relPoint[1] || 0);
-        pointMap.set('pressure', relPoint[2] || 1);
-        points.push([pointMap]);
-      });
-    } else {
-      const initialPoint = new canvasDoc.Y.Map<number>();
-      initialPoint.set('x', 0);
-      initialPoint.set('y', 0);
-      initialPoint.set('pressure', 1);
-      points.push([initialPoint]);
+  switch (element.type) {
+    case elementType.Freehand: {
+      const points = new canvasDoc.Y.Array<Y.Map<number>>();
+      if (element.stroke && Array.isArray(element.stroke.points)) {
+        element.stroke.points.forEach((relPoint: number[]) => {
+          const pointMap = new Y.Map<number>();
+          pointMap.set('x', relPoint[0] || 0);
+          pointMap.set('y', relPoint[1] || 0);
+          pointMap.set('pressure', relPoint[2] || 1);
+          points.push([pointMap]);
+        });
+      } else {
+        const initialPoint = new canvasDoc.Y.Map<number>();
+        initialPoint.set('x', 0);
+        initialPoint.set('y', 0);
+        initialPoint.set('pressure', 1);
+        points.push([initialPoint]);
+      }
+      yElement.set('points', points);
+      break;
     }
-    yElement.set('points', points);
-  } else if (element.type === 'text') {
-    yElement.set('text', element.text);
-    yElement.set('fontSize', element.fontSize);
-    yElement.set('fontFamily', element.fontFamily);
-    yElement.set('textAlign', element.textAlign);
-    yElement.set('fillColor', element.fillColor);
-    yElement.set('lineHeight', element.lineHeight);
-  } else if (element.type === 'image') {
-    yElement.set('src', element.src);
-    yElement.set('naturalWidth', element.naturalWidth ?? element.width);
-    yElement.set('naturalHeight', element.naturalHeight ?? element.height);
-  } else if (element.type === 'line') {
-    yElement.set('boundaryStyle', element.boundaryStyle);
-    yElement.set('roughness', element.roughness);
-  } else {
-    yElement.set('fillColor', element.fillColor);
-    yElement.set('fillStyle', element.fillStyle);
-    yElement.set('fillWeight', element.fillWeight);
-    yElement.set('boundaryStyle', element.boundaryStyle);
-    yElement.set('roughness', element.roughness);
+    case elementType.Text: {
+      yElement.set('text', element.text);
+      yElement.set('fontSize', element.fontSize);
+      yElement.set('fontFamily', element.fontFamily);
+      yElement.set('textAlign', element.textAlign);
+      yElement.set('fillColor', element.fillColor);
+      yElement.set('lineHeight', element.lineHeight);
+      break;
+    }
+    case elementType.Image: {
+      yElement.set('src', element.src);
+      yElement.set('naturalWidth', element.naturalWidth ?? element.width);
+      yElement.set('naturalHeight', element.naturalHeight ?? element.height);
+      break;
+    }
+    case elementType.Line: {
+      yElement.set('boundaryStyle', element.boundaryStyle);
+      yElement.set('roughness', element.roughness);
+      break;
+    }
+    case elementType.Rectangle:
+    case elementType.Ellipse: {
+      yElement.set('fillColor', element.fillColor);
+      yElement.set('fillStyle', element.fillStyle);
+      yElement.set('fillWeight', element.fillWeight);
+      yElement.set('boundaryStyle', element.boundaryStyle);
+      yElement.set('roughness', element.roughness);
+      break;
+    }
   }
   yElement.set('isDeleted', element.isDeleted);
   // Visual properties
-  if ((element as OnlyDrawElement & { opacity?: number }).opacity !== undefined) {
-    yElement.set('opacity', (element as OnlyDrawElement & { opacity?: number }).opacity);
+  if (element.opacity !== undefined) {
+    yElement.set('opacity', element.opacity);
   }
-  if ((element as OnlyDrawElement & { hasShadow?: boolean }).hasShadow !== undefined) {
-    yElement.set('hasShadow', (element as OnlyDrawElement & { hasShadow?: boolean }).hasShadow);
+  if (element.hasShadow !== undefined) {
+    yElement.set('hasShadow', element.hasShadow);
   }
-  if ((element as OnlyDrawElement & { angle?: number }).angle !== undefined) {
-    yElement.set('angle', (element as OnlyDrawElement & { angle?: number }).angle);
+  if (element.angle !== undefined) {
+    yElement.set('angle', element.angle);
   }
-  if ((element as OnlyDrawElement & { rotationAxis?: string }).rotationAxis !== undefined) {
-    yElement.set('rotationAxis', (element as OnlyDrawElement & { rotationAxis?: string }).rotationAxis);
+  if (element.rotationAxis !== undefined) {
+    yElement.set('rotationAxis', element.rotationAxis);
   }
 
   return yElement;

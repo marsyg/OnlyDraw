@@ -2,6 +2,7 @@ import { elementType } from '@/types/type';
 import getStroke from 'perfect-freehand';
 import { getSvgPathFromStroke } from './getSVGStroke';
 import * as Y from 'yjs';
+import canvasDoc from '@/Store/yjs-store';
 import { Drawable } from 'roughjs/bin/core';
 import { RoughCanvas } from 'roughjs/bin/canvas';
 import { RoughGenerator } from 'roughjs/bin/generator';
@@ -204,12 +205,17 @@ export const DrawElements = ({ ctx, element, rc }: DrawingArgs) => {
     const fontSize = Number(element.get('fontSize')) || 24;
     const fontFamily = String(element.get('fontFamily') || 'sans-serif');
     const textAlign = (element.get('textAlign') as CanvasTextAlign) || 'left';
-    const fillColor = String(element.get('fillColor') || element.get('strokeColor') || '#000000');
+    let fillColor = String(element.get('fillColor') || element.get('strokeColor') || '#000000');
     const lineHeight = Number(element.get('lineHeight')) || 1.3;
 
     if (!text) {
       ctx.restore();
       return;
+    }
+
+    const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+    if (isDark && (fillColor === '#000000' || fillColor === 'black' || fillColor === '#000' || !fillColor)) {
+      fillColor = '#f8fafc';
     }
 
     ctx.font = `${fontSize}px ${fontFamily}`;
@@ -247,6 +253,11 @@ export const DrawElements = ({ ctx, element, rc }: DrawingArgs) => {
       let img = imageCache.get(src);
       if (!img) {
         img = new Image();
+        img.onload = () => {
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('canvas:redraw'));
+          }
+        };
         img.src = src;
         imageCache.set(src, img);
       }

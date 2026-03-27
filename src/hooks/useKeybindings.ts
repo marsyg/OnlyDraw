@@ -78,7 +78,9 @@ export function useKeybindings({
       if (match) {
         const handler = actionMapRef.current[match.action];
         if (handler) {
-          e.preventDefault();
+          if (match.action !== 'edit.paste') {
+            e.preventDefault();
+          }
           handler(e);
         }
       }

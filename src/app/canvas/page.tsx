@@ -113,6 +113,8 @@ export default function App() {
     fillColor: string;
   };
   const [editingTextElement, setEditingTextElement] = useState<EditingTextState | null>(null);
+  const editingTextElementRef = useRef<EditingTextState | null>(null);
+  const finishEditingTextRef = useRef<() => void>(() => {});
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
@@ -135,6 +137,18 @@ export default function App() {
   const resizeStartPointerRef = useRef<point | null>(null);
   const resizeOriginalRectRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
 
+  type ElementResizeSnapshot = {
+    id: string;
+    type: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    points?: PointsFreeHand[];
+  };
+  const resizeOriginalElementsRef = useRef<ElementResizeSnapshot[]>([]);
+  const justFinishedEditingTextRef = useRef<boolean>(false);
+
   const flagRef = useRef<boolean>(false)
   const animationFrameIdRef = useRef<number | null>(null);
 
@@ -145,7 +159,7 @@ export default function App() {
   const rotationInitialAngleRef = useRef<number>(0);
   const rotationStartPointerAngleRef = useRef<number>(0);
 
-  const [marqueeBox, setMarqueeBox] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const marqueeBoxRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
   const isMarqueeRef = useRef<boolean>(false);
   const marqueeStartRef = useRef<point | null>(null);
 
@@ -185,24 +199,29 @@ export default function App() {
     ctx.save();
     ctx.setTransform(cam.scale, 0, 0, cam.scale, cam.x, cam.y);
 
-    yElement.forEach(el => DrawElements({ ctx, element: el, rc: rc }));
+    yElement.forEach(el => {
+      if (!el.get('isDeleted')) {
+        DrawElements({ ctx, element: el, rc: rc });
+      }
+    });
     if ((selectedYElement || selectedElementIds.length > 0) && bound) {
       DrawBounds({ context: ctx, bounds: bound });
     }
 
-    if (marqueeBox) {
+    if (marqueeBoxRef.current) {
+      const mb = marqueeBoxRef.current;
       ctx.save();
       ctx.strokeStyle = 'rgba(59, 130, 246, 0.9)';
       ctx.fillStyle = 'rgba(59, 130, 246, 0.12)';
       ctx.lineWidth = 1;
       ctx.setLineDash([4, 4]);
-      ctx.fillRect(marqueeBox.x, marqueeBox.y, marqueeBox.width, marqueeBox.height);
-      ctx.strokeRect(marqueeBox.x, marqueeBox.y, marqueeBox.width, marqueeBox.height);
+      ctx.fillRect(mb.x, mb.y, mb.width, mb.height);
+      ctx.strokeRect(mb.x, mb.y, mb.width, mb.height);
       ctx.restore();
     }
 
     ctx.restore();
-  }, [isDark, isDragging, isResizing, isDrawing, yElement, selectedYElement, selectedElementIds, bound, marqueeBox]);
+  }, [isDark, isDragging, isResizing, isDrawing, yElement, selectedYElement, selectedElementIds, bound]);
 
 
   const scheduleRender = useCallback(() => {
@@ -277,11 +296,14 @@ export default function App() {
   }, [order, yElement]);
 
   const finishEditingText = useCallback(() => {
-    if (!editingTextElement) return;
-    const { id, text } = editingTextElement;
+    const currentEditing = editingTextElementRef.current;
+    if (!currentEditing) return;
+    const { id } = currentEditing;
+    const text = textareaRef.current ? textareaRef.current.value : currentEditing.text;
     const targetYEl = yElement.get(id);
     if (!targetYEl) {
       setEditingTextElement(null);
+      editingTextElementRef.current = null;
       return;
     }
 
@@ -315,6 +337,8 @@ export default function App() {
         targetYEl.set('text', text);
         targetYEl.set('width', measuredWidth);
         targetYEl.set('height', measuredHeight);
+        targetYEl.set('fillColor', currentEditing.fillColor);
+        targetYEl.set('strokeColor', currentEditing.fillColor);
       }, LOCAL_ORIGIN);
 
       setYElement(targetYEl);
@@ -322,10 +346,20 @@ export default function App() {
     }
 
     setEditingTextElement(null);
+    editingTextElementRef.current = null;
+    justFinishedEditingTextRef.current = true;
+    setTimeout(() => {
+      justFinishedEditingTextRef.current = false;
+    }, 200);
+
     setCurrentTool({ action: actionType.Selecting, elementType: elementType.Select });
     setActiveToolbarId('select');
     scheduleRender();
-  }, [editingTextElement, yElement, doc, order, setYElement, setBound, setCurrentTool, setActiveToolbarId, scheduleRender]);
+  }, [yElement, doc, order, setYElement, setBound, setCurrentTool, setActiveToolbarId, scheduleRender]);
+
+  useEffect(() => {
+    finishEditingTextRef.current = finishEditingText;
+  }, [finishEditingText]);
 
   const handleDoubleClick = useCallback((e: React.MouseEvent) => {
     const [x, y] = getPointerCoordinates(e);
@@ -333,7 +367,7 @@ export default function App() {
     if (hit && hit.yEl && hit.yEl.get('type') === elementType.Text) {
       const yEl = hit.yEl;
       setYElement(yEl);
-      setEditingTextElement({
+      const nextState: EditingTextState = {
         id: yEl.get('id') as string,
         text: String(yEl.get('text') || ''),
         x: Number(yEl.get('x')),
@@ -341,18 +375,29 @@ export default function App() {
         fontSize: Number(yEl.get('fontSize')) || 24,
         fontFamily: String(yEl.get('fontFamily') || 'sans-serif'),
         textAlign: String(yEl.get('textAlign') || 'left'),
-        fillColor: String(yEl.get('fillColor') || yEl.get('strokeColor') || '#000000'),
-      });
+        fillColor: String(yEl.get('fillColor') || yEl.get('strokeColor') || (isDark ? '#f8fafc' : '#000000')),
+      };
+      editingTextElementRef.current = nextState;
+      setEditingTextElement(nextState);
     }
-  }, [getPointerCoordinates, hitTestAtPoint, setYElement]);
+  }, [getPointerCoordinates, hitTestAtPoint, setYElement, isDark]);
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
-    if (editingTextElement) {
-      finishEditingText();
-    }
-
     const canvas = canvasRef.current;
     if (!canvas) return;
+
+    try {
+      canvas.setPointerCapture(e.pointerId);
+    } catch {}
+
+    if (editingTextElementRef.current || justFinishedEditingTextRef.current) {
+      if (editingTextElementRef.current) {
+        finishEditingTextRef.current();
+      }
+      justFinishedEditingTextRef.current = false;
+      return;
+    }
+
     const context = canvas.getContext('2d');
     if (!context) return;
 
@@ -363,7 +408,6 @@ export default function App() {
       const cam = cameraRef.current;
       panStartRef.current = { x: e.clientX, y: e.clientY, camX: cam.x, camY: cam.y };
       setCursorStyle('grabbing');
-      canvas.setPointerCapture(e.pointerId);
       return;
     }
 
@@ -417,6 +461,36 @@ export default function App() {
         if (bound) {
           resizeOriginalRectRef.current = bound;
         }
+
+        const elementsToSnap: ElementResizeSnapshot[] = [];
+        const targetIds = selectedElementIds.length > 0 ? selectedElementIds : (selectedYElement ? [selectedYElement.get('id') as string] : []);
+        targetIds.forEach((id) => {
+          const el = yElement.get(id);
+          if (!el || el.get('isDeleted')) return;
+          const elType = el.get('type') as string;
+          let pts: PointsFreeHand[] | undefined = undefined;
+          if (elType === 'freehand') {
+            const stroke = el.get('points') as Y.Array<Y.Map<number>>;
+            if (stroke) {
+              pts = stroke.toArray().map((p) => [
+                Number(p.get('x')),
+                Number(p.get('y')),
+                Number(p.get('pressure') ?? 1),
+              ]);
+            }
+          }
+          elementsToSnap.push({
+            id,
+            type: elType,
+            x: Number(el.get('x')),
+            y: Number(el.get('y')),
+            width: Number(el.get('width')),
+            height: Number(el.get('height')),
+            points: pts,
+          });
+        });
+        resizeOriginalElementsRef.current = elementsToSnap;
+
         setLockedBounds(true);
         return;
       }
@@ -519,7 +593,8 @@ export default function App() {
         if (createdYEl) {
           setYElement(createdYEl);
           setSelectedElementId(textElement.id);
-          setEditingTextElement({
+          const textColor = (isDark && (!strokeColor || strokeColor === '#000000')) ? '#f8fafc' : (strokeColor || '#000000');
+          const nextState: EditingTextState = {
             id: textElement.id,
             text: '',
             x: textElement.x,
@@ -527,14 +602,16 @@ export default function App() {
             fontSize: 24,
             fontFamily: 'sans-serif',
             textAlign: 'left',
-            fillColor: strokeColor || '#000000',
-          });
+            fillColor: textColor,
+          };
+          editingTextElementRef.current = nextState;
+          setEditingTextElement(nextState);
           scheduleRender();
         }
         return;
       }
 
-      setCursorStyle("crosshair")
+      setCursorStyle("crosshair");
       const element = handleDrawElement({
         action: actionType.Drawing,
         element: currentTool.elementType,
@@ -613,7 +690,7 @@ export default function App() {
       const boxY = Math.min(startY, y);
       const boxW = Math.abs(x - startX);
       const boxH = Math.abs(y - startY);
-      setMarqueeBox({ x: boxX, y: boxY, width: boxW, height: boxH });
+      marqueeBoxRef.current = { x: boxX, y: boxY, width: boxW, height: boxH };
       scheduleRender();
       return;
     }
@@ -804,9 +881,11 @@ export default function App() {
       return;
     }
     if (isResizing) {
-      if (!selectedYElement || !resizeHandle) return;
+      if (!resizeHandle) return;
 
       if (resizeHandle === 'rotate') {
+        const targetEl = selectedYElement || (selectedElementIds.length === 1 ? yElement.get(selectedElementIds[0]) : null);
+        if (!targetEl) return;
         const [cx, cy] = rotationCenterRef.current;
         const currentPointerAngle = Math.atan2(y - cy, x - cx);
         const deltaAngle = currentPointerAngle - rotationStartPointerAngleRef.current;
@@ -818,10 +897,10 @@ export default function App() {
         }
 
         doc.transact(() => {
-          selectedYElement.set('angle', newAngle);
+          targetEl.set('angle', newAngle);
         }, LOCAL_ORIGIN);
 
-        setBound(getBounds({ element: selectedYElement }));
+        setBound(getBounds({ element: targetEl }));
         scheduleRender();
         return;
       }
@@ -834,18 +913,57 @@ export default function App() {
       if (!startPointer || !originalBound || !bound) return;
       const resizedBound = resizeBound(resizeHandle, startPointer, [x, y], originalBound, e.shiftKey);
 
-      const originalPoint = originalPointRef.current
-      setBound(resizedBound)
-      scheduleRender()
-      doc.transact(() => {
-        resizeElement({
-          element: selectedYElement,
-          newBounds: resizedBound,
-          oldBounds: originalBound,
-          originalPoints: originalPoint
-        })
-      }, LOCAL_ORIGIN)
+      setBound(resizedBound);
+      scheduleRender();
 
+      if (resizeOriginalElementsRef.current.length > 1) {
+        const scaleX = resizedBound.width / Math.max(1, originalBound.width);
+        const scaleY = resizedBound.height / Math.max(1, originalBound.height);
+
+        doc.transact(() => {
+          resizeOriginalElementsRef.current.forEach((snap) => {
+            const el = yElement.get(snap.id);
+            if (!el) return;
+            const relX = snap.x - originalBound.x;
+            const relY = snap.y - originalBound.y;
+            const newX = resizedBound.x + relX * scaleX;
+            const newY = resizedBound.y + relY * scaleY;
+            const newW = snap.width * scaleX;
+            const newH = snap.height * scaleY;
+
+            el.set('x', newX);
+            el.set('y', newY);
+            el.set('width', newW);
+            el.set('height', newH);
+
+            if (snap.type === 'freehand' && snap.points) {
+              const newPointsY = new canvasDoc.Y.Array<Y.Map<number>>();
+              snap.points.forEach(([px, py, pressure]) => {
+                const pointMap = new Y.Map<number>();
+                pointMap.set('x', px * scaleX);
+                pointMap.set('y', py * scaleY);
+                pointMap.set('pressure', pressure);
+                newPointsY.push([pointMap]);
+              });
+              el.set('points', newPointsY);
+            }
+          });
+        }, LOCAL_ORIGIN);
+      } else {
+        const singleTarget = selectedYElement || (resizeOriginalElementsRef.current.length === 1 ? yElement.get(resizeOriginalElementsRef.current[0].id) : null);
+        if (singleTarget) {
+          const originalPoint = originalPointRef.current;
+          doc.transact(() => {
+            resizeElement({
+              element: singleTarget,
+              newBounds: resizedBound,
+              oldBounds: originalBound,
+              originalPoints: originalPoint,
+            });
+          }, LOCAL_ORIGIN);
+        }
+      }
+      return;
     }
 
   }, [getPointerCoordinates, currentTool, isDragging, isResizing, lockedBounds, bound,
@@ -867,6 +985,7 @@ export default function App() {
       isMarqueeRef.current = false;
       const [startX, startY] = marqueeStartRef.current;
       marqueeStartRef.current = null;
+      marqueeBoxRef.current = null;
       const [endX, endY] = getPointerCoordinates(e);
       const box = {
         x: Math.min(startX, endX),
@@ -874,7 +993,6 @@ export default function App() {
         width: Math.abs(endX - startX),
         height: Math.abs(endY - startY),
       };
-      setMarqueeBox(null);
 
       if (box.width > 4 || box.height > 4) {
         const foundIds: string[] = [];
@@ -916,6 +1034,10 @@ export default function App() {
 
     setFreehandPoint(null);
 
+    try {
+      canvasRef.current?.releasePointerCapture(e.pointerId);
+    } catch {}
+
     resizeHandleRef.current = null;
     setIsResizing(false);
     isRotatingRef.current = false;
@@ -924,6 +1046,8 @@ export default function App() {
     setCursorStyle(isSpacePressedRef.current ? 'grab' : 'default');
     resizeStartPointerRef.current = null;
     resizeOriginalRectRef.current = null;
+    resizeOriginalElementsRef.current = [];
+    scheduleRender();
   }, [
     getPointerCoordinates,
     order,
@@ -1405,57 +1529,85 @@ export default function App() {
     }
   }, [selectedElementIds, selectedYElement, yElement, setClipboard]);
 
-  const handlePaste = useCallback(() => {
-    if (!clipboard) return;
+  const handlePaste = useCallback(async () => {
+    if (clipboard) {
+      if (Array.isArray(clipboard)) {
+        const newElements = deserializeYElements(clipboard, { x: 30, y: 30 });
+        const newIds: string[] = [];
 
-    if (Array.isArray(clipboard)) {
-      const newElements = deserializeYElements(clipboard, { x: 30, y: 30 });
-      const newIds: string[] = [];
+        doc.transact(() => {
+          newElements.forEach((el) => {
+            const id = el.get('id') as string;
+            yElement.set(id, el);
+            order.push([id]);
+            newIds.push(id);
+          });
+        }, LOCAL_ORIGIN);
 
-      doc.transact(() => {
-        newElements.forEach((el) => {
-          const id = el.get('id') as string;
-          yElement.set(id, el);
-          order.push([id]);
-          newIds.push(id);
+        setClipboard(
+          clipboard.map((item) => ({
+            ...item,
+            x: (Number(item.x) || 0) + 30,
+            y: (Number(item.y) || 0) + 30,
+          }))
+        );
+
+        setSelectedElementIds(newIds);
+        setYElement(null);
+        setBound(getCompoundBounds(newIds, yElement));
+        setLockedBounds(true);
+        scheduleRender();
+      } else {
+        const newYElement = deserializeYElement(clipboard, { x: 30, y: 30 });
+        const newId = newYElement.get('id') as string;
+        doc.transact(() => {
+          yElement.set(newId, newYElement);
+          order.push([newId]);
+        }, LOCAL_ORIGIN);
+
+        setClipboard({
+          ...clipboard,
+          x: (Number(clipboard.x) || 0) + 30,
+          y: (Number(clipboard.y) || 0) + 30,
         });
-      }, LOCAL_ORIGIN);
 
-      setClipboard(
-        clipboard.map((item) => ({
-          ...item,
-          x: (Number(item.x) || 0) + 30,
-          y: (Number(item.y) || 0) + 30,
-        }))
-      );
-
-      setSelectedElementIds(newIds);
-      setYElement(null);
-      setBound(getCompoundBounds(newIds, yElement));
-      setLockedBounds(true);
-      scheduleRender();
-    } else {
-      const newYElement = deserializeYElement(clipboard, { x: 30, y: 30 });
-      const newId = newYElement.get('id') as string;
-      doc.transact(() => {
-        yElement.set(newId, newYElement);
-        order.push([newId]);
-      }, LOCAL_ORIGIN);
-
-      setClipboard({
-        ...clipboard,
-        x: (Number(clipboard.x) || 0) + 30,
-        y: (Number(clipboard.y) || 0) + 30,
-      });
-
-      setSelectedElementIds([newId]);
-      setYElement(newYElement);
-      const bounds = getBounds({ element: newYElement });
-      setBound(bounds);
-      setLockedBounds(true);
-      scheduleRender();
+        setSelectedElementIds([newId]);
+        setYElement(newYElement);
+        const bounds = getBounds({ element: newYElement });
+        setBound(bounds);
+        setLockedBounds(true);
+        scheduleRender();
+      }
+      return;
     }
-  }, [clipboard, doc, yElement, order, setClipboard, setSelectedElementIds, setYElement, setBound, setLockedBounds, scheduleRender]);
+
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.read) {
+        const items = await navigator.clipboard.read();
+        for (const item of items) {
+          const imageType = item.types.find((t) => t.startsWith('image/'));
+          if (imageType) {
+            const blob = await item.getType(imageType);
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+              const dataUrl = ev.target?.result as string;
+              if (dataUrl) {
+                const canvas = canvasRef.current;
+                const cam = cameraRef.current;
+                const screenCenterX = canvas ? canvas.width / 2 : window.innerWidth / 2;
+                const screenCenterY = canvas ? canvas.height / 2 : window.innerHeight / 2;
+                const worldX = (screenCenterX - cam.x) / cam.scale;
+                const worldY = (screenCenterY - cam.y) / cam.scale;
+                insertImageElement(dataUrl, worldX - 150, worldY - 100);
+              }
+            };
+            reader.readAsDataURL(blob);
+            break;
+          }
+        }
+      }
+    } catch {}
+  }, [clipboard, doc, yElement, order, setClipboard, setSelectedElementIds, setYElement, setBound, setLockedBounds, scheduleRender, insertImageElement]);
 
   const handleDuplicate = useCallback(() => {
     if (selectedElementIds.length > 1) {
@@ -1508,14 +1660,23 @@ export default function App() {
   }, [selectedYElement, selectedElementIds, handleCopy, handleDelete]);
 
   const handleDeselect = useCallback(() => {
+    isMarqueeRef.current = false;
+    marqueeBoxRef.current = null;
+    setIsDragging(false);
+    setIsResizing(false);
+    setIsDrawing(false);
+    resizeOriginalElementsRef.current = [];
     setSelectedElementIds([]);
     setYElement(null);
     setBound(null);
     setLockedBounds(false);
+    if (editingTextElementRef.current) {
+      finishEditingTextRef.current();
+    }
     setCurrentTool({ action: actionType.Selecting, elementType: elementType.Select });
     setActiveToolbarId('select');
     scheduleRender();
-  }, [setSelectedElementIds, setYElement, setBound, setLockedBounds, setCurrentTool, setActiveToolbarId, scheduleRender]);
+  }, [setSelectedElementIds, setYElement, setBound, setLockedBounds, setCurrentTool, setActiveToolbarId, scheduleRender, setIsDragging, setIsResizing, setIsDrawing]);
 
   const handleGroup = useCallback(() => {
     if (selectedElementIds.length < 2) return;
@@ -1629,6 +1790,22 @@ export default function App() {
       canvasDoc.yElement.unobserveDeep(observerDeep);
     };
   }, [scheduleRender, yElement]);
+
+  useEffect(() => {
+    const handleGlobalPointerUp = (e: PointerEvent) => {
+      if (isMarqueeRef.current || isDragging || isResizing || isDrawing) {
+        handlePointerUp(e as unknown as React.PointerEvent);
+      }
+    };
+    window.addEventListener('pointerup', handleGlobalPointerUp);
+    return () => window.removeEventListener('pointerup', handleGlobalPointerUp);
+  }, [handlePointerUp, isDragging, isResizing, isDrawing]);
+
+  useEffect(() => {
+    const handleRedraw = () => scheduleRender();
+    window.addEventListener('canvas:redraw', handleRedraw);
+    return () => window.removeEventListener('canvas:redraw', handleRedraw);
+  }, [scheduleRender]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -1876,6 +2053,9 @@ export default function App() {
 
       <motion.div
         className={`fixed ${isTouchDevice ? 'bottom-2 right-2' : 'bottom-4 right-4'} z-50 flex items-center gap-2 sketch-font select-none`}
+        onPointerDown={(e) => e.stopPropagation()}
+        onPointerMove={(e) => e.stopPropagation()}
+        onPointerUp={(e) => e.stopPropagation()}
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
@@ -1995,20 +2175,26 @@ export default function App() {
           ref={textareaRef}
           value={editingTextElement.text}
           onChange={(e) => {
-            setEditingTextElement((prev) =>
-              prev ? { ...prev, text: e.target.value } : null
-            );
+            const nextVal = e.target.value;
+            setEditingTextElement((prev) => {
+              const updated = prev ? { ...prev, text: nextVal } : null;
+              editingTextElementRef.current = updated;
+              return updated;
+            });
           }}
           onBlur={finishEditingText}
           onKeyDown={(e) => {
-            if (e.key === 'Escape') {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              finishEditingText();
+            } else if (e.key === 'Escape') {
               e.preventDefault();
               finishEditingText();
             }
           }}
           placeholder="Type text..."
           style={{
-            position: 'fixed',
+            position: 'absolute',
             left: editingTextElement.x * camera.scale + camera.x,
             top: editingTextElement.y * camera.scale + camera.y,
             fontSize: `${editingTextElement.fontSize * camera.scale}px`,
