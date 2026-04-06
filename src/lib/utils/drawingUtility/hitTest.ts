@@ -31,7 +31,9 @@ export const isPointInsideElement = ({ point, element }: args): boolean => {
     case elementType.Ellipse: {
       return isInsideEllipse({ point: testPoint, element });
     }
-    case elementType.Line: {
+    case elementType.Line:
+    case elementType.Arrow:
+    case elementType.ArrowTwoWay: {
       return isNearLine({ point: testPoint, element });
     }
     case elementType.Freehand: {

@@ -1,6 +1,8 @@
-import { elementType,  } from '@/types/type';
+import { elementType } from '@/types/type';
 
 import * as Y from 'yjs';
+import canvasDoc from '@/Store/yjs-store';
+import { getBindingPosition, SnapLocation } from '@/lib/arrowSnap';
 
 type args = {
   element: Y.Map<unknown>;
@@ -22,6 +24,38 @@ export const getBounds = ({ element }: args): boundType => {
   const rotationAxis = String(element.get('rotationAxis') || 'center');
   const type = element.get('type') as unknown as elementType;
   switch (type) {
+    case elementType.Arrow:
+    case elementType.ArrowTwoWay: {
+      let ax1 = x;
+      let ay1 = y;
+      let ax2 = x + width;
+      let ay2 = y + height;
+      const startBinding = element.get('startBinding') as { elementId: string; point: SnapLocation } | undefined;
+      const endBinding = element.get('endBinding') as { elementId: string; point: SnapLocation } | undefined;
+      const parentMap = (element.parent as Y.Map<Y.Map<unknown>> | undefined) || canvasDoc.yElement;
+      if (parentMap) {
+        if (startBinding) {
+          const sp = getBindingPosition(startBinding, parentMap);
+          if (sp) {
+            ax1 = sp[0];
+            ay1 = sp[1];
+          }
+        }
+        if (endBinding) {
+          const ep = getBindingPosition(endBinding, parentMap);
+          if (ep) {
+            ax2 = ep[0];
+            ay2 = ep[1];
+          }
+        }
+      }
+      const x1 = Math.min(ax1, ax2);
+      const y1 = Math.min(ay1, ay2);
+      const x2 = Math.max(ax1, ax2);
+      const y2 = Math.max(ay1, ay2);
+      return { x: x1, y: y1, width: x2 - x1, height: y2 - y1, angle, rotationAxis };
+    }
+
     case elementType.Line:
     case elementType.Rectangle:
     case elementType.Ellipse:

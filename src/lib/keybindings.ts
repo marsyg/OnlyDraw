@@ -46,6 +46,23 @@ export const KEYBINDINGS: KeybindingDef[] = [
     displayKeys: ['L'],
   },
   {
+    id: 'tool.arrow',
+    key: 'a',
+    action: 'tool.arrow',
+    category: 'Tools',
+    description: 'Arrow tool',
+    displayKeys: ['A'],
+  },
+  {
+    id: 'tool.arrow-two-way',
+    key: 'a',
+    shift: true,
+    action: 'tool.arrow-two-way',
+    category: 'Tools',
+    description: 'Two-way arrow tool',
+    displayKeys: ['Shift', 'A'],
+  },
+  {
     id: 'tool.freehand',
     key: 'p',
     action: 'tool.freehand',

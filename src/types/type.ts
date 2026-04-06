@@ -48,6 +48,19 @@ export type lineElement = baseType & {
 };
 
 
+export type ArrowBinding = {
+  elementId: string;
+  point: 'center' | 'top' | 'bottom' | 'left' | 'right';
+};
+
+export type arrowElement = baseType & {
+  type: elementType.Arrow | elementType.ArrowTwoWay;
+  boundaryStyle: string;
+  startBinding?: ArrowBinding | null;
+  endBinding?: ArrowBinding | null;
+  isTwoWay?: boolean;
+};
+
 export type freeHandElement = baseType & {
   stroke: Stroke;
 
@@ -75,6 +88,7 @@ export type Degrees = number;
 export type OnlyDrawElement =
   | rectangleElement
   | lineElement
+  | arrowElement
   | ellipseElement
   | freeHandElement
   | textElement
@@ -114,6 +128,8 @@ export enum elementType {
   Rectangle = 'rectangle',
   Ellipse = 'ellipse',
   Line = 'line',
+  Arrow = 'arrow',
+  ArrowTwoWay = 'arrow-two-way',
   Freehand = 'freehand',
   Text = 'text',
   Image = 'image',
@@ -148,4 +164,7 @@ export type ElementOptions = {
   src?: string;
   naturalWidth?: number;
   naturalHeight?: number;
+  isTwoWay?: boolean;
+  startBinding?: ArrowBinding | null;
+  endBinding?: ArrowBinding | null;
 };

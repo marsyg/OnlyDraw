@@ -7,7 +7,7 @@ import { useAppStore } from '@/Store/store';
 import { RoughGenerator } from 'roughjs/bin/generator';
 import { RoughCanvas } from 'roughjs/bin/canvas';
 import { generateUsername } from "unique-username-generator";
-import { OnlyDrawElement, point, PointsFreeHand } from '@/types/type';
+import { OnlyDrawElement, point, PointsFreeHand, ArrowBinding } from '@/types/type';
 import { actionType, elementType } from '@/types/type';
 import { handleDrawElement } from '@/lib/handleElement';
 import { DrawElements } from '@/lib/utils/drawingUtility/drawElement';
@@ -15,6 +15,7 @@ import { isPointInsideElement } from '@/lib/utils/drawingUtility/hitTest';
 import { DrawBounds } from '@/lib/drawBounds';
 import { getBounds } from '@/lib/utils/boundsUtility/getBounds';
 import { isPointInPaddedBounds } from '@/lib/utils/boundsUtility/isPointInPaddedBounds';
+import { findNearestSnapTarget, drawGhostSnapIndicators, SnapTarget } from '@/lib/arrowSnap';
 import { UndoManager } from '@/Store/yjs-store';
 import canvasDoc from '@/Store/yjs-store';
 import * as Y from 'yjs';
@@ -163,6 +164,10 @@ export default function App() {
   const isMarqueeRef = useRef<boolean>(false);
   const marqueeStartRef = useRef<point | null>(null);
 
+  const activeSnapTargetRef = useRef<SnapTarget | null>(null);
+  const arrowStartBindingRef = useRef<ArrowBinding | null>(null);
+  const arrowEndBindingRef = useRef<ArrowBinding | null>(null);
+
   const renderCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -218,6 +223,10 @@ export default function App() {
       ctx.fillRect(mb.x, mb.y, mb.width, mb.height);
       ctx.strokeRect(mb.x, mb.y, mb.width, mb.height);
       ctx.restore();
+    }
+
+    if (activeSnapTargetRef.current) {
+      drawGhostSnapIndicators(ctx, activeSnapTargetRef.current);
     }
 
     ctx.restore();
@@ -612,11 +621,27 @@ export default function App() {
       }
 
       setCursorStyle("crosshair");
+
+      const isArrowTool =
+        currentTool.elementType === elementType.Arrow ||
+        currentTool.elementType === elementType.ArrowTwoWay;
+      let startPoint = initialPoint;
+      if (isArrowTool) {
+        const snap = findNearestSnapTarget(initialPoint, yElement);
+        if (snap) {
+          startPoint = [snap.x, snap.y];
+          arrowStartBindingRef.current = { elementId: snap.elementId, point: snap.location };
+        } else {
+          arrowStartBindingRef.current = null;
+        }
+        arrowEndBindingRef.current = null;
+      }
+
       const element = handleDrawElement({
         action: actionType.Drawing,
         element: currentTool.elementType,
-        startPoint: initialPoint,
-        endPoint: initialPoint,
+        startPoint: startPoint,
+        endPoint: startPoint,
         options: {
           strokeColor: strokeColor,
           strokeWidth: strokeWidth,
@@ -627,9 +652,11 @@ export default function App() {
           fillWeight: fillWeight,
           opacity: opacity,
           hasShadow: hasShadow,
+          startBinding: arrowStartBindingRef.current,
+          endBinding: null,
         },
         stroke: {
-          points: [[initialPoint[0], initialPoint[1], 1]],
+          points: [[startPoint[0], startPoint[1], 1]],
         },
       });
 
@@ -701,6 +728,23 @@ export default function App() {
       return;
     }
     lastMoveTimeRef.current = now;
+
+    if (
+      currentTool.action === actionType.Drawing &&
+      (currentTool.elementType === elementType.Arrow || currentTool.elementType === elementType.ArrowTwoWay) &&
+      !isDrawing
+    ) {
+      const snap = findNearestSnapTarget([x, y], yElement);
+      if (snap) {
+        activeSnapTargetRef.current = snap;
+        setCursorStyle('crosshair');
+        scheduleRender();
+      } else if (activeSnapTargetRef.current) {
+        activeSnapTargetRef.current = null;
+        setCursorStyle('crosshair');
+        scheduleRender();
+      }
+    }
 
     if (currentTool.action === actionType.Selecting && !isDragging && !isResizing) {
       // console.log("inside hover logic")
@@ -830,6 +874,34 @@ export default function App() {
 
         scheduleRender();
 
+      } else if (type === elementType.Arrow || type === elementType.ArrowTwoWay) {
+        const arrowId = selectedYElement.get('id') as string;
+        const snap = findNearestSnapTarget([x, y], yElement, arrowId);
+        let endX = x;
+        let endY = y;
+        if (snap) {
+          endX = snap.x;
+          endY = snap.y;
+          activeSnapTargetRef.current = snap;
+          arrowEndBindingRef.current = { elementId: snap.elementId, point: snap.location };
+        } else {
+          activeSnapTargetRef.current = null;
+          arrowEndBindingRef.current = null;
+        }
+
+        const startX = Number(selectedYElement.get('x'));
+        const startY = Number(selectedYElement.get('y'));
+        const updatedElement = {
+          ...elementJSON,
+          width: endX - startX,
+          height: endY - startY,
+          endBinding: arrowEndBindingRef.current,
+          startBinding: arrowStartBindingRef.current,
+        };
+        doc.transact(() => {
+          yUtils.updateYElement(updatedElement as OnlyDrawElement, selectedYElement);
+        }, LOCAL_ORIGIN);
+        scheduleRender();
       } else {
         const updatedElement = {
           ...elementJSON,
@@ -1025,6 +1097,25 @@ export default function App() {
       }
       scheduleRender();
       return;
+    }
+
+    if (isDrawing) {
+      activeSnapTargetRef.current = null;
+      if (selectedYElement) {
+        const type = selectedYElement.get('type') as unknown as elementType;
+        if (type === elementType.Arrow || type === elementType.ArrowTwoWay) {
+          const w = Number(selectedYElement.get('width'));
+          const h = Number(selectedYElement.get('height'));
+          if (Math.hypot(w, h) < 6) {
+            doc.transact(() => {
+              selectedYElement.set('width', 100);
+              selectedYElement.set('height', 0);
+            }, LOCAL_ORIGIN);
+          }
+        }
+      }
+      arrowStartBindingRef.current = null;
+      arrowEndBindingRef.current = null;
     }
 
     setIsDrawing(false);
@@ -1509,6 +1600,9 @@ export default function App() {
       setIsSelecting(action === actionType.Selecting);
       setIsDragging(action === actionType.Dragging);
       setBound(null);
+      activeSnapTargetRef.current = null;
+      arrowStartBindingRef.current = null;
+      arrowEndBindingRef.current = null;
     },
     [setActiveToolbarId, setCurrentTool, setIsSelecting, setIsDragging, setBound]
   );
@@ -1665,6 +1759,9 @@ export default function App() {
     setIsDragging(false);
     setIsResizing(false);
     setIsDrawing(false);
+    activeSnapTargetRef.current = null;
+    arrowStartBindingRef.current = null;
+    arrowEndBindingRef.current = null;
     resizeOriginalElementsRef.current = [];
     setSelectedElementIds([]);
     setYElement(null);
@@ -1700,6 +1797,8 @@ export default function App() {
       'tool.rectangle': () => selectTool('rectangle', actionType.Drawing, elementType.Rectangle),
       'tool.ellipse': () => selectTool('circle', actionType.Drawing, elementType.Ellipse),
       'tool.line': () => selectTool('line', actionType.Drawing, elementType.Line),
+      'tool.arrow': () => selectTool('arrow', actionType.Drawing, elementType.Arrow),
+      'tool.arrow-two-way': () => selectTool('arrowTwoWay', actionType.Drawing, elementType.ArrowTwoWay),
       'tool.freehand': () => selectTool('freeHand', actionType.Drawing, elementType.Freehand),
       'tool.text': () => selectTool('text', actionType.Drawing, elementType.Text),
       'tool.image': () => imageInputRef.current?.click(),

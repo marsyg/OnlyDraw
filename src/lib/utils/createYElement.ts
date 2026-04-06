@@ -56,6 +56,15 @@ const createYElement = (element: OnlyDrawElement) => {
       newElement.set('roughness', element.roughness);
       break;
     }
+    case elementType.Arrow:
+    case elementType.ArrowTwoWay: {
+      newElement.set('boundaryStyle', element.boundaryStyle);
+      newElement.set('roughness', element.roughness);
+      newElement.set('isTwoWay', element.type === elementType.ArrowTwoWay || !!element.isTwoWay);
+      newElement.set('startBinding', element.startBinding ?? null);
+      newElement.set('endBinding', element.endBinding ?? null);
+      break;
+    }
     case elementType.Rectangle:
     case elementType.Ellipse: {
       newElement.set('fillColor', element.fillColor);
@@ -121,6 +130,15 @@ const updateYElement = (element: OnlyDrawElement, yElement: Y.Map<unknown>) => {
     case elementType.Line: {
       yElement.set('boundaryStyle', element.boundaryStyle);
       yElement.set('roughness', element.roughness);
+      break;
+    }
+    case elementType.Arrow:
+    case elementType.ArrowTwoWay: {
+      yElement.set('boundaryStyle', element.boundaryStyle);
+      yElement.set('roughness', element.roughness);
+      yElement.set('isTwoWay', element.type === elementType.ArrowTwoWay || !!element.isTwoWay);
+      yElement.set('startBinding', element.startBinding ?? null);
+      yElement.set('endBinding', element.endBinding ?? null);
       break;
     }
     case elementType.Rectangle:

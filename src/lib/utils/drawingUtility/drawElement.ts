@@ -9,6 +9,7 @@ import { RoughGenerator } from 'roughjs/bin/generator';
 import getStrokeLineDash from '@/lib/helperfunc/getStrokedLine';
 import { BoundaryStyle } from '@/Store/store';
 import { getPivotPoint } from '@/lib/math/pivot';
+import { getBindingPosition, SnapLocation } from '@/lib/arrowSnap';
 type DrawingArgs = {
   ctx: CanvasRenderingContext2D;
   element: Y.Map<unknown>;
@@ -196,6 +197,81 @@ export const DrawElements = ({ ctx, element, rc }: DrawingArgs) => {
     ctx.translate(cx, cy);
     ctx.rotate(angle);
     ctx.translate(-cx, -cy);
+  }
+
+  if (type === elementType.Arrow || type === elementType.ArrowTwoWay) {
+    let x1 = Number(element.get('x'));
+    let y1 = Number(element.get('y'));
+    let x2 = x1 + Number(element.get('width'));
+    let y2 = y1 + Number(element.get('height'));
+
+    const startBinding = element.get('startBinding') as { elementId: string; point: SnapLocation } | undefined;
+    const endBinding = element.get('endBinding') as { elementId: string; point: SnapLocation } | undefined;
+    const parentMap = (element.parent as Y.Map<Y.Map<unknown>> | undefined) || canvasDoc.yElement;
+    if (parentMap) {
+      if (startBinding) {
+        const sp = getBindingPosition(startBinding, parentMap);
+        if (sp) {
+          x1 = sp[0];
+          y1 = sp[1];
+        }
+      }
+      if (endBinding) {
+        const ep = getBindingPosition(endBinding, parentMap);
+        if (ep) {
+          x2 = ep[0];
+          y2 = ep[1];
+        }
+      }
+    }
+
+    const strokeColor = String(element.get('strokeColor') || '#000000');
+    const strokeWidth = Number(element.get('strokeWidth')) || 2;
+    const roughness = Number(element.get('roughness')) || 1;
+    const boundaryStyle = String(element.get('boundaryStyle') || 'solid') as BoundaryStyle;
+    const isTwoWay = type === elementType.ArrowTwoWay || !!element.get('isTwoWay');
+
+    const seed = parseInt(String(element.get('seed')), 10) || 1;
+    const lineDrawable = withSeededMath(seed, () =>
+      generator.line(x1, y1, x2, y2, {
+        seed,
+        stroke: strokeColor,
+        strokeWidth: strokeWidth,
+        roughness: roughness,
+        strokeLineDash: getStrokeLineDash(boundaryStyle, strokeWidth),
+      })
+    );
+    rc.draw(lineDrawable);
+
+    const angle = Math.atan2(y2 - y1, x2 - x1);
+    const arrowLen = Math.max(14, strokeWidth * 3.5);
+    const arrowSpread = Math.PI / 6;
+
+    const drawHead = (tipX: number, tipY: number, tipAngle: number) => {
+      const xA = tipX - arrowLen * Math.cos(tipAngle - arrowSpread);
+      const yA = tipY - arrowLen * Math.sin(tipAngle - arrowSpread);
+      const xB = tipX - arrowLen * Math.cos(tipAngle + arrowSpread);
+      const yB = tipY - arrowLen * Math.sin(tipAngle + arrowSpread);
+
+      const headDrawable = withSeededMath(seed + 1, () =>
+        generator.linearPath([[xA, yA], [tipX, tipY], [xB, yB]], {
+          seed: seed + 1,
+          stroke: strokeColor,
+          strokeWidth: strokeWidth,
+          roughness: Math.max(0.2, roughness * 0.7),
+        })
+      );
+      rc.draw(headDrawable);
+    };
+
+    drawHead(x2, y2, angle);
+
+    if (isTwoWay) {
+      drawHead(x1, y1, angle + Math.PI);
+    }
+
+    ctx.restore();
+    return;
   }
 
   if (type === elementType.Text) {

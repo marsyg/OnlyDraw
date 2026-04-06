@@ -60,6 +60,26 @@ export const handleDrawElement = ({
         boundaryStyle: options.boundaryStyle,
       };
 
+    case elementType.Arrow:
+      return {
+        ...baseProperties,
+        type: elementType.Arrow,
+        boundaryStyle: options.boundaryStyle,
+        isTwoWay: false,
+        startBinding: options.startBinding || null,
+        endBinding: options.endBinding || null,
+      };
+
+    case elementType.ArrowTwoWay:
+      return {
+        ...baseProperties,
+        type: elementType.ArrowTwoWay,
+        boundaryStyle: options.boundaryStyle,
+        isTwoWay: true,
+        startBinding: options.startBinding || null,
+        endBinding: options.endBinding || null,
+      };
+
     case elementType.Ellipse:
       return {
         ...baseProperties,
