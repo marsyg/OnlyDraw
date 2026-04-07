@@ -149,6 +149,7 @@ export default function App() {
   };
   const resizeOriginalElementsRef = useRef<ElementResizeSnapshot[]>([]);
   const justFinishedEditingTextRef = useRef<boolean>(false);
+  const textCreationTimeRef = useRef<number>(0);
 
   const flagRef = useRef<boolean>(false)
   const animationFrameIdRef = useRef<number | null>(null);
@@ -307,6 +308,15 @@ export default function App() {
   const finishEditingText = useCallback(() => {
     const currentEditing = editingTextElementRef.current;
     if (!currentEditing) return;
+
+    // Guard against premature blur from the click that spawned the textarea
+    if (Date.now() - textCreationTimeRef.current < 400) {
+      requestAnimationFrame(() => {
+        textareaRef.current?.focus();
+      });
+      return;
+    }
+
     const { id } = currentEditing;
     const text = textareaRef.current ? textareaRef.current.value : currentEditing.text;
     const targetYEl = yElement.get(id);
@@ -395,14 +405,21 @@ export default function App() {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    try {
-      canvas.setPointerCapture(e.pointerId);
-    } catch {}
+    const isTextDrawing = currentTool.action === actionType.Drawing && currentTool.elementType === elementType.Text;
+    if (!isTextDrawing) {
+      try {
+        canvas.setPointerCapture(e.pointerId);
+      } catch {}
+    }
 
-    if (editingTextElementRef.current || justFinishedEditingTextRef.current) {
-      if (editingTextElementRef.current) {
-        finishEditingTextRef.current();
+    if (editingTextElementRef.current) {
+      if (Date.now() - textCreationTimeRef.current < 400) {
+        return;
       }
+      finishEditingTextRef.current();
+      return;
+    }
+    if (justFinishedEditingTextRef.current) {
       justFinishedEditingTextRef.current = false;
       return;
     }
@@ -613,6 +630,7 @@ export default function App() {
             textAlign: 'left',
             fillColor: textColor,
           };
+          textCreationTimeRef.current = Date.now();
           editingTextElementRef.current = nextState;
           setEditingTextElement(nextState);
           scheduleRender();
@@ -1158,6 +1176,10 @@ export default function App() {
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     e.preventDefault(); // Prevent scrolling
+    // If the browser supports Pointer Events, onPointerDown already handles it
+    if (typeof window !== 'undefined' && 'PointerEvent' in window) {
+      return;
+    }
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -2272,6 +2294,12 @@ export default function App() {
       {editingTextElement && (
         <textarea
           ref={textareaRef}
+          autoFocus
+          onPointerDown={(e) => e.stopPropagation()}
+          onPointerUp={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onMouseUp={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
           value={editingTextElement.text}
           onChange={(e) => {
             const nextVal = e.target.value;
