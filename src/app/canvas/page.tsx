@@ -146,6 +146,7 @@ export default function App() {
     width: number;
     height: number;
     points?: PointsFreeHand[];
+    fontSize?: number;
   };
   const resizeOriginalElementsRef = useRef<ElementResizeSnapshot[]>([]);
   const justFinishedEditingTextRef = useRef<boolean>(false);
@@ -495,6 +496,7 @@ export default function App() {
           if (!el || el.get('isDeleted')) return;
           const elType = el.get('type') as string;
           let pts: PointsFreeHand[] | undefined = undefined;
+          let fSize: number | undefined = undefined;
           if (elType === 'freehand') {
             const stroke = el.get('points') as Y.Array<Y.Map<number>>;
             if (stroke) {
@@ -504,6 +506,8 @@ export default function App() {
                 Number(p.get('pressure') ?? 1),
               ]);
             }
+          } else if (elType === 'text') {
+            fSize = Number(el.get('fontSize')) || 24;
           }
           elementsToSnap.push({
             id,
@@ -513,6 +517,7 @@ export default function App() {
             width: Number(el.get('width')),
             height: Number(el.get('height')),
             points: pts,
+            fontSize: fSize,
           });
         });
         resizeOriginalElementsRef.current = elementsToSnap;
@@ -1001,7 +1006,10 @@ export default function App() {
       const originalBound = resizeOriginalRectRef.current;
 
       if (!startPointer || !originalBound || !bound) return;
-      const resizedBound = resizeBound(resizeHandle, startPointer, [x, y], originalBound, e.shiftKey);
+      const isSingleText = (selectedYElement?.get('type') === elementType.Text) ||
+        (resizeOriginalElementsRef.current.length === 1 && resizeOriginalElementsRef.current[0].type === 'text');
+      const proportional = e.shiftKey || isSingleText;
+      const resizedBound = resizeBound(resizeHandle, startPointer, [x, y], originalBound, proportional);
 
       setBound(resizedBound);
       scheduleRender();
@@ -1026,6 +1034,12 @@ export default function App() {
             el.set('width', newW);
             el.set('height', newH);
 
+            if (snap.type === 'text' && snap.fontSize) {
+              const textScale = Math.abs(scaleX - 1) >= Math.abs(scaleY - 1) ? scaleX : scaleY;
+              const newFontSize = Math.max(8, Math.min(300, Math.round(snap.fontSize * textScale)));
+              el.set('fontSize', newFontSize);
+            }
+
             if (snap.type === 'freehand' && snap.points) {
               const newPointsY = new canvasDoc.Y.Array<Y.Map<number>>();
               snap.points.forEach(([px, py, pressure]) => {
@@ -1043,12 +1057,14 @@ export default function App() {
         const singleTarget = selectedYElement || (resizeOriginalElementsRef.current.length === 1 ? yElement.get(resizeOriginalElementsRef.current[0].id) : null);
         if (singleTarget) {
           const originalPoint = originalPointRef.current;
+          const snap = resizeOriginalElementsRef.current[0];
           doc.transact(() => {
             resizeElement({
               element: singleTarget,
               newBounds: resizedBound,
               oldBounds: originalBound,
               originalPoints: originalPoint,
+              originalFontSize: snap?.fontSize,
             });
           }, LOCAL_ORIGIN);
         }
@@ -1146,6 +1162,17 @@ export default function App() {
     try {
       canvasRef.current?.releasePointerCapture(e.pointerId);
     } catch {}
+
+    if (isResizing) {
+      if (selectedElementIds.length > 1) {
+        setBound(getCompoundBounds(selectedElementIds, yElement));
+      } else {
+        const single = selectedYElement || (selectedElementIds.length === 1 ? yElement.get(selectedElementIds[0]) : null);
+        if (single) {
+          setBound(getBounds({ element: single }));
+        }
+      }
+    }
 
     resizeHandleRef.current = null;
     setIsResizing(false);

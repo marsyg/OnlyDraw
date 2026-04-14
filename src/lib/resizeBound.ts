@@ -54,27 +54,40 @@ function resizeBound(
       break;
   }
 
-  // Preserve aspect ratio if Shift is held and it is a corner handle
+  // Preserve aspect ratio if Shift is held or proportional is requested
   if (
     isProportional &&
     originalRect.width > 0 &&
-    originalRect.height > 0 &&
-    ['nw', 'ne', 'sw', 'se'].includes(handle)
+    originalRect.height > 0
   ) {
     const aspectRatio = originalRect.width / originalRect.height;
-    if (Math.abs(newWidth - originalRect.width) > Math.abs(newHeight - originalRect.height)) {
-      newHeight = Math.max(1, newWidth / aspectRatio);
-    } else {
-      newWidth = Math.max(1, newHeight * aspectRatio);
-    }
+    if (['nw', 'ne', 'sw', 'se'].includes(handle)) {
+      if (Math.abs(newWidth - originalRect.width) > Math.abs(newHeight - originalRect.height)) {
+        newHeight = Math.max(1, newWidth / aspectRatio);
+      } else {
+        newWidth = Math.max(1, newHeight * aspectRatio);
+      }
 
-    if (handle === 'nw') {
-      newX = originalRect.x + (originalRect.width - newWidth);
-      newY = originalRect.y + (originalRect.height - newHeight);
-    } else if (handle === 'ne') {
-      newY = originalRect.y + (originalRect.height - newHeight);
-    } else if (handle === 'sw') {
-      newX = originalRect.x + (originalRect.width - newWidth);
+      if (handle === 'nw') {
+        newX = originalRect.x + (originalRect.width - newWidth);
+        newY = originalRect.y + (originalRect.height - newHeight);
+      } else if (handle === 'ne') {
+        newY = originalRect.y + (originalRect.height - newHeight);
+      } else if (handle === 'sw') {
+        newX = originalRect.x + (originalRect.width - newWidth);
+      }
+    } else if (handle === 'e' || handle === 'w') {
+      newHeight = Math.max(1, newWidth / aspectRatio);
+      if (handle === 'w') {
+        newX = originalRect.x + (originalRect.width - newWidth);
+      }
+      newY = originalRect.y + (originalRect.height - newHeight) / 2;
+    } else if (handle === 'n' || handle === 's') {
+      newWidth = Math.max(1, newHeight * aspectRatio);
+      if (handle === 'n') {
+        newY = originalRect.y + (originalRect.height - newHeight);
+      }
+      newX = originalRect.x + (originalRect.width - newWidth) / 2;
     }
   }
 

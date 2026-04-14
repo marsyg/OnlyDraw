@@ -7,6 +7,7 @@ type resizeArgs = {
   newBounds: boundType;
   oldBounds: boundType;
   originalPoints?: PointsFreeHand[] | null;
+  originalFontSize?: number;
 };
 
 const resizeSimpleShape = ({ element, newBounds }: resizeArgs) => {
@@ -14,6 +15,30 @@ const resizeSimpleShape = ({ element, newBounds }: resizeArgs) => {
   element.set('y', newBounds.y);
   element.set('width', newBounds.width);
   element.set('height', newBounds.height);
+};
+
+export const resizeText = ({
+  element,
+  newBounds,
+  oldBounds,
+  originalFontSize,
+}: {
+  element: Y.Map<unknown>;
+  newBounds: boundType;
+  oldBounds: boundType;
+  originalFontSize?: number;
+}) => {
+  const baseFontSize = originalFontSize || Number(element.get('fontSize')) || 24;
+  const scaleY = newBounds.height / Math.max(1, oldBounds.height);
+  const scaleX = newBounds.width / Math.max(1, oldBounds.width);
+  const scale = Math.abs(scaleX - 1) >= Math.abs(scaleY - 1) ? scaleX : scaleY;
+  const newFontSize = Math.max(8, Math.min(300, Math.round(baseFontSize * scale)));
+
+  element.set('x', newBounds.x);
+  element.set('y', newBounds.y);
+  element.set('width', newBounds.width);
+  element.set('height', newBounds.height);
+  element.set('fontSize', newFontSize);
 };
 
 export const resizeFreehand = ({
@@ -67,6 +92,7 @@ export const resizeElement = ({
   newBounds,
   oldBounds,
   originalPoints,
+  originalFontSize,
 }: resizeArgs) => {
   const type = element.get('type') as unknown as elementType;
 
@@ -76,9 +102,13 @@ export const resizeElement = ({
     case elementType.Arrow:
     case elementType.ArrowTwoWay:
     case elementType.Ellipse:
-    case elementType.Text:
     case elementType.Image: {
       resizeSimpleShape({ element, newBounds, oldBounds });
+      break;
+    }
+
+    case elementType.Text: {
+      resizeText({ element, newBounds, oldBounds, originalFontSize });
       break;
     }
 
