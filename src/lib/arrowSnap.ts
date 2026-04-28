@@ -147,3 +147,55 @@ export function drawGhostSnapIndicators(
 
   ctx.restore();
 }
+
+export function cleanupArrowBindings(
+  deletedIds: Set<string>,
+  yElement: Y.Map<Y.Map<unknown>>
+): void {
+  yElement.forEach((el, id) => {
+    if (deletedIds.has(id) || el.get('isDeleted')) return;
+    const type = el.get('type') as string;
+    if (type !== 'arrow' && type !== 'arrowTwoWay') return;
+
+    const startBinding = el.get('startBinding') as { elementId: string; point: SnapLocation } | undefined;
+    const endBinding = el.get('endBinding') as { elementId: string; point: SnapLocation } | undefined;
+
+    let startX = Number(el.get('x'));
+    let startY = Number(el.get('y'));
+    let endX = startX + Number(el.get('width'));
+    let endY = startY + Number(el.get('height'));
+
+    if (startBinding) {
+      const sp = getBindingPosition(startBinding, yElement);
+      if (sp) {
+        startX = sp[0];
+        startY = sp[1];
+      }
+    }
+    if (endBinding) {
+      const ep = getBindingPosition(endBinding, yElement);
+      if (ep) {
+        endX = ep[0];
+        endY = ep[1];
+      }
+    }
+
+    let modified = false;
+    if (startBinding && deletedIds.has(startBinding.elementId)) {
+      el.set('startBinding', null);
+      modified = true;
+    }
+    if (endBinding && deletedIds.has(endBinding.elementId)) {
+      el.set('endBinding', null);
+      modified = true;
+    }
+
+    if (modified) {
+      el.set('x', startX);
+      el.set('y', startY);
+      el.set('width', endX - startX);
+      el.set('height', endY - startY);
+    }
+  });
+}
+

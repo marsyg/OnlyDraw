@@ -5,6 +5,7 @@ import {
   getElementSnapPoints,
   findNearestSnapTarget,
   getBindingPosition,
+  cleanupArrowBindings,
   SNAP_RADIUS,
 } from '../src/lib/arrowSnap';
 import { elementType } from '../src/types/type';
@@ -121,4 +122,36 @@ describe('Arrow Snapping and Dynamic Binding', () => {
     const pos = getBindingPosition({ elementId: 'deleted_el', point: 'center' }, root);
     assert.strictEqual(pos, null, 'Should return null for deleted target');
   });
+
+  it('gracefully bakes endpoints and cleans up arrow bindings when connected shape is deleted', () => {
+    const doc = new Y.Doc();
+    const root = doc.getMap<Y.Map<unknown>>('elements');
+
+    const rect = new Y.Map<unknown>();
+    rect.set('id', 'r_source');
+    rect.set('type', elementType.Rectangle);
+    rect.set('x', 100);
+    rect.set('y', 100);
+    rect.set('width', 100);
+    rect.set('height', 100);
+    root.set('r_source', rect);
+
+    const arrow = new Y.Map<unknown>();
+    arrow.set('id', 'a1');
+    arrow.set('type', elementType.Arrow);
+    arrow.set('x', 0);
+    arrow.set('y', 0);
+    arrow.set('width', 50);
+    arrow.set('height', 50);
+    arrow.set('startBinding', { elementId: 'r_source', point: 'right' });
+    arrow.set('endBinding', null);
+    root.set('a1', arrow);
+
+    cleanupArrowBindings(new Set(['r_source']), root);
+
+    assert.strictEqual(arrow.get('startBinding'), null);
+    assert.strictEqual(arrow.get('x'), 200);
+    assert.strictEqual(arrow.get('y'), 150);
+  });
 });
+
