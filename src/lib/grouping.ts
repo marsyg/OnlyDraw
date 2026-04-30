@@ -100,3 +100,47 @@ export function ungroupElements(
 export function isElementGrouped(element: Y.Map<unknown>): boolean {
   return parseGroupIds(element).length > 0;
 }
+
+export function cleanupOrphanGroups(
+  deletedIds: Set<string>,
+  yElement: Y.Map<Y.Map<unknown>>
+): void {
+  const affectedGroupIds = new Set<string>();
+  deletedIds.forEach((id) => {
+    const el = yElement.get(id);
+    if (el) {
+      const gIds = parseGroupIds(el);
+      gIds.forEach((gid) => affectedGroupIds.add(gid));
+    }
+  });
+
+  if (affectedGroupIds.size === 0) return;
+
+  const groupMemberMap = new Map<string, string[]>();
+  affectedGroupIds.forEach((gid) => groupMemberMap.set(gid, []));
+
+  yElement.forEach((el, id) => {
+    if (deletedIds.has(id) || el.get('isDeleted')) return;
+    const gIds = parseGroupIds(el);
+    gIds.forEach((gid) => {
+      if (groupMemberMap.has(gid)) {
+        groupMemberMap.get(gid)!.push(id);
+      }
+    });
+  });
+
+  affectedGroupIds.forEach((gid) => {
+    const remaining = groupMemberMap.get(gid) || [];
+    if (remaining.length <= 1) {
+      remaining.forEach((memberId) => {
+        const el = yElement.get(memberId);
+        if (el) {
+          const existing = parseGroupIds(el);
+          const filtered = existing.filter((g) => g !== gid);
+          el.set('groupIds', JSON.stringify(filtered));
+        }
+      });
+    }
+  });
+}
+

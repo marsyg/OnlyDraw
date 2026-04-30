@@ -12,10 +12,16 @@ export function serializeYElements(yEls: Y.Map<unknown>[]): Record<string, unkno
 
 export function deserializeYElement(
   data: Record<string, unknown>,
-  offset = { x: 20, y: 20 }
+  offset = { x: 20, y: 20 },
+  targetMap?: Y.Map<Y.Map<unknown>>
 ): Y.Map<unknown> {
+  const container = targetMap || canvasDoc.yElement;
   const newMap = new canvasDoc.Y.Map<unknown>();
   const newId = nanoid();
+
+  if (container) {
+    container.set(newId, newMap);
+  }
 
   for (const [key, value] of Object.entries(data)) {
     if (key === 'id') {
@@ -25,9 +31,10 @@ export function deserializeYElement(
     } else if (key === 'y') {
       newMap.set('y', (Number(value) || 0) + offset.y);
     } else if (key === 'author') {
-      newMap.set('author', canvasDoc.doc.clientID);
+      newMap.set('author', container?.doc?.clientID ?? canvasDoc.doc.clientID);
     } else if (key === 'points' && Array.isArray(value)) {
       const pointsArray = new canvasDoc.Y.Array<Y.Map<number>>();
+      newMap.set('points', pointsArray);
       value.forEach((pt: Record<string, unknown>) => {
         const pointMap = new Y.Map<number>();
         pointMap.set('x', Number(pt.x) || 0);
@@ -35,7 +42,6 @@ export function deserializeYElement(
         pointMap.set('pressure', Number(pt.pressure) || 1);
         pointsArray.push([pointMap]);
       });
-      newMap.set('points', pointsArray);
     } else {
       newMap.set(key, value);
     }
@@ -49,8 +55,9 @@ export function deserializeYElement(
 
 export function deserializeYElements(
   data: Record<string, unknown>[],
-  offset = { x: 20, y: 20 }
+  offset = { x: 20, y: 20 },
+  targetMap?: Y.Map<Y.Map<unknown>>
 ): Y.Map<unknown>[] {
-  return data.map((d) => deserializeYElement(d, offset));
+  return data.map((d) => deserializeYElement(d, offset, targetMap));
 }
 

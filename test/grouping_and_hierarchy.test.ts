@@ -7,6 +7,7 @@ import {
   groupElements,
   ungroupElements,
   isElementGrouped,
+  cleanupOrphanGroups,
 } from '../src/lib/grouping';
 
 describe('Element Grouping and Hierarchy', () => {
@@ -110,5 +111,31 @@ describe('Element Grouping and Hierarchy', () => {
     // Should not throw or alter element
     ungroupElements(['free_el'], root, doc);
     assert.strictEqual(isElementGrouped(el), false);
+  });
+
+  it('dissolves orphan groups when member deletion leaves 1 or fewer elements', () => {
+    const doc = new Y.Doc();
+    const root = doc.getMap<Y.Map<unknown>>('elements');
+
+    const el1 = new Y.Map<unknown>();
+    el1.set('id', 'm1');
+    root.set('m1', el1);
+
+    const el2 = new Y.Map<unknown>();
+    el2.set('id', 'm2');
+    root.set('m2', el2);
+
+    const gid = groupElements(['m1', 'm2'], root, doc);
+    assert.ok(gid);
+    assert.strictEqual(isElementGrouped(el1), true);
+    assert.strictEqual(isElementGrouped(el2), true);
+
+    // Simulate deleting m1
+    cleanupOrphanGroups(new Set(['m1']), root);
+    root.delete('m1');
+
+    // el2 should now be automatically dissolved (not in an orphan group)
+    assert.strictEqual(isElementGrouped(el2), false);
+    assert.deepStrictEqual(parseGroupIds(el2), []);
   });
 });

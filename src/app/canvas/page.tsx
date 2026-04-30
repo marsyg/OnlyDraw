@@ -15,7 +15,7 @@ import { isPointInsideElement } from '@/lib/utils/drawingUtility/hitTest';
 import { DrawBounds } from '@/lib/drawBounds';
 import { getBounds } from '@/lib/utils/boundsUtility/getBounds';
 import { isPointInPaddedBounds } from '@/lib/utils/boundsUtility/isPointInPaddedBounds';
-import { findNearestSnapTarget, drawGhostSnapIndicators, SnapTarget } from '@/lib/arrowSnap';
+import { findNearestSnapTarget, drawGhostSnapIndicators, SnapTarget, cleanupArrowBindings } from '@/lib/arrowSnap';
 import { UndoManager } from '@/Store/yjs-store';
 import canvasDoc from '@/Store/yjs-store';
 import * as Y from 'yjs';
@@ -38,7 +38,7 @@ import TestRunnerPanel from '@/component/TestRunnerPanel';
 import { serializeYElement, serializeYElements, deserializeYElement, deserializeYElements } from '@/lib/clipboard';
 import { getPivotPoint } from '@/lib/math/pivot';
 import { getCompoundBounds, isRectIntersecting } from '@/lib/utils/boundsUtility/compoundBounds';
-import { getGroupMembers, groupElements, ungroupElements } from '@/lib/grouping';
+import { getGroupMembers, groupElements, ungroupElements, cleanupOrphanGroups } from '@/lib/grouping';
 import { nanoid } from 'nanoid';
 
 
@@ -331,6 +331,9 @@ export default function App() {
     const trimmed = text.trim();
     if (!trimmed) {
       doc.transact(() => {
+        const delSet = new Set([id]);
+        cleanupArrowBindings(delSet, yElement);
+        cleanupOrphanGroups(delSet, yElement);
         yElement.delete(id);
         const idx = order.toArray().indexOf(id);
         if (idx > -1) order.delete(idx, 1);
@@ -1113,15 +1116,28 @@ export default function App() {
           }
         });
 
-        setSelectedElementIds(foundIds);
-        if (foundIds.length === 1) {
-          const singleEl = yElement.get(foundIds[0]) || null;
+        // Expand to include full group members if any grouped element was selected
+        const expandedIds = new Set<string>();
+        foundIds.forEach((id) => {
+          const el = yElement.get(id);
+          if (el) {
+            const members = getGroupMembers(el, yElement);
+            members.forEach((mId) => expandedIds.add(mId));
+          } else {
+            expandedIds.add(id);
+          }
+        });
+        const finalIds = Array.from(expandedIds);
+
+        setSelectedElementIds(finalIds);
+        if (finalIds.length === 1) {
+          const singleEl = yElement.get(finalIds[0]) || null;
           setYElement(singleEl);
           setBound(singleEl ? getBounds({ element: singleEl }) : null);
           setLockedBounds(true);
-        } else if (foundIds.length > 1) {
+        } else if (finalIds.length > 1) {
           setYElement(null);
-          setBound(getCompoundBounds(foundIds, yElement));
+          setBound(getCompoundBounds(finalIds, yElement));
           setLockedBounds(true);
         } else {
           setSelectedElementIds([]);
@@ -1417,6 +1433,11 @@ export default function App() {
 
     if (idsToDelete.size > 0) {
       doc.transact(() => {
+        // Unbind any arrows attached to elements being deleted
+        cleanupArrowBindings(idsToDelete, yElement);
+        // Clean up orphan groups if elements being deleted reduce group size to <= 1
+        cleanupOrphanGroups(idsToDelete, yElement);
+
         idsToDelete.forEach((key) => {
           yElement.delete(key);
           const index = order.toArray().indexOf(key);
@@ -1425,6 +1446,11 @@ export default function App() {
           }
         });
       }, LOCAL_ORIGIN);
+
+      if (editingTextElementRef.current && idsToDelete.has(editingTextElementRef.current.id)) {
+        editingTextElementRef.current = null;
+        setEditingTextElement(null);
+      }
 
       setSelectedElementIds([]);
       setYElement(null);
@@ -1676,13 +1702,11 @@ export default function App() {
   const handlePaste = useCallback(async () => {
     if (clipboard) {
       if (Array.isArray(clipboard)) {
-        const newElements = deserializeYElements(clipboard, { x: 30, y: 30 });
         const newIds: string[] = [];
-
         doc.transact(() => {
+          const newElements = deserializeYElements(clipboard, { x: 30, y: 30 }, yElement);
           newElements.forEach((el) => {
             const id = el.get('id') as string;
-            yElement.set(id, el);
             order.push([id]);
             newIds.push(id);
           });
@@ -1702,10 +1726,11 @@ export default function App() {
         setLockedBounds(true);
         scheduleRender();
       } else {
-        const newYElement = deserializeYElement(clipboard, { x: 30, y: 30 });
-        const newId = newYElement.get('id') as string;
+        let newYElement: Y.Map<unknown> | null = null;
+        let newId = '';
         doc.transact(() => {
-          yElement.set(newId, newYElement);
+          newYElement = deserializeYElement(clipboard, { x: 30, y: 30 }, yElement);
+          newId = newYElement.get('id') as string;
           order.push([newId]);
         }, LOCAL_ORIGIN);
 
@@ -1715,12 +1740,14 @@ export default function App() {
           y: (Number(clipboard.y) || 0) + 30,
         });
 
-        setSelectedElementIds([newId]);
-        setYElement(newYElement);
-        const bounds = getBounds({ element: newYElement });
-        setBound(bounds);
-        setLockedBounds(true);
-        scheduleRender();
+        if (newYElement) {
+          setSelectedElementIds([newId]);
+          setYElement(newYElement);
+          const bounds = getBounds({ element: newYElement });
+          setBound(bounds);
+          setLockedBounds(true);
+          scheduleRender();
+        }
       }
       return;
     }
@@ -1762,13 +1789,12 @@ export default function App() {
       });
       if (els.length === 0) return;
       const serialized = serializeYElements(els);
-      const newElements = deserializeYElements(serialized, { x: 30, y: 30 });
       const newIds: string[] = [];
 
       doc.transact(() => {
+        const newElements = deserializeYElements(serialized, { x: 30, y: 30 }, yElement);
         newElements.forEach((el) => {
           const id = el.get('id') as string;
-          yElement.set(id, el);
           order.push([id]);
           newIds.push(id);
         });
@@ -1781,19 +1807,22 @@ export default function App() {
       scheduleRender();
     } else if (selectedYElement) {
       const serialized = serializeYElement(selectedYElement);
-      const newYElement = deserializeYElement(serialized, { x: 30, y: 30 });
-      const newId = newYElement.get('id') as string;
+      let newYElement: Y.Map<unknown> | null = null;
+      let newId = '';
       doc.transact(() => {
-        yElement.set(newId, newYElement);
+        newYElement = deserializeYElement(serialized, { x: 30, y: 30 }, yElement);
+        newId = newYElement.get('id') as string;
         order.push([newId]);
       }, LOCAL_ORIGIN);
 
-      setSelectedElementIds([newId]);
-      setYElement(newYElement);
-      const bounds = getBounds({ element: newYElement });
-      setBound(bounds);
-      setLockedBounds(true);
-      scheduleRender();
+      if (newYElement) {
+        setSelectedElementIds([newId]);
+        setYElement(newYElement);
+        const bounds = getBounds({ element: newYElement });
+        setBound(bounds);
+        setLockedBounds(true);
+        scheduleRender();
+      }
     }
   }, [selectedElementIds, selectedYElement, doc, yElement, order, setSelectedElementIds, setYElement, setBound, setLockedBounds, scheduleRender]);
 
