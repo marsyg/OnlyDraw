@@ -153,6 +153,15 @@ export const KEYBINDINGS: KeybindingDef[] = [
     displayKeys: ['Ctrl', 'X'],
   },
   {
+    id: 'edit.selectAll',
+    key: 'a',
+    ctrl: true,
+    action: 'edit.selectAll',
+    category: 'Edit',
+    description: 'Select all elements',
+    displayKeys: ['Ctrl', 'A'],
+  },
+  {
     id: 'edit.delete',
     key: 'Delete',
     action: 'edit.delete',

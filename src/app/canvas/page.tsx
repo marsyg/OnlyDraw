@@ -1854,6 +1854,25 @@ export default function App() {
     scheduleRender();
   }, [setSelectedElementIds, setYElement, setBound, setLockedBounds, setCurrentTool, setActiveToolbarId, scheduleRender, setIsDragging, setIsResizing, setIsDrawing]);
 
+  const handleSelectAll = useCallback(() => {
+    const allIds = order.toArray().filter((id) => {
+      const el = yElement.get(id);
+      return el && !el.get('isDeleted');
+    });
+    if (allIds.length === 0) return;
+    setSelectedElementIds(allIds);
+    if (allIds.length === 1) {
+      const el = yElement.get(allIds[0]) || null;
+      setYElement(el);
+      setBound(el ? getBounds({ element: el }) : null);
+    } else {
+      setYElement(null);
+      setBound(getCompoundBounds(allIds, yElement));
+    }
+    setLockedBounds(true);
+    scheduleRender();
+  }, [order, yElement, setSelectedElementIds, setYElement, setBound, setLockedBounds, scheduleRender]);
+
   const handleGroup = useCallback(() => {
     if (selectedElementIds.length < 2) return;
     groupElements(selectedElementIds, yElement, doc);
@@ -1887,6 +1906,7 @@ export default function App() {
       'edit.paste': handlePaste,
       'edit.duplicate': handleDuplicate,
       'edit.cut': handleCut,
+      'edit.selectAll': handleSelectAll,
       'edit.delete': handleDelete,
       'edit.deselect': handleDeselect,
       'edit.group': handleGroup,
