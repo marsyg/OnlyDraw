@@ -1,6 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronUp, Settings2, } from 'lucide-react';
+import canvasDoc, { LOCAL_ORIGIN } from '@/Store/yjs-store';
+import * as Y from 'yjs';
 
 import { TOOLBAR_ITEM } from '@/types/toolbarData';
 import { BoundaryStyle, FillStyle, useAppStore } from '@/Store/store';
@@ -136,6 +138,58 @@ export default function RoughSketchToolbox({ onDelete, onGroup, onUngroup }: Rou
     { id: "dotted", label: "Dotted" },
   ];
 
+  const getSelectedElements = useCallback((): Y.Map<unknown>[] => {
+    if (selectedYElement) return [selectedYElement];
+    if (selectedElementIds.length > 0) {
+      const list: Y.Map<unknown>[] = [];
+      selectedElementIds.forEach((id) => {
+        const el = canvasDoc.yElement.get(id);
+        if (el && !el.get('isDeleted')) list.push(el);
+      });
+      return list;
+    }
+    return [];
+  }, [selectedYElement, selectedElementIds]);
+
+  const updateSelectedProperty = useCallback((key: string, value: unknown) => {
+    const targets = getSelectedElements();
+    if (targets.length > 0) {
+      canvasDoc.doc.transact(() => {
+        targets.forEach((el) => {
+          el.set(key, value);
+        });
+      }, LOCAL_ORIGIN);
+    }
+  }, [getSelectedElements]);
+
+  // Sync toolbar controls with selected element
+  useEffect(() => {
+    if (selectedYElement) {
+      const sColor = selectedYElement.get('strokeColor') as string | undefined;
+      if (sColor) setStrokeColor(sColor);
+      const fColor = selectedYElement.get('fillColor') as string | undefined;
+      if (fColor) setFillColor(fColor);
+      const sWidth = selectedYElement.get('strokeWidth') as number | undefined;
+      if (sWidth !== undefined) setStrokeWidth(sWidth);
+      const rough = selectedYElement.get('roughness') as number | undefined;
+      if (rough !== undefined) setRoughness(rough);
+      const fStyle = selectedYElement.get('fillStyle') as FillStyle | undefined;
+      if (fStyle) setFillStyle(fStyle);
+      const fWeight = selectedYElement.get('fillWeight') as number | undefined;
+      if (fWeight !== undefined) setFillWeight(fWeight);
+      const bStyle = selectedYElement.get('boundaryStyle') as BoundaryStyle | undefined;
+      if (bStyle) setBoundaryStyle(bStyle);
+      const shadow = selectedYElement.get('hasShadow') as boolean | undefined;
+      if (shadow !== undefined) setHasShadow(shadow);
+      const op = selectedYElement.get('opacity') as number | undefined;
+      if (op !== undefined) setOpacity(op);
+      const ang = selectedYElement.get('angle') as number | undefined;
+      if (ang !== undefined) setRotation(Math.round((ang * 180) / Math.PI));
+      const axis = selectedYElement.get('rotationAxis') as 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | undefined;
+      if (axis) setRotationAxis(axis);
+    }
+  }, [selectedYElement, setStrokeColor, setFillColor, setStrokeWidth, setRoughness, setFillStyle, setFillWeight, setBoundaryStyle, setHasShadow, setOpacity, setRotation, setRotationAxis]);
+
   // Handlers
   const handleClick = (id: string, action: actionType, elementType: elementType, func: (() => void) | undefined) => {
     if (action === actionType.Delete) {
@@ -145,13 +199,19 @@ export default function RoughSketchToolbox({ onDelete, onGroup, onUngroup }: Rou
     setCurrentTool({ action, elementType });
     setIsSelecting(action === actionType.Selecting);
     setIsDragging(action === actionType.Dragging);
-    setBound(null)
+    setBound(null);
   };
 
   const handleChange: React.ChangeEventHandler<HTMLInputElement> = (e) => {
     const value = e.target.value;
-    if (target === "stroke") setStrokeColor(value);
-    if (target === "fill") setFillColor(value);
+    if (target === "stroke") {
+      setStrokeColor(value);
+      updateSelectedProperty('strokeColor', value);
+    }
+    if (target === "fill") {
+      setFillColor(value);
+      updateSelectedProperty('fillColor', value);
+    }
   };
 
   const openPicker = (type: string | null) => {
@@ -278,7 +338,15 @@ export default function RoughSketchToolbox({ onDelete, onGroup, onUngroup }: Rou
                       />
                       <div className="flex flex-wrap gap-1">
                         {swatches.slice(0, 3).map(c => (
-                          <button key={c} onClick={() => setStrokeColor(c)} style={{ backgroundColor: c }} className="w-4 h-4 rounded-full border border-gray-700" />
+                          <button
+                            key={c}
+                            onClick={() => {
+                              setStrokeColor(c);
+                              updateSelectedProperty('strokeColor', c);
+                            }}
+                            style={{ backgroundColor: c }}
+                            className="w-4 h-4 rounded-full border border-gray-700"
+                          />
                         ))}
                       </div>
                     </div>
@@ -295,7 +363,11 @@ export default function RoughSketchToolbox({ onDelete, onGroup, onUngroup }: Rou
                         {isFillTransparent && <div className="absolute inset-0 bg-red-500/30 rotate-45 w-[2px] mx-auto h-full"></div>}
                       </button>
                       <button
-                        onClick={() => setIsFillTransparent(!isFillTransparent)}
+                        onClick={() => {
+                          const next = !isFillTransparent;
+                          setIsFillTransparent(next);
+                          updateSelectedProperty('isFillTransparent', next);
+                        }}
                         className={`text-xs p-1 rounded border ${isFillTransparent ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-900 text-gray-200 border-gray-700 hover:border-gray-500'}`}
                       >
                         {isFillTransparent ? 'None' : 'Fill'}
@@ -312,7 +384,12 @@ export default function RoughSketchToolbox({ onDelete, onGroup, onUngroup }: Rou
                     </div>
                     <input
                       type="range" min="1" max="30"
-                      value={strokeWidth} onChange={(e) => setStrokeWidth(Number(e.target.value))}
+                      value={strokeWidth}
+                      onChange={(e) => {
+                        const v = Number(e.target.value);
+                        setStrokeWidth(v);
+                        updateSelectedProperty('strokeWidth', v);
+                      }}
                       className="modern-slider"
                     />
                   </div>
@@ -324,7 +401,12 @@ export default function RoughSketchToolbox({ onDelete, onGroup, onUngroup }: Rou
                     </div>
                     <input
                       type="range" min="0" max="50"
-                      value={roughness} onChange={(e) => setRoughness(Number(e.target.value))}
+                      value={roughness}
+                      onChange={(e) => {
+                        const v = Number(e.target.value);
+                        setRoughness(v);
+                        updateSelectedProperty('roughness', v);
+                      }}
                       className="modern-slider"
                     />
                   </div>
@@ -338,7 +420,10 @@ export default function RoughSketchToolbox({ onDelete, onGroup, onUngroup }: Rou
                       {fillStyles.map((s) => (
                         <button
                           key={s.id}
-                          onClick={() => setFillStyle(s.id as FillStyle)}
+                          onClick={() => {
+                            setFillStyle(s.id as FillStyle);
+                            updateSelectedProperty('fillStyle', s.id);
+                          }}
                           className={`text-[10px] py-1 px-1 rounded border ${fillStyle === s.id ? 'bg-black text-white border-gray-700' : 'bg-gray-900 text-gray-300 border-gray-700 hover:border-gray-500'}`}
                         >
                           {s.label}
@@ -355,7 +440,12 @@ export default function RoughSketchToolbox({ onDelete, onGroup, onUngroup }: Rou
                       </div>
                       <input
                         type="range" min="2" max="40"
-                        value={fillWeight} onChange={(e) => setFillWeight(Number(e.target.value))}
+                        value={fillWeight}
+                        onChange={(e) => {
+                          const v = Number(e.target.value);
+                          setFillWeight(v);
+                          updateSelectedProperty('fillWeight', v);
+                        }}
                         className="modern-slider"
                       />
                     </div>
@@ -367,7 +457,10 @@ export default function RoughSketchToolbox({ onDelete, onGroup, onUngroup }: Rou
                       {boundaryStyles.map((s) => (
                         <button
                           key={s.id}
-                          onClick={() => setBoundaryStyle(s.id as BoundaryStyle)}
+                          onClick={() => {
+                            setBoundaryStyle(s.id as BoundaryStyle);
+                            updateSelectedProperty('boundaryStyle', s.id);
+                          }}
                           className={`flex-1 py-1 text-[10px] rounded border ${boundaryStyle === s.id
                             ? 'bg-blue-900/30 border-blue-500 text-blue-300'
                             : 'bg-gray-900 border-gray-700 text-gray-300 hover:border-gray-500'
@@ -384,7 +477,16 @@ export default function RoughSketchToolbox({ onDelete, onGroup, onUngroup }: Rou
                 <div className="space-y-3 pt-2">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-gray-100 flex items-center gap-2">
-                      <input type="checkbox" checked={hasShadow} onChange={e => setHasShadow(e.target.checked)} className="accent-blue-500 rounded w-4 h-4" />
+                      <input
+                        type="checkbox"
+                        checked={hasShadow}
+                        onChange={e => {
+                          const v = e.target.checked;
+                          setHasShadow(v);
+                          updateSelectedProperty('hasShadow', v);
+                        }}
+                        className="accent-blue-500 rounded w-4 h-4"
+                      />
                       Drop Shadow
                     </label>
                     <div className="flex items-center gap-2">
@@ -392,7 +494,11 @@ export default function RoughSketchToolbox({ onDelete, onGroup, onUngroup }: Rou
                       <input
                         type="number" max="100" min="0"
                         value={Math.round(opacity * 100)}
-                        onChange={e => setOpacity(Number(e.target.value) / 100)}
+                        onChange={e => {
+                          const v = Number(e.target.value) / 100;
+                          setOpacity(v);
+                          updateSelectedProperty('opacity', v);
+                        }}
                         className="w-12 text-right bg-gray-800 text-gray-100 border-none rounded text-xs p-1"
                       />
                       <span className="text-xs text-gray-300">%</span>
@@ -412,9 +518,7 @@ export default function RoughSketchToolbox({ onDelete, onGroup, onUngroup }: Rou
                           onChange={(e) => {
                             const deg = Number(e.target.value) || 0;
                             setRotation(deg);
-                            if (selectedYElement) {
-                              selectedYElement.set('angle', (deg * Math.PI) / 180);
-                            }
+                            updateSelectedProperty('angle', (deg * Math.PI) / 180);
                           }}
                           className="w-12 text-right bg-gray-800 text-gray-100 border-none rounded text-xs p-1"
                         />
@@ -429,9 +533,7 @@ export default function RoughSketchToolbox({ onDelete, onGroup, onUngroup }: Rou
                       onChange={(e) => {
                         const deg = Number(e.target.value) || 0;
                         setRotation(deg);
-                        if (selectedYElement) {
-                          selectedYElement.set('angle', (deg * Math.PI) / 180);
-                        }
+                        updateSelectedProperty('angle', (deg * Math.PI) / 180);
                       }}
                       className="modern-slider"
                     />
@@ -450,10 +552,9 @@ export default function RoughSketchToolbox({ onDelete, onGroup, onUngroup }: Rou
                           <button
                             key={ax.id}
                             onClick={() => {
-                              setRotationAxis(ax.id as 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right');
-                              if (selectedYElement) {
-                                selectedYElement.set('rotationAxis', ax.id);
-                              }
+                              const axisId = ax.id as 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+                              setRotationAxis(axisId);
+                              updateSelectedProperty('rotationAxis', axisId);
                             }}
                             className={`text-[9px] py-1 px-1 rounded border font-medium transition-colors ${
                               (selectedYElement ? (selectedYElement.get('rotationAxis') || 'center') : rotationAxis) === ax.id
