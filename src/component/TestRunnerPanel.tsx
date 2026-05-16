@@ -12,8 +12,8 @@ import { isInsideText } from '@/lib/hitTest/text';
 import { isInsideEllipse } from '@/lib/hitTest/ellipse';
 import resizeBound from '@/lib/resizeBound';
 import { resizeText } from '@/lib/resizeElement';
-import { groupElements, ungroupElements, parseGroupIds, getGroupMembers } from '@/lib/grouping';
-import { findNearestSnapTarget, getBindingPosition } from '@/lib/arrowSnap';
+import { groupElements, ungroupElements, parseGroupIds, getGroupMembers, cleanupOrphanGroups, isElementGrouped } from '@/lib/grouping';
+import { findNearestSnapTarget, getBindingPosition, cleanupArrowBindings } from '@/lib/arrowSnap';
 import { serializeYElement, deserializeYElement } from '@/lib/clipboard';
 import { nanoid } from 'nanoid';
 
@@ -380,6 +380,58 @@ export default function TestRunnerPanel() {
       if (!idVal) {
         throw new Error('BUG: Deserialized Y.Map cannot be queried before integration into Y.Doc!');
       }
+    });
+
+    record('edge_arrow_deletion_unbinding', 'Arrow Coordinates Baked and Unbound on Shape Deletion', 'edge', () => {
+      const target = makeEl({
+        type: elementType.Rectangle,
+        x: 200,
+        y: 200,
+        width: 100,
+        height: 80,
+      });
+      const targetId = target.get('id') as string;
+
+      const arrow = makeEl({
+        type: elementType.Arrow,
+        x: 50,
+        y: 50,
+        width: 100,
+        height: 100,
+      });
+      const arrowId = arrow.get('id') as string;
+      arrow.set('startBinding', { elementId: targetId, point: 'right' });
+
+      cleanupArrowBindings(new Set([targetId]), yElement);
+
+      if (arrow.get('startBinding') !== null) {
+        throw new Error('startBinding was not removed after target deletion');
+      }
+      if (Number(arrow.get('x')) !== 300 || Number(arrow.get('y')) !== 240) {
+        throw new Error(`Arrow start coordinates not baked accurately: got ${arrow.get('x')}, ${arrow.get('y')}`);
+      }
+
+      yElement.delete(targetId);
+      yElement.delete(arrowId);
+    });
+
+    record('edge_group_orphan_dissolution', 'Dissolve Group When Member Deletion Leaves <= 1 Element', 'edge', () => {
+      const e1 = makeEl({ type: elementType.Rectangle, x: 10, y: 10, width: 20, height: 20 });
+      const e2 = makeEl({ type: elementType.Rectangle, x: 50, y: 50, width: 20, height: 20 });
+      const id1 = e1.get('id') as string;
+      const id2 = e2.get('id') as string;
+
+      const gid = groupElements([id1, id2], yElement, doc);
+      if (!gid) throw new Error('Failed to create group');
+
+      cleanupOrphanGroups(new Set([id1]), yElement);
+      yElement.delete(id1);
+
+      if (isElementGrouped(e2)) {
+        throw new Error('Remaining element was not dissolved from orphan group');
+      }
+
+      yElement.delete(id2);
     });
 
     const totalDuration = Math.round((performance.now() - startTime) * 100) / 100;
