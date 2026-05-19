@@ -155,7 +155,7 @@ export function cleanupArrowBindings(
   yElement.forEach((el, id) => {
     if (deletedIds.has(id) || el.get('isDeleted')) return;
     const type = el.get('type') as string;
-    if (type !== 'arrow' && type !== 'arrowTwoWay') return;
+    if (type !== 'arrow' && type !== 'arrow-two-way' && type !== 'arrowTwoWay') return;
 
     const startBinding = el.get('startBinding') as { elementId: string; point: SnapLocation } | undefined;
     const endBinding = el.get('endBinding') as { elementId: string; point: SnapLocation } | undefined;

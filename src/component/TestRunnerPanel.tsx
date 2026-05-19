@@ -84,6 +84,7 @@ export default function TestRunnerPanel() {
       const el = new Y.Map<unknown>();
       const id = String(data.id || nanoid());
       testMap.set(id, el);
+      el.set('id', id);
       for (const [k, v] of Object.entries(data)) {
         el.set(k, v);
       }
@@ -402,7 +403,7 @@ export default function TestRunnerPanel() {
       const arrowId = arrow.get('id') as string;
       arrow.set('startBinding', { elementId: targetId, point: 'right' });
 
-      cleanupArrowBindings(new Set([targetId]), yElement);
+      cleanupArrowBindings(new Set([targetId]), testMap);
 
       if (arrow.get('startBinding') !== null) {
         throw new Error('startBinding was not removed after target deletion');
@@ -411,8 +412,8 @@ export default function TestRunnerPanel() {
         throw new Error(`Arrow start coordinates not baked accurately: got ${arrow.get('x')}, ${arrow.get('y')}`);
       }
 
-      yElement.delete(targetId);
-      yElement.delete(arrowId);
+      testMap.delete(targetId);
+      testMap.delete(arrowId);
     });
 
     record('edge_group_orphan_dissolution', 'Dissolve Group When Member Deletion Leaves <= 1 Element', 'edge', () => {
@@ -421,17 +422,17 @@ export default function TestRunnerPanel() {
       const id1 = e1.get('id') as string;
       const id2 = e2.get('id') as string;
 
-      const gid = groupElements([id1, id2], yElement, doc);
+      const gid = groupElements([id1, id2], testMap, testDoc);
       if (!gid) throw new Error('Failed to create group');
 
-      cleanupOrphanGroups(new Set([id1]), yElement);
-      yElement.delete(id1);
+      cleanupOrphanGroups(new Set([id1]), testMap);
+      testMap.delete(id1);
 
       if (isElementGrouped(e2)) {
         throw new Error('Remaining element was not dissolved from orphan group');
       }
 
-      yElement.delete(id2);
+      testMap.delete(id2);
     });
 
     const totalDuration = Math.round((performance.now() - startTime) * 100) / 100;
