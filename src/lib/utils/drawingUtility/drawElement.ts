@@ -49,9 +49,10 @@ function elementDrawKey(element: Y.Map<unknown>) {
   const height = Number(element.get('height'));
   const seed = Number(element.get('seed')) || 0;
   const stroke = String(element.get('strokeColor') || '');
-  const strokeWidth = Number(element.get('strokeWidth') || 0);
-  const roughness = Number(element.get('roughness') || 0);
-  const fill = String(element.get('fillColor') || '');
+  const strokeWidth = Number(element.get('strokeWidth') ?? 2);
+  const roughness = Number(element.get('roughness') ?? 1);
+  const isFillTransparent = Boolean(element.get('isFillTransparent'));
+  const fill = isFillTransparent ? '' : String(element.get('fillColor') || '');
   const fillStyle = String(element.get('fillStyle') || '');
   const fillWeight = Number(element.get('fillWeight') || 0);
   const boundaryStyle = String(element.get('boundaryStyle') || '');
@@ -65,6 +66,7 @@ function elementDrawKey(element: Y.Map<unknown>) {
     stroke,
     strokeWidth,
     roughness,
+    isFillTransparent,
     fill,
     fillStyle,
     fillWeight,
@@ -86,10 +88,22 @@ function getOrCreateDrawable(
   const seed = parseInt(String(element.get('seed')), 10) || 0;
 
   let drawable: Drawable | null = null;
-  const uiGap = Number(element.get('fillWeight'));
+  const uiGap = Number(element.get('fillWeight')) || 3;
   const minGap = 2;
   const maxGap = 40;
   const hachureGap = maxGap - (uiGap - minGap);
+
+  const strokeColor = String(element.get('strokeColor') || '#1e293b');
+  const strokeWidthVal = element.get('strokeWidth');
+  const strokeWidth = (strokeWidthVal !== undefined && strokeWidthVal !== null) ? Number(strokeWidthVal) : 2;
+  const roughnessVal = element.get('roughness');
+  const roughness = (roughnessVal !== undefined && roughnessVal !== null) ? Number(roughnessVal) : 1;
+  const boundaryStyle = String(element.get('boundaryStyle') || 'solid') as BoundaryStyle;
+
+  const isTransparent = Boolean(element.get('isFillTransparent')) || element.get('fillColor') === 'transparent' || !element.get('fillColor');
+  const fill = isTransparent ? undefined : String(element.get('fillColor'));
+  const fillStyle = String(element.get('fillStyle') || 'solid');
+
   drawable = withSeededMath(seed, () => {
     switch (type) {
       case elementType.Rectangle:
@@ -100,16 +114,12 @@ function getOrCreateDrawable(
           Number(element.get('height')),
           {
             seed,
-            stroke: String(element.get('strokeColor')),
-            strokeWidth: Number(element.get('strokeWidth')),
-            roughness: Number(element.get('roughness')),
-            fill: String(element.get('fillColor')),
-            fillStyle: String(element.get('fillStyle')),
+            stroke: strokeColor,
+            strokeWidth: strokeWidth,
+            roughness: roughness,
+            ...(fill ? { fill, fillStyle } : {}),
             hachureGap: hachureGap,
-            strokeLineDash: getStrokeLineDash(
-              String(element.get('boundaryStyle')) as BoundaryStyle,
-              Number(element.get('strokeWidth'))
-            ),
+            strokeLineDash: getStrokeLineDash(boundaryStyle, strokeWidth),
           }
         );
 
@@ -120,13 +130,10 @@ function getOrCreateDrawable(
         const y2 = y1 + Number(element.get('height'));
         return generator.line(x1, y1, x2, y2, {
           seed,
-          stroke: String(element.get('strokeColor')),
-          strokeWidth: Number(element.get('strokeWidth')),
-          roughness: Number(element.get('roughness')),
-          strokeLineDash: getStrokeLineDash(
-            String(element.get('boundaryStyle')) as BoundaryStyle,
-            Number(element.get('strokeWidth'))
-          ),
+          stroke: strokeColor,
+          strokeWidth: strokeWidth,
+          roughness: roughness,
+          strokeLineDash: getStrokeLineDash(boundaryStyle, strokeWidth),
         });
       }
 
@@ -137,16 +144,12 @@ function getOrCreateDrawable(
         const height = Number(element.get('height'));
         return generator.ellipse(x + width / 2, y + height / 2, width, height, {
           seed,
-          stroke: String(element.get('strokeColor')),
-          strokeWidth: Number(element.get('strokeWidth')),
-          roughness: Number(element.get('roughness')),
-          fill: String(element.get('fillColor')),
-          fillStyle: String(element.get('fillStyle')),
+          stroke: strokeColor,
+          strokeWidth: strokeWidth,
+          roughness: roughness,
+          ...(fill ? { fill, fillStyle } : {}),
           hachureGap: hachureGap,
-          strokeLineDash: getStrokeLineDash(
-            String(element.get('boundaryStyle')) as BoundaryStyle,
-            Number(element.get('strokeWidth'))
-          ),
+          strokeLineDash: getStrokeLineDash(boundaryStyle, strokeWidth),
         });
       }
 
@@ -225,9 +228,11 @@ export const DrawElements = ({ ctx, element, rc }: DrawingArgs) => {
       }
     }
 
-    const strokeColor = String(element.get('strokeColor') || '#000000');
-    const strokeWidth = Number(element.get('strokeWidth')) || 2;
-    const roughness = Number(element.get('roughness')) || 1;
+    const strokeColor = String(element.get('strokeColor') || '#1e293b');
+    const strokeWidthVal = element.get('strokeWidth');
+    const strokeWidth = (strokeWidthVal !== undefined && strokeWidthVal !== null) ? Number(strokeWidthVal) : 2;
+    const roughnessVal = element.get('roughness');
+    const roughness = (roughnessVal !== undefined && roughnessVal !== null) ? Number(roughnessVal) : 1;
     const boundaryStyle = String(element.get('boundaryStyle') || 'solid') as BoundaryStyle;
     const isTwoWay = type === elementType.ArrowTwoWay || !!element.get('isTwoWay');
 
@@ -258,7 +263,7 @@ export const DrawElements = ({ ctx, element, rc }: DrawingArgs) => {
           seed: seed + 1,
           stroke: strokeColor,
           strokeWidth: strokeWidth,
-          roughness: Math.max(0.2, roughness * 0.7),
+          roughness: roughness === 0 ? 0 : Math.max(0.2, roughness * 0.7),
         })
       );
       rc.draw(headDrawable);

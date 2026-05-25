@@ -68,6 +68,7 @@ const createYElement = (element: OnlyDrawElement) => {
     case elementType.Rectangle:
     case elementType.Ellipse: {
       newElement.set('fillColor', element.fillColor);
+      newElement.set('isFillTransparent', element.isFillTransparent ?? true);
       newElement.set('fillStyle', element.fillStyle);
       newElement.set('fillWeight', element.fillWeight);
       newElement.set('boundaryStyle', element.boundaryStyle);
@@ -144,6 +145,9 @@ const updateYElement = (element: OnlyDrawElement, yElement: Y.Map<unknown>) => {
     case elementType.Rectangle:
     case elementType.Ellipse: {
       yElement.set('fillColor', element.fillColor);
+      if (element.isFillTransparent !== undefined) {
+        yElement.set('isFillTransparent', element.isFillTransparent);
+      }
       yElement.set('fillStyle', element.fillStyle);
       yElement.set('fillWeight', element.fillWeight);
       yElement.set('boundaryStyle', element.boundaryStyle);

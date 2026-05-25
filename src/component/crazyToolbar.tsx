@@ -10,10 +10,11 @@ import { actionType, elementType } from '@/types/type';
 
 // --- Helper Functions ---
 const getRoughnessLabel = (value: number) => {
-  if (value < 10) return "Smooth";
-  if (value < 35) return "Shaky";
-  if (value < 65) return "Wobbly";
-  if (value < 90) return "Rough";
+  if (value <= 0) return "Architect";
+  if (value <= 0.5) return "Clean";
+  if (value <= 1.2) return "Natural";
+  if (value <= 2.2) return "Casual";
+  if (value <= 3.2) return "Rough";
   return "Chaotic";
 };
 
@@ -28,12 +29,13 @@ const RoughStyles = () => (
 
     /* Dark "Neobrutalist" Base */
     .modern-panel {
-      background-color: #6c242c;             /* Dark surface */
-      border: 1px solid #262b36;             /* Subtle dark border */
+      background-color: #0f172a;             /* Dark slate base */
+      border: 1px solid #1e293b;             /* Slate border */
       
       border-radius: 12px;
       transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
       color: #e5e7eb;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
     }
 
     /* Action Items */
@@ -125,7 +127,16 @@ export default function RoughSketchToolbox({ onDelete, onGroup, onUngroup }: Rou
   const colorRef = useRef<HTMLInputElement | null>(null);
 
   // Constants
-  const swatches = ["#e03131", "#fab005", "#40c057", "#1c7ed6", "#7048e8", "#1a1a1a"];
+  const swatches = [
+    "#1e293b", // Slate (ink / primary)
+    "#3b82f6", // Blue (component)
+    "#10b981", // Emerald (service)
+    "#8b5cf6", // Purple (controller)
+    "#f59e0b", // Amber (database)
+    "#ef4444", // Rose (gateway)
+    "#64748b", // Slate-500 (muted)
+    "#ffffff", // White
+  ];
   const fillStyles = [
     { id: "solid", label: "Solid" },
     { id: "hachure", label: "Hachure" },
@@ -169,6 +180,8 @@ export default function RoughSketchToolbox({ onDelete, onGroup, onUngroup }: Rou
       if (sColor) setStrokeColor(sColor);
       const fColor = selectedYElement.get('fillColor') as string | undefined;
       if (fColor) setFillColor(fColor);
+      const isTrans = selectedYElement.get('isFillTransparent') as boolean | undefined;
+      if (isTrans !== undefined) setIsFillTransparent(isTrans);
       const sWidth = selectedYElement.get('strokeWidth') as number | undefined;
       if (sWidth !== undefined) setStrokeWidth(sWidth);
       const rough = selectedYElement.get('roughness') as number | undefined;
@@ -188,7 +201,7 @@ export default function RoughSketchToolbox({ onDelete, onGroup, onUngroup }: Rou
       const axis = selectedYElement.get('rotationAxis') as 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | undefined;
       if (axis) setRotationAxis(axis);
     }
-  }, [selectedYElement, setStrokeColor, setFillColor, setStrokeWidth, setRoughness, setFillStyle, setFillWeight, setBoundaryStyle, setHasShadow, setOpacity, setRotation, setRotationAxis]);
+  }, [selectedYElement, setStrokeColor, setFillColor, setIsFillTransparent, setStrokeWidth, setRoughness, setFillStyle, setFillWeight, setBoundaryStyle, setHasShadow, setOpacity, setRotation, setRotationAxis]);
 
   // Handlers
   const handleClick = (id: string, action: actionType, elementType: elementType, func: (() => void) | undefined) => {
@@ -210,7 +223,9 @@ export default function RoughSketchToolbox({ onDelete, onGroup, onUngroup }: Rou
     }
     if (target === "fill") {
       setFillColor(value);
+      setIsFillTransparent(false);
       updateSelectedProperty('fillColor', value);
+      updateSelectedProperty('isFillTransparent', false);
     }
   };
 
@@ -326,64 +341,108 @@ export default function RoughSketchToolbox({ onDelete, onGroup, onUngroup }: Rou
                   </div>
                 )}
 
-                <div className="flex gap-4">
-                  <div className="flex-1 space-y-1">
-                    <label className="text-[10px] uppercase font-bold text-gray-100">Stroke</label>
-                    <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-2.5 bg-gray-900/80 p-2.5 rounded-lg border border-gray-800">
+                  {/* Stroke Section */}
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <label className="text-[10px] uppercase font-bold text-gray-200 tracking-wider">Stroke</label>
+                      <span className="text-[9px] font-mono text-gray-400">{strokeColor}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
                       <input ref={colorRef} type="color" hidden onChange={handleChange} />
                       <button
-                        className="w-8 h-8 rounded-full border-2 border-gray-700 shadow-sm active:scale-95 transition-transform"
+                        title="Pick custom stroke color"
+                        className="w-6 h-6 rounded-md border border-gray-600 shadow-sm active:scale-95 transition-transform flex-shrink-0"
                         style={{ backgroundColor: strokeColor }}
                         onClick={() => openPicker('stroke')}
                       />
-                      <div className="flex flex-wrap gap-1">
-                        {swatches.slice(0, 3).map(c => (
+                      <div className="flex flex-wrap gap-1 items-center flex-1">
+                        {swatches.map((c) => (
                           <button
-                            key={c}
+                            key={'stroke-' + c}
                             onClick={() => {
                               setStrokeColor(c);
                               updateSelectedProperty('strokeColor', c);
                             }}
                             style={{ backgroundColor: c }}
-                            className="w-4 h-4 rounded-full border border-gray-700"
+                            title={`Stroke: ${c}`}
+                            className={`w-4 h-4 rounded-full border transition-all ${
+                              strokeColor.toLowerCase() === c.toLowerCase()
+                                ? 'border-blue-400 scale-110 shadow-sm'
+                                : 'border-gray-700 hover:scale-105'
+                            }`}
                           />
                         ))}
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex-1 space-y-1">
-                    <label className="text-[10px] uppercase font-bold text-gray-100">Fill</label>
-                    <div className="flex items-center gap-2">
-                      <button
-                        className="w-8 h-8 rounded-full border-2 border-gray-700 shadow-sm relative overflow-hidden active:scale-95 transition-transform"
-                        style={{ backgroundColor: isFillTransparent ? '#0f1115' : fillColor }}
-                        onClick={() => openPicker('fill')}
-                      >
-                        {isFillTransparent && <div className="absolute inset-0 bg-red-500/30 rotate-45 w-[2px] mx-auto h-full"></div>}
-                      </button>
+                  {/* Fill Section */}
+                  <div className="space-y-1.5 pt-2 border-t border-gray-800">
+                    <div className="flex justify-between items-center">
+                      <label className="text-[10px] uppercase font-bold text-gray-200 tracking-wider">Fill</label>
                       <button
                         onClick={() => {
                           const next = !isFillTransparent;
                           setIsFillTransparent(next);
                           updateSelectedProperty('isFillTransparent', next);
                         }}
-                        className={`text-xs p-1 rounded border ${isFillTransparent ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-900 text-gray-200 border-gray-700 hover:border-gray-500'}`}
+                        className={`text-[10px] px-2 py-0.5 rounded font-medium border transition-colors ${
+                          isFillTransparent
+                            ? 'bg-blue-950/60 text-blue-300 border-blue-800'
+                            : 'bg-gray-800 text-gray-300 border-gray-700 hover:border-gray-500'
+                        }`}
                       >
-                        {isFillTransparent ? 'None' : 'Fill'}
+                        {isFillTransparent ? 'Transparent' : 'Filled'}
                       </button>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        title={isFillTransparent ? 'Transparent fill (click to pick color)' : 'Pick custom fill color'}
+                        className="w-6 h-6 rounded-md border border-gray-600 shadow-sm relative overflow-hidden active:scale-95 transition-transform flex-shrink-0"
+                        style={{ backgroundColor: isFillTransparent ? '#1e293b' : fillColor }}
+                        onClick={() => openPicker('fill')}
+                      >
+                        {isFillTransparent && (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="w-[1px] h-full bg-red-400 rotate-45 transform" />
+                          </div>
+                        )}
+                      </button>
+                      <div className="flex flex-wrap gap-1 items-center flex-1">
+                        {swatches.map((c) => (
+                          <button
+                            key={'fill-' + c}
+                            onClick={() => {
+                              setFillColor(c);
+                              setIsFillTransparent(false);
+                              updateSelectedProperty('fillColor', c);
+                              updateSelectedProperty('isFillTransparent', false);
+                            }}
+                            style={{ backgroundColor: c }}
+                            title={`Fill: ${c}`}
+                            className={`w-4 h-4 rounded-full border transition-all ${
+                              !isFillTransparent && fillColor.toLowerCase() === c.toLowerCase()
+                                ? 'border-blue-400 scale-110 shadow-sm'
+                                : 'border-gray-700 hover:scale-105'
+                            }`}
+                          />
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="space-y-3 bg-gray-900 p-3 rounded-lg border border-gray-800">
-                  <div className="space-y-1">
-                    <div className="flex justify-between">
-                      <label className="text-xs font-bold text-gray-100">Thickness</label>
-                      <span className="text-[10px] text-gray-200">{strokeWidth}px</span>
+                <div className="space-y-3 bg-gray-900/80 p-3 rounded-lg border border-gray-800">
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <label className="text-xs font-bold text-gray-200">Thickness</label>
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-gray-800 border border-gray-700 text-gray-300">
+                        {strokeWidth}px
+                      </span>
                     </div>
                     <input
-                      type="range" min="1" max="30"
+                      type="range" min="1" max="12" step="1"
                       value={strokeWidth}
                       onChange={(e) => {
                         const v = Number(e.target.value);
@@ -392,15 +451,22 @@ export default function RoughSketchToolbox({ onDelete, onGroup, onUngroup }: Rou
                       }}
                       className="modern-slider"
                     />
+                    <div className="flex justify-between text-[9px] text-gray-400 px-0.5">
+                      <span>1px (Fine)</span>
+                      <span className="text-blue-400 font-semibold">2px (Diagram)</span>
+                      <span>12px (Bold)</span>
+                    </div>
                   </div>
 
-                  <div className="space-y-1">
-                    <div className="flex justify-between">
-                      <label className="text-xs font-bold text-gray-100">Sloppiness</label>
-                      <span className="text-[10px] text-gray-300">{getRoughnessLabel(roughness)}</span>
+                  <div className="space-y-1.5 pt-2 border-t border-gray-800">
+                    <div className="flex justify-between items-center">
+                      <label className="text-xs font-bold text-gray-200">Sloppiness</label>
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-950/60 border border-blue-900 text-blue-300">
+                        {getRoughnessLabel(roughness)} ({roughness})
+                      </span>
                     </div>
                     <input
-                      type="range" min="0" max="50"
+                      type="range" min="0" max="4" step="0.5"
                       value={roughness}
                       onChange={(e) => {
                         const v = Number(e.target.value);
@@ -409,6 +475,11 @@ export default function RoughSketchToolbox({ onDelete, onGroup, onUngroup }: Rou
                       }}
                       className="modern-slider"
                     />
+                    <div className="flex justify-between text-[9px] text-gray-400 px-0.5">
+                      <span>0 (Architect)</span>
+                      <span className="text-blue-400 font-semibold">1.0 (Diagram)</span>
+                      <span>4 (Rough)</span>
+                    </div>
                   </div>
                 </div>
 

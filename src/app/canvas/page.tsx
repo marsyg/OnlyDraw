@@ -69,6 +69,7 @@ export default function App() {
     setBound,
     roughness,
     fillColor,
+    isFillTransparent,
     strokeColor,
     strokeWidth,
     fillStyle,
@@ -399,7 +400,7 @@ export default function App() {
         fontSize: Number(yEl.get('fontSize')) || 24,
         fontFamily: String(yEl.get('fontFamily') || 'sans-serif'),
         textAlign: String(yEl.get('textAlign') || 'left'),
-        fillColor: String(yEl.get('fillColor') || yEl.get('strokeColor') || (isDark ? '#f8fafc' : '#000000')),
+        fillColor: String(yEl.get('fillColor') || yEl.get('strokeColor') || (isDark ? '#f8fafc' : '#1e293b')),
       };
       editingTextElementRef.current = nextState;
       setEditingTextElement(nextState);
@@ -628,7 +629,7 @@ export default function App() {
         if (createdYEl) {
           setYElement(createdYEl);
           setSelectedElementId(textElement.id);
-          const textColor = (isDark && (!strokeColor || strokeColor === '#000000')) ? '#f8fafc' : (strokeColor || '#000000');
+          const textColor = (isDark && (!strokeColor || strokeColor === '#000000' || strokeColor === '#1e293b')) ? '#f8fafc' : (strokeColor || '#1e293b');
           const nextState: EditingTextState = {
             id: textElement.id,
             text: '',
@@ -673,6 +674,7 @@ export default function App() {
           strokeColor: strokeColor,
           strokeWidth: strokeWidth,
           fillColor: fillColor,
+          isFillTransparent: isFillTransparent,
           fillStyle: fillStyle,
           roughness: roughness,
           boundaryStyle: boundaryStyle,
@@ -716,7 +718,7 @@ export default function App() {
     }
   }, [getPointerCoordinates, currentTool, bound, lockedBounds, selectedYElement, hitTestAtPoint,
     setYElement, setBound, setIsDragging, setIsResizing, setResizeHandle, strokeColor,
-    strokeWidth, fillColor, fillStyle, roughness, boundaryStyle, fillWeight, doc, yElement,
+    strokeWidth, fillColor, isFillTransparent, fillStyle, roughness, boundaryStyle, fillWeight, doc, yElement,
     order, setSelectedElementId, setIsDrawing]
 
   );

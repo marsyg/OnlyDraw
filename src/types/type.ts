@@ -26,19 +26,19 @@ type baseType = {
 export type rectangleElement = baseType & {
   type: elementType.Rectangle;
   fillColor: string;
+  isFillTransparent?: boolean;
   fillStyle: string;
   fillWeight: number;
   boundaryStyle: string;
-  
 };
 
 export type ellipseElement = baseType & {
   type: elementType.Ellipse;
   fillColor: string;
+  isFillTransparent?: boolean;
   fillStyle: string;
   fillWeight: number;
   boundaryStyle: string;
-  
 };
 
 export type lineElement = baseType & {
@@ -150,6 +150,7 @@ export type ElementOptions = {
   strokeWidth: number;
   roughness: number;
   fillColor: string;
+  isFillTransparent?: boolean;
   fillStyle: string;
   fillWeight: number;
   boundaryStyle: string;
