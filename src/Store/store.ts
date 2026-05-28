@@ -109,7 +109,7 @@ export const useAppStore = create<AppState>((set) => ({
 
   isFillTransparent: true,
   strokeWidth: 2,
-  roughness: 1,
+  roughness: 0,
   fillStyle: 'solid',
   fillWeight: 3,
   shapeType: 'rect',

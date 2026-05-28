@@ -34,7 +34,6 @@ import getRandomColor from '@/lib/helperfunc/getRandomColor';
 import { ZoomIn, ZoomOut, Maximize2, Download, Keyboard } from 'lucide-react';
 import { useKeybindings } from '@/hooks/useKeybindings';
 import KeybindingsDialog from '@/component/KeybindingsDialog';
-import TestRunnerPanel from '@/component/TestRunnerPanel';
 import { serializeYElement, serializeYElements, deserializeYElement, deserializeYElements } from '@/lib/clipboard';
 import { getPivotPoint } from '@/lib/math/pivot';
 import { getCompoundBounds, isRectIntersecting } from '@/lib/utils/boundsUtility/compoundBounds';
@@ -2070,7 +2069,12 @@ export default function App() {
         className="hidden"
         onChange={handleImageFileChange}
       />
-      <RoughSketchToolbox onDelete={handleDelete} onGroup={handleGroup} onUngroup={handleUngroup} />
+      <RoughSketchToolbox
+        onDelete={handleDelete}
+        onGroup={handleGroup}
+        onUngroup={handleUngroup}
+        onImageUpload={() => imageInputRef.current?.click()}
+      />
       <FeaturePanel isDark={isDark} onToggleDark={() => setIsDark(d => !d)} />
       {isCollaborating && connectionStatus === 'connected' && participants.map(p => {
 
@@ -2428,8 +2432,6 @@ export default function App() {
         isOpen={isKeybindingsOpen}
         onClose={() => setIsKeybindingsOpen(false)}
       />
-
-      <TestRunnerPanel />
     </div>
   );
 }

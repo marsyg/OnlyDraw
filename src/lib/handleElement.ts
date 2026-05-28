@@ -36,7 +36,7 @@ export const handleDrawElement = ({
     seed: seed,
     strokeColor: options.strokeColor || '#1e293b',
     strokeWidth: options.strokeWidth ?? 2,
-    roughness: options.roughness ?? 1,
+    roughness: options.roughness ?? 0,
     opacity: options.opacity ?? 1,
     hasShadow: options.hasShadow ?? false,
     angle: options.angle ?? 0,

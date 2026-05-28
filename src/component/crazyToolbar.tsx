@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronUp, Settings2, } from 'lucide-react';
+import { ChevronDown, ChevronUp, SlidersHorizontal, X, Layers, Trash2 } from 'lucide-react';
 import canvasDoc, { LOCAL_ORIGIN } from '@/Store/yjs-store';
 import * as Y from 'yjs';
 
@@ -10,52 +10,41 @@ import { actionType, elementType } from '@/types/type';
 
 // --- Helper Functions ---
 const getRoughnessLabel = (value: number) => {
-  if (value <= 0) return "Architect";
-  if (value <= 0.5) return "Clean";
-  if (value <= 1.2) return "Natural";
-  if (value <= 2.2) return "Casual";
-  if (value <= 3.2) return "Rough";
-  return "Chaotic";
+  if (value <= 0.1) return "Crisp (Architect)";
+  if (value <= 0.6) return "Subtle Sketch";
+  if (value <= 1.2) return "Natural (Diagram)";
+  if (value <= 2.2) return "Casual Sketch";
+  return "Rough Sketch";
 };
 
-
-const RoughStyles = () => (
+const ToolbarStyles = () => (
   <style>{`
-    @import url('https://fonts.googleapis.com/css2?family=Kalam:wght@300;400;700&display=swap');
-
-    .sketch-font {
-      font-family: 'Kalam', cursive;
+    /* Dark Slate Glassmorphism Base */
+    .canvas-glass-panel {
+      background-color: rgba(15, 23, 42, 0.94);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(51, 65, 85, 0.8);
+      border-radius: 16px;
+      box-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.6), 0 8px 16px -6px rgba(0, 0, 0, 0.5);
+      color: #f1f5f9;
     }
 
-    /* Dark "Neobrutalist" Base */
-    .modern-panel {
-      background-color: #0f172a;             /* Dark slate base */
-      border: 1px solid #1e293b;             /* Slate border */
-      
-      border-radius: 12px;
-      transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-      color: #e5e7eb;
-      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+    /* Tool button */
+    .tool-island-btn {
+      transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+      border-radius: 10px;
+      color: #94a3b8;
     }
-
-    /* Action Items */
-    .rough-btn {
-      border: 1px solid #334155;
-      border-radius: 8px;
-      transition: all 0.15s ease;
-      background: #1f2937;                   /* slate-800 */
-      color: #e5e7eb;                        /* light text */
+    .tool-island-btn:hover {
+      background: rgba(51, 65, 85, 0.6);
+      color: #ffffff;
+      transform: translateY(-1px);
     }
-    .rough-btn:hover {
-      background: #2b3442;                   /* slightly lighter */
-      border-color: #475569;
-    }
-    .rough-btn.active {
-      background: #0b1320;
-      border: 2px solid #3b82f6;             /* blue-500 */
-      color: #bfdbfe;                         /* blue-200 */
-      box-shadow: 3px 3px 0px 0px #1e3a8a;    /* deep blue shadow */
-      transform: translate(-1px, -1px);
+    .tool-island-btn.active {
+      background: #2563eb;
+      color: #ffffff;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
     }
 
     /* Custom Range Slider (Dark) */
@@ -63,7 +52,7 @@ const RoughStyles = () => (
       -webkit-appearance: none;
       width: 100%;
       height: 4px;
-      background: #222733;                   /* dark track */
+      background: #334155;
       border-radius: 2px;
       outline: none;
     }
@@ -73,14 +62,14 @@ const RoughStyles = () => (
       width: 14px;
       height: 14px;
       border-radius: 50%;
-      background: #e5e7eb;                   /* light thumb */
+      background: #f8fafc;
       cursor: pointer;
-      border: 2px solid #0f1115;             /* blends with panel */
-      box-shadow: 0 0 0 1px #111827;         /* subtle ring */
+      border: 2px solid #0f172a;
+      box-shadow: 0 0 0 1px #3b82f6;
       transition: transform 0.1s, background 0.1s;
     }
     .modern-slider::-webkit-slider-thumb:hover {
-      transform: scale(1.15);
+      transform: scale(1.2);
       background: #ffffff;
     }
 
@@ -94,16 +83,18 @@ const RoughStyles = () => (
     }
   `}</style>
 );
+
 interface RoughSketchToolboxProps {
   onDelete?: () => void;
   onGroup?: () => void;
   onUngroup?: () => void;
+  onImageUpload?: () => void;
 }
 
-export default function RoughSketchToolbox({ onDelete, onGroup, onUngroup }: RoughSketchToolboxProps) {
-
+export default function RoughSketchToolbox({ onDelete, onGroup, onUngroup, onImageUpload }: RoughSketchToolboxProps) {
   const [isMobile, setIsMobile] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isPanelOpen, setIsPanelOpen] = useState(true);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [target, setTarget] = useState<string | null>(null);
 
   useEffect(() => {
@@ -117,7 +108,7 @@ export default function RoughSketchToolbox({ onDelete, onGroup, onUngroup }: Rou
 
   // Store
   const {
-    strokeColor, setActiveToolbarId, toolbar, setCurrentTool, setIsDragging, setIsSelecting, setStrokeColor,
+    strokeColor, setActiveToolbarId, toolbar, setCurrentTool, currentTool, setIsDragging, setIsSelecting, setStrokeColor,
     fillColor, setFillColor, isFillTransparent, setIsFillTransparent, strokeWidth, setStrokeWidth,
     setRoughness, fillStyle, setFillStyle, fillWeight, setFillWeight, roughness,
     boundaryStyle, setBoundaryStyle, hasShadow, setHasShadow, opacity, setOpacity, setBound,
@@ -126,15 +117,15 @@ export default function RoughSketchToolbox({ onDelete, onGroup, onUngroup }: Rou
 
   const colorRef = useRef<HTMLInputElement | null>(null);
 
-  // Constants
+  // Constants - Curated Modern Diagram Palette
   const swatches = [
     "#1e293b", // Slate (ink / primary)
-    "#3b82f6", // Blue (component)
-    "#10b981", // Emerald (service)
-    "#8b5cf6", // Purple (controller)
+    "#3b82f6", // Blue (components)
+    "#10b981", // Emerald (services)
+    "#8b5cf6", // Purple (controllers)
     "#f59e0b", // Amber (database)
-    "#ef4444", // Rose (gateway)
-    "#64748b", // Slate-500 (muted)
+    "#ef4444", // Rose (gateways)
+    "#64748b", // Slate-500 (notes)
     "#ffffff", // White
   ];
   const fillStyles = [
@@ -204,12 +195,17 @@ export default function RoughSketchToolbox({ onDelete, onGroup, onUngroup }: Rou
   }, [selectedYElement, setStrokeColor, setFillColor, setIsFillTransparent, setStrokeWidth, setRoughness, setFillStyle, setFillWeight, setBoundaryStyle, setHasShadow, setOpacity, setRotation, setRotationAxis]);
 
   // Handlers
-  const handleClick = (id: string, action: actionType, elementType: elementType, func: (() => void) | undefined) => {
+  const handleClick = (id: string, action: actionType, elType: elementType) => {
     if (action === actionType.Delete) {
-      if (func) func();
+      if (onDelete) onDelete();
+      return;
+    }
+    if (id === 'image') {
+      if (onImageUpload) onImageUpload();
+      return;
     }
     setActiveToolbarId(id);
-    setCurrentTool({ action, elementType });
+    setCurrentTool({ action, elementType: elType });
     setIsSelecting(action === actionType.Selecting);
     setIsDragging(action === actionType.Dragging);
     setBound(null);
@@ -234,355 +230,453 @@ export default function RoughSketchToolbox({ onDelete, onGroup, onUngroup }: Rou
     colorRef.current?.click();
   };
 
+  const getHeaderTitle = () => {
+    if (selectedElementIds.length > 1) return `Selected (${selectedElementIds.length})`;
+    if (selectedYElement) {
+      const t = selectedYElement.get('type') as string;
+      if (t) return `${t.charAt(0).toUpperCase() + t.slice(1)}`;
+    }
+    if (currentTool.elementType) {
+      return `${currentTool.elementType.charAt(0).toUpperCase() + currentTool.elementType.slice(1)} Style`;
+    }
+    return 'Styles';
+  };
+
+  const hasSelection = Boolean(selectedYElement || selectedElementIds.length > 0);
+  const showFillControl = !currentTool.elementType || currentTool.elementType === elementType.Rectangle || currentTool.elementType === elementType.Ellipse || hasSelection;
+
   return (
     <>
-      <RoughStyles />
+      <ToolbarStyles />
+      <input ref={colorRef} type="color" hidden onChange={handleChange} />
 
-
+      {/* ─────────────────────────────────────────────────────────────
+          1. PRIMARY CREATION TOOLBAR (Top-Center Floating Island)
+      ───────────────────────────────────────────────────────────── */}
       <motion.div
-        layout
-        className="fixed top-4 left-4 z-50 sketch-font modern-panel flex flex-col select-none overflow-hidden"
-        style={{ width: isExpanded ? '280px' : '60px' }}
-        initial={false}
-        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        className="fixed top-4 left-1/2 -translate-x-1/2 z-50 select-none"
+        initial={{ y: -20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ type: "spring", stiffness: 350, damping: 25 }}
       >
+        <div className="canvas-glass-panel px-2 py-1.5 flex items-center gap-1 shadow-2xl">
+          {TOOLBAR_ITEM.map((item) => {
+            const isActive = toolbar.activeToolId === item.id || (item.id === 'select' && toolbar.activeToolId === null);
 
-
-        <div className={`flex ${isExpanded ? 'flex-row flex-wrap p-3 gap-2 justify-between items-center' : 'flex-col p-2 gap-3 items-center'}`}>
-
-
-          {!isExpanded && (
-            <div className="mb-2">
-              <motion.button
-                onClick={() => setIsExpanded(true)}
-                className="w-10 h-10 flex items-center justify-center rounded-full bg-black text-white hover:bg-gray-800 transition-colors"
-              >
-                <Settings2 size={18} />
-              </motion.button>
-            </div>
-          )}
-
-
-          <div className={`grid ${isExpanded ? 'grid-cols-4 gap-2 w-full' : 'flex flex-col gap-2'}`}>
-            {TOOLBAR_ITEM.map((item) => {
-
-              if (!isExpanded && toolbar.activeToolId !== item.id) return null;
-
-              return (
-                <motion.button
-                  key={item.id}
-                  className={`rough-btn flex items-center justify-center ${isExpanded ? 'h-10 w-full text-xl' : 'h-10 w-10 text-xl'} ${toolbar.activeToolId === item.id ? 'active' : ''}`}
-                  onClick={() => {
-                    handleClick(item.id, item.actionType, item.elementType, onDelete)
-                    if (!isExpanded) setIsExpanded(true);
-                  }}
-                  whileTap={{ scale: 0.95 }}
-                  title={item.id}
-                >
-                  {React.createElement(item.icon)}
-                </motion.button>
-              )
-            })}
-
-            {!isExpanded && (
+            return (
               <button
-                onClick={() => setIsExpanded(true)}
-                className="text-xs text-gray-400 mt-1 hover:text-black"
+                key={item.id}
+                onClick={() => handleClick(item.id, item.actionType, item.elementType)}
+                className={`tool-island-btn w-9 h-9 flex items-center justify-center ${isActive ? 'active' : ''}`}
+                title={item.name}
+                aria-label={item.name}
               >
-                +
+                {React.createElement(item.icon, { size: 18 })}
               </button>
-            )}
-          </div>
+            );
+          })}
 
-          {isExpanded && (
-            <motion.button
-              className="w-full mt-2 h-6 flex items-center justify-center bg-gray-800 hover:bg-gray-700 rounded text-gray-200"
-              onClick={() => setIsExpanded(false)}
-              whileHover={{ scale: 1.02 }}
-            >
-              <ChevronUp size={16} />
-              <span className="ml-1 text-[10px] uppercase font-bold tracking-wider">Hide Properties</span>
-            </motion.button>
-          )}
+          {/* Divider */}
+          <div className="w-[1px] h-6 bg-slate-700/80 mx-1" />
+
+          {/* Toggle Property Inspector Button */}
+          <button
+            onClick={() => setIsPanelOpen((prev) => !prev)}
+            className={`tool-island-btn w-9 h-9 flex items-center justify-center relative ${isPanelOpen ? 'text-blue-400 bg-slate-800' : 'text-slate-400'}`}
+            title={isPanelOpen ? "Hide Styles" : "Show Styles"}
+            aria-label="Toggle Properties Panel"
+          >
+            <SlidersHorizontal size={17} />
+            {/* Color swatch dot on button */}
+            <span
+              className="absolute bottom-1.5 right-1.5 w-2 h-2 rounded-full border border-slate-900"
+              style={{ backgroundColor: strokeColor }}
+            />
+          </button>
         </div>
+      </motion.div>
 
-        <AnimatePresence>
-          {isExpanded && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="border-t-2 border-gray-800 bg-[#0f1115] overflow-y-auto max-h-[70vh] no-scrollbar"
-            >
-              <div className="p-4 space-y-5">
+      {/* ─────────────────────────────────────────────────────────────
+          2. CONTEXTUAL PROPERTY INSPECTOR (Progressive Disclosure)
+      ───────────────────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {isPanelOpen && (
+          <motion.div
+            initial={{ opacity: 0, x: -16, scale: 0.98 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, x: -16, scale: 0.98 }}
+            transition={{ type: "spring", stiffness: 350, damping: 28 }}
+            className="fixed top-20 left-4 z-40 select-none canvas-glass-panel w-[276px] overflow-hidden"
+          >
+            {/* Inspector Header */}
+            <div className="px-3.5 py-2.5 flex items-center justify-between border-b border-slate-800 bg-slate-950/40">
+              <span className="text-xs font-semibold text-slate-200 tracking-wide flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                {getHeaderTitle()}
+              </span>
+              <button
+                onClick={() => setIsPanelOpen(false)}
+                className="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                title="Hide Inspector"
+              >
+                <X size={13} />
+              </button>
+            </div>
 
-                {(selectedElementIds.length > 0 || selectedYElement) && (
-                  <div className="flex gap-2 pb-2 border-b border-gray-700">
-                    {onGroup && selectedElementIds.length > 1 && (
-                      <button
-                        onClick={onGroup}
-                        className="flex-1 py-1.5 px-2 bg-blue-900/40 hover:bg-blue-800/60 border border-blue-500 rounded text-xs font-semibold text-blue-200 flex items-center justify-center gap-1 transition-colors"
-                        title="Group elements (Ctrl+G)"
-                      >
-                        <span>Group</span>
-                        <span className="text-[10px] text-gray-400 font-mono">^G</span>
-                      </button>
-                    )}
-                    {onUngroup && (
-                      <button
-                        onClick={onUngroup}
-                        className="flex-1 py-1.5 px-2 bg-purple-900/40 hover:bg-purple-800/60 border border-purple-500 rounded text-xs font-semibold text-purple-200 flex items-center justify-center gap-1 transition-colors"
-                        title="Ungroup elements (Ctrl+Shift+G)"
-                      >
-                        <span>Ungroup</span>
-                        <span className="text-[10px] text-gray-400 font-mono">⇧^G</span>
-                      </button>
-                    )}
-                  </div>
-                )}
+            <div className="p-3.5 space-y-4 max-h-[calc(100vh-120px)] overflow-y-auto no-scrollbar">
 
-                <div className="flex flex-col gap-2.5 bg-gray-900/80 p-2.5 rounded-lg border border-gray-800">
-                  {/* Stroke Section */}
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between items-center">
-                      <label className="text-[10px] uppercase font-bold text-gray-200 tracking-wider">Stroke</label>
-                      <span className="text-[9px] font-mono text-gray-400">{strokeColor}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <input ref={colorRef} type="color" hidden onChange={handleChange} />
-                      <button
-                        title="Pick custom stroke color"
-                        className="w-6 h-6 rounded-md border border-gray-600 shadow-sm active:scale-95 transition-transform flex-shrink-0"
-                        style={{ backgroundColor: strokeColor }}
-                        onClick={() => openPicker('stroke')}
-                      />
-                      <div className="flex flex-wrap gap-1 items-center flex-1">
-                        {swatches.map((c) => (
-                          <button
-                            key={'stroke-' + c}
-                            onClick={() => {
-                              setStrokeColor(c);
-                              updateSelectedProperty('strokeColor', c);
-                            }}
-                            style={{ backgroundColor: c }}
-                            title={`Stroke: ${c}`}
-                            className={`w-4 h-4 rounded-full border transition-all ${
-                              strokeColor.toLowerCase() === c.toLowerCase()
-                                ? 'border-blue-400 scale-110 shadow-sm'
-                                : 'border-gray-700 hover:scale-105'
-                            }`}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Fill Section */}
-                  <div className="space-y-1.5 pt-2 border-t border-gray-800">
-                    <div className="flex justify-between items-center">
-                      <label className="text-[10px] uppercase font-bold text-gray-200 tracking-wider">Fill</label>
-                      <button
-                        onClick={() => {
-                          const next = !isFillTransparent;
-                          setIsFillTransparent(next);
-                          updateSelectedProperty('isFillTransparent', next);
-                        }}
-                        className={`text-[10px] px-2 py-0.5 rounded font-medium border transition-colors ${
-                          isFillTransparent
-                            ? 'bg-blue-950/60 text-blue-300 border-blue-800'
-                            : 'bg-gray-800 text-gray-300 border-gray-700 hover:border-gray-500'
-                        }`}
-                      >
-                        {isFillTransparent ? 'Transparent' : 'Filled'}
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        title={isFillTransparent ? 'Transparent fill (click to pick color)' : 'Pick custom fill color'}
-                        className="w-6 h-6 rounded-md border border-gray-600 shadow-sm relative overflow-hidden active:scale-95 transition-transform flex-shrink-0"
-                        style={{ backgroundColor: isFillTransparent ? '#1e293b' : fillColor }}
-                        onClick={() => openPicker('fill')}
-                      >
-                        {isFillTransparent && (
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="w-[1px] h-full bg-red-400 rotate-45 transform" />
-                          </div>
-                        )}
-                      </button>
-                      <div className="flex flex-wrap gap-1 items-center flex-1">
-                        {swatches.map((c) => (
-                          <button
-                            key={'fill-' + c}
-                            onClick={() => {
-                              setFillColor(c);
-                              setIsFillTransparent(false);
-                              updateSelectedProperty('fillColor', c);
-                              updateSelectedProperty('isFillTransparent', false);
-                            }}
-                            style={{ backgroundColor: c }}
-                            title={`Fill: ${c}`}
-                            className={`w-4 h-4 rounded-full border transition-all ${
-                              !isFillTransparent && fillColor.toLowerCase() === c.toLowerCase()
-                                ? 'border-blue-400 scale-110 shadow-sm'
-                                : 'border-gray-700 hover:scale-105'
-                            }`}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-3 bg-gray-900/80 p-3 rounded-lg border border-gray-800">
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between items-center">
-                      <label className="text-xs font-bold text-gray-200">Thickness</label>
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-gray-800 border border-gray-700 text-gray-300">
-                        {strokeWidth}px
-                      </span>
-                    </div>
-                    <input
-                      type="range" min="1" max="12" step="1"
-                      value={strokeWidth}
-                      onChange={(e) => {
-                        const v = Number(e.target.value);
-                        setStrokeWidth(v);
-                        updateSelectedProperty('strokeWidth', v);
-                      }}
-                      className="modern-slider"
-                    />
-                    <div className="flex justify-between text-[9px] text-gray-400 px-0.5">
-                      <span>1px (Fine)</span>
-                      <span className="text-blue-400 font-semibold">2px (Diagram)</span>
-                      <span>12px (Bold)</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5 pt-2 border-t border-gray-800">
-                    <div className="flex justify-between items-center">
-                      <label className="text-xs font-bold text-gray-200">Sloppiness</label>
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-950/60 border border-blue-900 text-blue-300">
-                        {getRoughnessLabel(roughness)} ({roughness})
-                      </span>
-                    </div>
-                    <input
-                      type="range" min="0" max="4" step="0.5"
-                      value={roughness}
-                      onChange={(e) => {
-                        const v = Number(e.target.value);
-                        setRoughness(v);
-                        updateSelectedProperty('roughness', v);
-                      }}
-                      className="modern-slider"
-                    />
-                    <div className="flex justify-between text-[9px] text-gray-400 px-0.5">
-                      <span>0 (Architect)</span>
-                      <span className="text-blue-400 font-semibold">1.0 (Diagram)</span>
-                      <span>4 (Rough)</span>
-                    </div>
-                  </div>
-                </div>
-
-
-                <div className="space-y-3">
-                  <div className="space-y-1">
-                    <label className="text-[10px] uppercase font-bold text-gray-100">Fill Pattern</label>
-                    <div className="grid grid-cols-4 gap-1">
-                      {fillStyles.map((s) => (
-                        <button
-                          key={s.id}
-                          onClick={() => {
-                            setFillStyle(s.id as FillStyle);
-                            updateSelectedProperty('fillStyle', s.id);
-                          }}
-                          className={`text-[10px] py-1 px-1 rounded border ${fillStyle === s.id ? 'bg-black text-white border-gray-700' : 'bg-gray-900 text-gray-300 border-gray-700 hover:border-gray-500'}`}
-                        >
-                          {s.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {fillStyle !== 'solid' && (
-                    <div className="pt-2">
-                      <div className="flex justify-between mb-1">
-                        <label className="text-xs font-bold text-gray-100">Pattern Density</label>
-                        <span className="text-[10px] text-gray-300">{fillWeight}</span>
-                      </div>
-                      <input
-                        type="range" min="2" max="40"
-                        value={fillWeight}
-                        onChange={(e) => {
-                          const v = Number(e.target.value);
-                          setFillWeight(v);
-                          updateSelectedProperty('fillWeight', v);
-                        }}
-                        className="modern-slider"
-                      />
-                    </div>
+              {/* Contextual Action Bar (Multi-Select / Grouping) */}
+              {hasSelection && (
+                <div className="flex gap-1.5 pb-3 border-b border-slate-800">
+                  {onGroup && selectedElementIds.length > 1 && (
+                    <button
+                      onClick={onGroup}
+                      className="flex-1 py-1.5 px-2 bg-blue-950/60 hover:bg-blue-900/60 border border-blue-700/80 rounded-lg text-[11px] font-medium text-blue-200 flex items-center justify-center gap-1.5 transition-colors"
+                      title="Group elements (Ctrl+G)"
+                    >
+                      <Layers size={13} />
+                      <span>Group</span>
+                    </button>
                   )}
+                  {onUngroup && (
+                    <button
+                      onClick={onUngroup}
+                      className="flex-1 py-1.5 px-2 bg-purple-950/60 hover:bg-purple-900/60 border border-purple-700/80 rounded-lg text-[11px] font-medium text-purple-200 flex items-center justify-center gap-1.5 transition-colors"
+                      title="Ungroup elements (Ctrl+Shift+G)"
+                    >
+                      <Layers size={13} />
+                      <span>Ungroup</span>
+                    </button>
+                  )}
+                  {onDelete && (
+                    <button
+                      onClick={onDelete}
+                      className="py-1.5 px-2.5 bg-red-950/50 hover:bg-red-900/60 border border-red-800/80 rounded-lg text-[11px] font-medium text-red-200 flex items-center justify-center transition-colors"
+                      title="Delete selected (Del)"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  )}
+                </div>
+              )}
 
-                  <div className="space-y-1 pt-2 border-t border-gray-700">
-                    <label className="text-[10px] uppercase font-bold text-gray-100">Line Style</label>
-                    <div className="flex gap-2">
-                      {boundaryStyles.map((s) => (
+              {/* ─────────────────────────────────────────────────────────────
+                  TIER 1: ESSENTIAL CONTROLS (Always Visible)
+              ───────────────────────────────────────────────────────────── */}
+
+              {/* 1. Stroke Color */}
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center text-[11px]">
+                  <span className="font-semibold text-slate-300">Stroke</span>
+                  <span className="font-mono text-[10px] text-slate-400">{strokeColor}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    title="Pick custom stroke color"
+                    className="w-6 h-6 rounded-md border border-slate-600 shadow-sm active:scale-95 transition-transform flex-shrink-0"
+                    style={{ backgroundColor: strokeColor }}
+                    onClick={() => openPicker('stroke')}
+                  />
+                  <div className="flex flex-wrap gap-1 items-center flex-1">
+                    {swatches.map((c) => (
+                      <button
+                        key={'stroke-' + c}
+                        onClick={() => {
+                          setStrokeColor(c);
+                          updateSelectedProperty('strokeColor', c);
+                        }}
+                        style={{ backgroundColor: c }}
+                        title={`Stroke: ${c}`}
+                        className={`w-4 h-4 rounded-full border transition-all ${
+                          strokeColor.toLowerCase() === c.toLowerCase()
+                            ? 'border-blue-400 scale-110 shadow-sm'
+                            : 'border-slate-700 hover:scale-105'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. Fill Color & Mode */}
+              {showFillControl && (
+                <div className="space-y-1.5 pt-3 border-t border-slate-800/80">
+                  <div className="flex justify-between items-center text-[11px]">
+                    <span className="font-semibold text-slate-300">Fill</span>
+                    <button
+                      onClick={() => {
+                        const next = !isFillTransparent;
+                        setIsFillTransparent(next);
+                        updateSelectedProperty('isFillTransparent', next);
+                      }}
+                      className={`text-[10px] px-2 py-0.5 rounded font-medium border transition-colors ${
+                        isFillTransparent
+                          ? 'bg-blue-950/60 text-blue-300 border-blue-800'
+                          : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-500'
+                      }`}
+                    >
+                      {isFillTransparent ? 'Transparent' : 'Solid'}
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      title={isFillTransparent ? 'Transparent (click to choose color)' : 'Pick custom fill color'}
+                      className="w-6 h-6 rounded-md border border-slate-600 shadow-sm relative overflow-hidden active:scale-95 transition-transform flex-shrink-0"
+                      style={{ backgroundColor: isFillTransparent ? '#1e293b' : fillColor }}
+                      onClick={() => openPicker('fill')}
+                    >
+                      {isFillTransparent && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="w-[1.5px] h-full bg-red-400 rotate-45 transform" />
+                        </div>
+                      )}
+                    </button>
+                    <div className="flex flex-wrap gap-1 items-center flex-1">
+                      {swatches.map((c) => (
                         <button
-                          key={s.id}
+                          key={'fill-' + c}
                           onClick={() => {
-                            setBoundaryStyle(s.id as BoundaryStyle);
-                            updateSelectedProperty('boundaryStyle', s.id);
+                            setFillColor(c);
+                            setIsFillTransparent(false);
+                            updateSelectedProperty('fillColor', c);
+                            updateSelectedProperty('isFillTransparent', false);
                           }}
-                          className={`flex-1 py-1 text-[10px] rounded border ${boundaryStyle === s.id
-                            ? 'bg-blue-900/30 border-blue-500 text-blue-300'
-                            : 'bg-gray-900 border-gray-700 text-gray-300 hover:border-gray-500'
-                            }`}
-                        >
-                          {s.label}
-                        </button>
+                          style={{ backgroundColor: c }}
+                          title={`Fill: ${c}`}
+                          className={`w-4 h-4 rounded-full border transition-all ${
+                            !isFillTransparent && fillColor.toLowerCase() === c.toLowerCase()
+                              ? 'border-blue-400 scale-110 shadow-sm'
+                              : 'border-slate-700 hover:scale-105'
+                          }`}
+                        />
                       ))}
                     </div>
                   </div>
                 </div>
+              )}
 
+              {/* 3. Thickness Presets & Slider */}
+              <div className="space-y-1.5 pt-3 border-t border-slate-800/80">
+                <div className="flex justify-between items-center text-[11px]">
+                  <span className="font-semibold text-slate-300">Thickness</span>
+                  <span className="font-mono text-[10px] text-slate-400">{strokeWidth}px</span>
+                </div>
+                {/* Quick Presets */}
+                <div className="grid grid-cols-3 gap-1">
+                  {[
+                    { label: 'Fine (1px)', val: 1 },
+                    { label: 'Diagram (2px)', val: 2 },
+                    { label: 'Bold (4px)', val: 4 },
+                  ].map((p) => (
+                    <button
+                      key={p.val}
+                      onClick={() => {
+                        setStrokeWidth(p.val);
+                        updateSelectedProperty('strokeWidth', p.val);
+                      }}
+                      className={`text-[10px] py-1 rounded border font-medium transition-colors ${
+                        strokeWidth === p.val
+                          ? 'bg-blue-600 text-white border-blue-500 shadow-sm'
+                          : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200 hover:border-slate-700'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="range"
+                  min="1"
+                  max="12"
+                  step="1"
+                  value={strokeWidth}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    setStrokeWidth(v);
+                    updateSelectedProperty('strokeWidth', v);
+                  }}
+                  className="modern-slider mt-1"
+                />
+              </div>
 
-                <div className="space-y-3 pt-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-gray-100 flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={hasShadow}
-                        onChange={e => {
-                          const v = e.target.checked;
-                          setHasShadow(v);
-                          updateSelectedProperty('hasShadow', v);
-                        }}
-                        className="accent-blue-500 rounded w-4 h-4"
-                      />
-                      Drop Shadow
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <label className="text-xs font-bold text-gray-100">Opacity</label>
-                      <input
-                        type="number" max="100" min="0"
-                        value={Math.round(opacity * 100)}
-                        onChange={e => {
-                          const v = Number(e.target.value) / 100;
-                          setOpacity(v);
-                          updateSelectedProperty('opacity', v);
-                        }}
-                        className="w-12 text-right bg-gray-800 text-gray-100 border-none rounded text-xs p-1"
-                      />
-                      <span className="text-xs text-gray-300">%</span>
-                    </div>
-                  </div>
+              {/* 4. Sloppiness Presets & Slider (Architect / CAD Crisp = 0) */}
+              <div className="space-y-1.5 pt-3 border-t border-slate-800/80">
+                <div className="flex justify-between items-center text-[11px]">
+                  <span className="font-semibold text-slate-300">Sloppiness</span>
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-950/60 border border-blue-900/60 text-blue-300">
+                    {getRoughnessLabel(roughness)}
+                  </span>
+                </div>
+                {/* Quick Presets */}
+                <div className="grid grid-cols-3 gap-1">
+                  {[
+                    { label: 'Crisp (0)', val: 0 },
+                    { label: 'Natural (0.8)', val: 0.8 },
+                    { label: 'Sketch (2)', val: 2 },
+                  ].map((p) => (
+                    <button
+                      key={p.val}
+                      onClick={() => {
+                        setRoughness(p.val);
+                        updateSelectedProperty('roughness', p.val);
+                      }}
+                      className={`text-[10px] py-1 rounded border font-medium transition-colors ${
+                        Math.abs(roughness - p.val) < 0.2
+                          ? 'bg-blue-600 text-white border-blue-500 shadow-sm'
+                          : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200 hover:border-slate-700'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="3"
+                  step="0.1"
+                  value={roughness}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    setRoughness(v);
+                    updateSelectedProperty('roughness', v);
+                  }}
+                  className="modern-slider mt-1"
+                />
+              </div>
 
-                  {/* Rotation & Rotation Axis */}
-                  <div className="space-y-2 pt-2 border-t border-gray-700">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-gray-100">Rotation</label>
-                      <div className="flex items-center gap-1">
+              {/* ─────────────────────────────────────────────────────────────
+                  TIER 2: PROGRESSIVE DISCLOSURE (Advanced on Demand)
+              ───────────────────────────────────────────────────────────── */}
+              <div className="pt-2 border-t border-slate-800/80">
+                <button
+                  onClick={() => setShowAdvanced((prev) => !prev)}
+                  className="w-full py-1.5 px-2 flex items-center justify-between text-[11px] font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 rounded-lg transition-colors"
+                >
+                  <span>More Styling Options</span>
+                  {showAdvanced ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </button>
+
+                <AnimatePresence>
+                  {showAdvanced && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="space-y-3 pt-2.5 overflow-hidden"
+                    >
+                      {/* Line Boundary Style */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Line Style</label>
+                        <div className="flex gap-1">
+                          {boundaryStyles.map((s) => (
+                            <button
+                              key={s.id}
+                              onClick={() => {
+                                setBoundaryStyle(s.id as BoundaryStyle);
+                                updateSelectedProperty('boundaryStyle', s.id);
+                              }}
+                              className={`flex-1 py-1 text-[10px] rounded border font-medium transition-colors ${
+                                boundaryStyle === s.id
+                                  ? 'bg-blue-900/40 border-blue-500 text-blue-200'
+                                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
+                              }`}
+                            >
+                              {s.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Fill Pattern (when not transparent) */}
+                      {!isFillTransparent && showFillControl && (
+                        <div className="space-y-1.5 pt-1">
+                          <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Pattern</label>
+                          <div className="grid grid-cols-4 gap-1">
+                            {fillStyles.map((s) => (
+                              <button
+                                key={s.id}
+                                onClick={() => {
+                                  setFillStyle(s.id as FillStyle);
+                                  updateSelectedProperty('fillStyle', s.id);
+                                }}
+                                className={`text-[10px] py-1 rounded border font-medium transition-colors ${
+                                  fillStyle === s.id
+                                    ? 'bg-blue-900/40 border-blue-500 text-blue-200'
+                                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
+                                }`}
+                              >
+                                {s.label}
+                              </button>
+                            ))}
+                          </div>
+                          {fillStyle !== 'solid' && (
+                            <div className="pt-1.5 space-y-1">
+                              <div className="flex justify-between text-[10px]">
+                                <span className="text-slate-400">Pattern Density</span>
+                                <span className="font-mono text-slate-400">{fillWeight}</span>
+                              </div>
+                              <input
+                                type="range"
+                                min="2"
+                                max="30"
+                                value={fillWeight}
+                                onChange={(e) => {
+                                  const v = Number(e.target.value);
+                                  setFillWeight(v);
+                                  updateSelectedProperty('fillWeight', v);
+                                }}
+                                className="modern-slider"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Opacity & Shadow */}
+                      <div className="flex items-center justify-between pt-1">
+                        <label className="text-[11px] font-medium text-slate-300 flex items-center gap-1.5 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={hasShadow}
+                            onChange={(e) => {
+                              const v = e.target.checked;
+                              setHasShadow(v);
+                              updateSelectedProperty('hasShadow', v);
+                            }}
+                            className="accent-blue-500 rounded"
+                          />
+                          Drop Shadow
+                        </label>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[10px] text-slate-400">Opacity</span>
+                          <input
+                            type="number"
+                            min="10"
+                            max="100"
+                            value={Math.round(opacity * 100)}
+                            onChange={(e) => {
+                              const v = Math.max(0.1, Math.min(1, Number(e.target.value) / 100));
+                              setOpacity(v);
+                              updateSelectedProperty('opacity', v);
+                            }}
+                            className="w-11 text-right bg-slate-900 border border-slate-700 rounded text-[10px] p-0.5 text-slate-200 font-mono"
+                          />
+                          <span className="text-[10px] text-slate-400">%</span>
+                        </div>
+                      </div>
+
+                      {/* Rotation */}
+                      <div className="space-y-1.5 pt-1 border-t border-slate-800/60">
+                        <div className="flex justify-between items-center text-[10px]">
+                          <span className="text-slate-400 font-semibold">Rotation</span>
+                          <span className="font-mono text-slate-400">
+                            {Math.round((selectedYElement ? (Number(selectedYElement.get('angle')) || 0) * 180 / Math.PI : rotation) % 360)}°
+                          </span>
+                        </div>
                         <input
-                          type="number"
+                          type="range"
                           min="0"
                           max="360"
                           value={Math.round((selectedYElement ? (Number(selectedYElement.get('angle')) || 0) * 180 / Math.PI : rotation) % 360)}
@@ -591,61 +685,45 @@ export default function RoughSketchToolbox({ onDelete, onGroup, onUngroup }: Rou
                             setRotation(deg);
                             updateSelectedProperty('angle', (deg * Math.PI) / 180);
                           }}
-                          className="w-12 text-right bg-gray-800 text-gray-100 border-none rounded text-xs p-1"
+                          className="modern-slider"
                         />
-                        <span className="text-xs text-gray-300">°</span>
-                      </div>
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="360"
-                      value={Math.round((selectedYElement ? (Number(selectedYElement.get('angle')) || 0) * 180 / Math.PI : rotation) % 360)}
-                      onChange={(e) => {
-                        const deg = Number(e.target.value) || 0;
-                        setRotation(deg);
-                        updateSelectedProperty('angle', (deg * Math.PI) / 180);
-                      }}
-                      className="modern-slider"
-                    />
 
-                    {/* Rotation Axis */}
-                    <div className="space-y-1 pt-1">
-                      <label className="text-[10px] uppercase font-bold text-gray-100">Axis of Rotation</label>
-                      <div className="grid grid-cols-3 gap-1">
-                        {[
-                          { id: 'center', label: 'Center' },
-                          { id: 'top-left', label: 'Top-L' },
-                          { id: 'top-right', label: 'Top-R' },
-                          { id: 'bottom-left', label: 'Btm-L' },
-                          { id: 'bottom-right', label: 'Btm-R' },
-                        ].map((ax) => (
-                          <button
-                            key={ax.id}
-                            onClick={() => {
-                              const axisId = ax.id as 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
-                              setRotationAxis(axisId);
-                              updateSelectedProperty('rotationAxis', axisId);
-                            }}
-                            className={`text-[9px] py-1 px-1 rounded border font-medium transition-colors ${
-                              (selectedYElement ? (selectedYElement.get('rotationAxis') || 'center') : rotationAxis) === ax.id
-                                ? 'bg-blue-900/40 border-blue-500 text-blue-300'
-                                : 'bg-gray-900 border-gray-700 text-gray-300 hover:border-gray-500'
-                            }`}
-                          >
-                            {ax.label}
-                          </button>
-                        ))}
+                        {/* Pivot Axis */}
+                        <div className="grid grid-cols-5 gap-1 pt-1">
+                          {[
+                            { id: 'center', label: 'Mid' },
+                            { id: 'top-left', label: 'TL' },
+                            { id: 'top-right', label: 'TR' },
+                            { id: 'bottom-left', label: 'BL' },
+                            { id: 'bottom-right', label: 'BR' },
+                          ].map((ax) => (
+                            <button
+                              key={ax.id}
+                              onClick={() => {
+                                const axisId = ax.id as 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+                                setRotationAxis(axisId);
+                                updateSelectedProperty('rotationAxis', axisId);
+                              }}
+                              className={`text-[9px] py-0.5 rounded border transition-colors ${
+                                (selectedYElement ? (selectedYElement.get('rotationAxis') || 'center') : rotationAxis) === ax.id
+                                  ? 'bg-blue-900/50 border-blue-500 text-blue-200'
+                                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
+                              }`}
+                            >
+                              {ax.label}
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                </div>
-
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </motion.div>
+
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 }

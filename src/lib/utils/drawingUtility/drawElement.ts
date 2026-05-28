@@ -50,7 +50,7 @@ function elementDrawKey(element: Y.Map<unknown>) {
   const seed = Number(element.get('seed')) || 0;
   const stroke = String(element.get('strokeColor') || '');
   const strokeWidth = Number(element.get('strokeWidth') ?? 2);
-  const roughness = Number(element.get('roughness') ?? 1);
+  const roughness = Number(element.get('roughness') ?? 0);
   const isFillTransparent = Boolean(element.get('isFillTransparent'));
   const fill = isFillTransparent ? '' : String(element.get('fillColor') || '');
   const fillStyle = String(element.get('fillStyle') || '');
@@ -97,7 +97,7 @@ function getOrCreateDrawable(
   const strokeWidthVal = element.get('strokeWidth');
   const strokeWidth = (strokeWidthVal !== undefined && strokeWidthVal !== null) ? Number(strokeWidthVal) : 2;
   const roughnessVal = element.get('roughness');
-  const roughness = (roughnessVal !== undefined && roughnessVal !== null) ? Number(roughnessVal) : 1;
+  const roughness = (roughnessVal !== undefined && roughnessVal !== null) ? Number(roughnessVal) : 0;
   const boundaryStyle = String(element.get('boundaryStyle') || 'solid') as BoundaryStyle;
 
   const isTransparent = Boolean(element.get('isFillTransparent')) || element.get('fillColor') === 'transparent' || !element.get('fillColor');
@@ -232,7 +232,7 @@ export const DrawElements = ({ ctx, element, rc }: DrawingArgs) => {
     const strokeWidthVal = element.get('strokeWidth');
     const strokeWidth = (strokeWidthVal !== undefined && strokeWidthVal !== null) ? Number(strokeWidthVal) : 2;
     const roughnessVal = element.get('roughness');
-    const roughness = (roughnessVal !== undefined && roughnessVal !== null) ? Number(roughnessVal) : 1;
+    const roughness = (roughnessVal !== undefined && roughnessVal !== null) ? Number(roughnessVal) : 0;
     const boundaryStyle = String(element.get('boundaryStyle') || 'solid') as BoundaryStyle;
     const isTwoWay = type === elementType.ArrowTwoWay || !!element.get('isTwoWay');
 
