@@ -6,7 +6,7 @@ import {
   point,
 } from '@/types/type';
 import { boundType } from '@/lib/utils/boundsUtility/getBounds';
-import * as Y from 'yjs';
+import type * as Y from 'yjs';
 import { create } from 'zustand';
 
 type CurrentTool = {

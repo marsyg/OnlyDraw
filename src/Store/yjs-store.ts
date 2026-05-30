@@ -1,49 +1,44 @@
 import * as Y from 'yjs';
 import { IndexeddbPersistence } from 'y-indexeddb';
 
-const doc = new Y.Doc();
-if (!doc) {
-  throw new Error('Failed to create Yjs document');
-}
-console.log('Yjs store initialized');
+const globalStore = globalThis as unknown as {
+  __canvas_doc__?: Y.Doc;
+  __canvas_persistence__?: IndexeddbPersistence | null;
+  __canvas_undo_manager__?: Y.UndoManager;
+};
 
 export const LOCAL_ORIGIN = { local: true };
 export const LIVE_ORIGIN = { live: true };
+
+const doc = globalStore.__canvas_doc__ ?? new Y.Doc();
+globalStore.__canvas_doc__ = doc;
 
 const elements = doc.getMap<Y.Map<unknown>>('elements');
 const order = doc.getArray<string>('order');
 
 // IndexedDB persistence — syncs on load, persists all changes automatically
-export const persistence: IndexeddbPersistence | null =
-  typeof window !== 'undefined'
-    ? new IndexeddbPersistence('canvas-v1', doc)
-    : null;
-
-if (persistence) {
-  persistence.on('synced', () => {
-    console.log('[IndexedDB] Content loaded from local storage');
-  });
+let persistence = globalStore.__canvas_persistence__ ?? null;
+if (typeof window !== 'undefined' && !persistence) {
+  try {
+    persistence = new IndexeddbPersistence('canvas-v1', doc);
+    globalStore.__canvas_persistence__ = persistence;
+    persistence.on('synced', () => {
+      console.log('[IndexedDB] Content loaded from local storage');
+    });
+  } catch (err) {
+    console.warn('[IndexedDB] Persistence initialization warning:', err);
+  }
 }
 
-const UndoManager = new Y.UndoManager([elements], {
-  captureTimeout: 500,
-  trackedOrigins: new Set([LOCAL_ORIGIN]),
-});
+const UndoManager =
+  globalStore.__canvas_undo_manager__ ??
+  new Y.UndoManager([elements], {
+    captureTimeout: 500,
+    trackedOrigins: new Set([LOCAL_ORIGIN]),
+  });
+globalStore.__canvas_undo_manager__ = UndoManager;
 
-UndoManager.on('stack-item-added', () => {
-  console.log(
-    'Undo stack item added. Current undo stack size:',
-    UndoManager.undoStack.length
-  );
-});
-
-UndoManager.on('stack-item-popped', () => {
-  console.log(
-    'Undo stack item removed. Current undo stack size:',
-    UndoManager.undoStack.length
-  );
-});
-export { UndoManager };
+export { persistence, UndoManager };
 export const canvasDoc = {
   Y: Y,
   doc: doc,
@@ -52,3 +47,4 @@ export const canvasDoc = {
 };
 
 export default canvasDoc;
+

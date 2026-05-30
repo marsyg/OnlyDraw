@@ -1,6 +1,6 @@
 import { LucideIcon } from 'lucide-react';
+import type * as Y from 'yjs';
 
-import * as Y from 'yjs';
 export type PointsFreeHand = [number, number, number];
 export type Stroke = {
   points: PointsFreeHand[];
