@@ -108,7 +108,7 @@ export const handleDrawElement = ({
         fontSize: options.fontSize ?? 24,
         fontFamily: options.fontFamily ?? 'sans-serif',
         textAlign: options.textAlign ?? 'left',
-        fillColor: options.strokeColor || '#1e293b',
+        fillColor: options.fillColor || options.strokeColor || '#1e293b',
         lineHeight: 1.4,
         width: Math.max(60, Math.abs(endPoint[0] - startPoint[0]) || 120),
         height: Math.max(30, Math.abs(endPoint[1] - startPoint[1]) || 36),

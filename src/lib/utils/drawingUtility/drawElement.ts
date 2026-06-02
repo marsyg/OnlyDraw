@@ -295,8 +295,14 @@ export const DrawElements = ({ ctx, element, rc }: DrawingArgs) => {
     }
 
     const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
-    if (isDark && (fillColor === '#000000' || fillColor === 'black' || fillColor === '#000' || !fillColor)) {
-      fillColor = '#f8fafc';
+    if (isDark) {
+      if (!fillColor || fillColor === '#000000' || fillColor === 'black' || fillColor === '#000' || fillColor === '#1e293b' || fillColor === '#0f172a') {
+        fillColor = '#f8fafc';
+      }
+    } else {
+      if (!fillColor || fillColor === '#ffffff' || fillColor === 'white' || fillColor === '#fff' || fillColor === '#f8fafc' || fillColor === '#f1f5f9') {
+        fillColor = '#0f172a';
+      }
     }
 
     ctx.font = `${fontSize}px ${fontFamily}`;

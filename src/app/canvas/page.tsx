@@ -87,13 +87,29 @@ export default function App() {
     setIsSelecting,
     selectedElementIds,
     setSelectedElementIds,
+    fontSize,
+    fontFamily,
+    textAlign,
+    setFontSize,
+    setFontFamily,
+    setTextAlign,
   } = useAppStore();
   const [isTouchDevice, setIsTouchDevice] = useState(false);
-  const [isDark, setIsDark] = useState(false);
+  const [isDark, setIsDark] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('canvas_theme');
+      if (saved) return saved === 'dark';
+      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    return false;
+  });
 
-  // Sync dark mode with <html> class so any CSS vars respect it
+  // Sync dark mode with <html> class so CSS vars and theme tokens respect it
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDark);
+    try {
+      localStorage.setItem('canvas_theme', isDark ? 'dark' : 'light');
+    } catch {}
   }, [isDark]);
   const [freehandPoint, setFreehandPoint] = useState<PointsFreeHand[] | null>([
     [pointerPosition[0], pointerPosition[1], 1] as PointsFreeHand,
@@ -109,10 +125,14 @@ export default function App() {
     text: string;
     x: number;
     y: number;
+    width?: number;
+    height?: number;
     fontSize: number;
     fontFamily: string;
     textAlign: string;
     fillColor: string;
+    angle?: number;
+    rotationAxis?: string;
   };
   const [editingTextElement, setEditingTextElement] = useState<EditingTextState | null>(null);
   const editingTextElementRef = useRef<EditingTextState | null>(null);
@@ -209,11 +229,23 @@ export default function App() {
 
     yElement.forEach(el => {
       if (!el.get('isDeleted')) {
+        // Suppress drawing the element currently being edited to avoid ghost text behind textarea
+        if (editingTextElementRef.current && el.get('id') === editingTextElementRef.current.id) {
+          return;
+        }
         DrawElements({ ctx, element: el, rc: rc });
       }
     });
     if ((selectedYElement || selectedElementIds.length > 0) && bound) {
-      DrawBounds({ context: ctx, bounds: bound });
+      // Suppress drawing canvas bounding box and resize handles while editing text (no "two boxed" issue)
+      const isEditingCurrent = Boolean(
+        editingTextElementRef.current &&
+        ((selectedYElement && selectedYElement.get('id') === editingTextElementRef.current.id) ||
+         (selectedElementIds.length === 1 && selectedElementIds[0] === editingTextElementRef.current.id))
+      );
+      if (!isEditingCurrent) {
+        DrawBounds({ context: ctx, bounds: bound });
+      }
     }
 
     if (marqueeBoxRef.current) {
@@ -307,12 +339,51 @@ export default function App() {
     return null;
   }, [order, yElement]);
 
+  const startEditingText = useCallback((yEl: Y.Map<unknown>) => {
+    const id = yEl.get('id') as string;
+    setYElement(yEl);
+    setSelectedElementIds([id]);
+    setSelectedElementId(id);
+    setBound(null); // Clear canvas bounds so only ONE clean box (the editor) is visible!
+
+    const currentFill = String(yEl.get('fillColor') || yEl.get('strokeColor') || '');
+    let color = currentFill;
+    if (isDark) {
+      if (!color || color === '#000000' || color === 'black' || color === '#1e293b' || color === '#0f172a') {
+        color = '#f8fafc';
+      }
+    } else {
+      if (!color || color === '#ffffff' || color === 'white' || color === '#f8fafc' || color === '#f1f5f9') {
+        color = '#0f172a';
+      }
+    }
+
+    const nextState: EditingTextState = {
+      id,
+      text: String(yEl.get('text') || ''),
+      x: Number(yEl.get('x')),
+      y: Number(yEl.get('y')),
+      width: Number(yEl.get('width')) || 120,
+      height: Number(yEl.get('height')) || 36,
+      fontSize: Number(yEl.get('fontSize')) || 24,
+      fontFamily: String(yEl.get('fontFamily') || 'sans-serif'),
+      textAlign: String(yEl.get('textAlign') || 'left'),
+      fillColor: color,
+      angle: Number(yEl.get('angle')) || 0,
+      rotationAxis: String(yEl.get('rotationAxis') || 'center'),
+    };
+    textCreationTimeRef.current = Date.now();
+    editingTextElementRef.current = nextState;
+    setEditingTextElement(nextState);
+    scheduleRender();
+  }, [setYElement, setSelectedElementIds, setSelectedElementId, setBound, isDark, scheduleRender]);
+
   const finishEditingText = useCallback(() => {
     const currentEditing = editingTextElementRef.current;
     if (!currentEditing) return;
 
     // Guard against premature blur from the click that spawned the textarea
-    if (Date.now() - textCreationTimeRef.current < 400) {
+    if (Date.now() - textCreationTimeRef.current < 250) {
       requestAnimationFrame(() => {
         textareaRef.current?.focus();
       });
@@ -339,19 +410,20 @@ export default function App() {
         if (idx > -1) order.delete(idx, 1);
       }, LOCAL_ORIGIN);
       setYElement(null);
+      setSelectedElementIds([]);
       setBound(null);
     } else {
-      const fontSize = Number(targetYEl.get('fontSize')) || 24;
-      const fontFamily = String(targetYEl.get('fontFamily') || 'sans-serif');
+      const fontSize = Number(targetYEl.get('fontSize')) || currentEditing.fontSize || 24;
+      const fontFamily = String(targetYEl.get('fontFamily') || currentEditing.fontFamily || 'sans-serif');
       const lines = text.split('\n');
 
       const canvas = canvasRef.current;
       const ctx = canvas ? canvas.getContext('2d') : null;
-      let maxWidth = 60;
+      let maxWidth = 40;
       if (ctx) {
         ctx.font = `${fontSize}px ${fontFamily}`;
         lines.forEach((l) => {
-          maxWidth = Math.max(maxWidth, ctx.measureText(l).width);
+          maxWidth = Math.max(maxWidth, ctx.measureText(l || 'M').width);
         });
       }
       const measuredWidth = Math.ceil(maxWidth + 16);
@@ -366,6 +438,7 @@ export default function App() {
       }, LOCAL_ORIGIN);
 
       setYElement(targetYEl);
+      setSelectedElementIds([id]);
       setBound(getBounds({ element: targetYEl }));
     }
 
@@ -374,12 +447,12 @@ export default function App() {
     justFinishedEditingTextRef.current = true;
     setTimeout(() => {
       justFinishedEditingTextRef.current = false;
-    }, 200);
+    }, 150);
 
     setCurrentTool({ action: actionType.Selecting, elementType: elementType.Select });
     setActiveToolbarId('select');
     scheduleRender();
-  }, [yElement, doc, order, setYElement, setBound, setCurrentTool, setActiveToolbarId, scheduleRender]);
+  }, [yElement, doc, order, setYElement, setSelectedElementIds, setBound, setCurrentTool, setActiveToolbarId, scheduleRender]);
 
   useEffect(() => {
     finishEditingTextRef.current = finishEditingText;
@@ -389,22 +462,9 @@ export default function App() {
     const [x, y] = getPointerCoordinates(e);
     const hit = hitTestAtPoint([x, y]);
     if (hit && hit.yEl && hit.yEl.get('type') === elementType.Text) {
-      const yEl = hit.yEl;
-      setYElement(yEl);
-      const nextState: EditingTextState = {
-        id: yEl.get('id') as string,
-        text: String(yEl.get('text') || ''),
-        x: Number(yEl.get('x')),
-        y: Number(yEl.get('y')),
-        fontSize: Number(yEl.get('fontSize')) || 24,
-        fontFamily: String(yEl.get('fontFamily') || 'sans-serif'),
-        textAlign: String(yEl.get('textAlign') || 'left'),
-        fillColor: String(yEl.get('fillColor') || yEl.get('strokeColor') || (isDark ? '#f8fafc' : '#1e293b')),
-      };
-      editingTextElementRef.current = nextState;
-      setEditingTextElement(nextState);
+      startEditingText(hit.yEl);
     }
-  }, [getPointerCoordinates, hitTestAtPoint, setYElement, isDark]);
+  }, [getPointerCoordinates, hitTestAtPoint, startEditingText]);
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     const canvas = canvasRef.current;
@@ -593,15 +653,23 @@ export default function App() {
 
     if (currentTool.action === actionType.Drawing) {
       if (currentTool.elementType === elementType.Text) {
+        const defaultColor = isDark ? '#f8fafc' : '#0f172a';
+        let txtColor = fillColor || strokeColor || defaultColor;
+        if (isDark && (txtColor === '#000000' || txtColor === 'black' || txtColor === '#1e293b' || txtColor === '#0f172a')) {
+          txtColor = '#f8fafc';
+        } else if (!isDark && (txtColor === '#ffffff' || txtColor === 'white' || txtColor === '#f8fafc' || txtColor === '#f1f5f9')) {
+          txtColor = '#0f172a';
+        }
+
         const textElement = handleDrawElement({
           action: actionType.Drawing,
           element: elementType.Text,
           startPoint: initialPoint,
           endPoint: [initialPoint[0] + 120, initialPoint[1] + 36],
           options: {
-            strokeColor: strokeColor,
+            strokeColor: txtColor,
             strokeWidth: strokeWidth,
-            fillColor: fillColor,
+            fillColor: txtColor,
             fillStyle: fillStyle,
             roughness: roughness,
             boundaryStyle: boundaryStyle,
@@ -609,9 +677,9 @@ export default function App() {
             opacity: opacity,
             hasShadow: hasShadow,
             text: '',
-            fontSize: 24,
-            fontFamily: 'sans-serif',
-            textAlign: 'left',
+            fontSize: fontSize || 24,
+            fontFamily: fontFamily || 'sans-serif',
+            textAlign: textAlign || 'left',
           },
         });
 
@@ -626,23 +694,7 @@ export default function App() {
         }, LOCAL_ORIGIN);
 
         if (createdYEl) {
-          setYElement(createdYEl);
-          setSelectedElementId(textElement.id);
-          const textColor = (isDark && (!strokeColor || strokeColor === '#000000' || strokeColor === '#1e293b')) ? '#f8fafc' : (strokeColor || '#1e293b');
-          const nextState: EditingTextState = {
-            id: textElement.id,
-            text: '',
-            x: textElement.x,
-            y: textElement.y,
-            fontSize: 24,
-            fontFamily: 'sans-serif',
-            textAlign: 'left',
-            fillColor: textColor,
-          };
-          textCreationTimeRef.current = Date.now();
-          editingTextElementRef.current = nextState;
-          setEditingTextElement(nextState);
-          scheduleRender();
+          startEditingText(createdYEl);
         }
         return;
       }
@@ -1890,6 +1942,86 @@ export default function App() {
     scheduleRender();
   }, [selectedElementIds, selectedYElement, yElement, doc, scheduleRender]);
 
+  const handleAlign = useCallback((type: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom' | 'distribute-h' | 'distribute-v') => {
+    if (selectedElementIds.length < 2) return;
+    const els = selectedElementIds.map(id => yElement.get(id)).filter((el): el is Y.Map<unknown> => !!el && !el.get('isDeleted'));
+    if (els.length < 2) return;
+
+    const compound = getCompoundBounds(selectedElementIds, yElement);
+    if (!compound) return;
+
+    doc.transact(() => {
+      switch (type) {
+        case 'left':
+          els.forEach(el => el.set('x', compound.x));
+          break;
+        case 'center': {
+          const midX = compound.x + compound.width / 2;
+          els.forEach(el => {
+            const w = Number(el.get('width')) || 0;
+            el.set('x', midX - w / 2);
+          });
+          break;
+        }
+        case 'right': {
+          const rightX = compound.x + compound.width;
+          els.forEach(el => {
+            const w = Number(el.get('width')) || 0;
+            el.set('x', rightX - w);
+          });
+          break;
+        }
+        case 'top':
+          els.forEach(el => el.set('y', compound.y));
+          break;
+        case 'middle': {
+          const midY = compound.y + compound.height / 2;
+          els.forEach(el => {
+            const h = Number(el.get('height')) || 0;
+            el.set('y', midY - h / 2);
+          });
+          break;
+        }
+        case 'bottom': {
+          const bottomY = compound.y + compound.height;
+          els.forEach(el => {
+            const h = Number(el.get('height')) || 0;
+            el.set('y', bottomY - h);
+          });
+          break;
+        }
+        case 'distribute-h': {
+          const sorted = [...els].sort((a, b) => Number(a.get('x')) - Number(b.get('x')));
+          const totalW = sorted.reduce((acc, el) => acc + (Number(el.get('width')) || 0), 0);
+          const freeSpace = compound.width - totalW;
+          const gap = freeSpace / Math.max(1, sorted.length - 1);
+          let currX = compound.x;
+          sorted.forEach(el => {
+            el.set('x', currX);
+            currX += (Number(el.get('width')) || 0) + gap;
+          });
+          break;
+        }
+        case 'distribute-v': {
+          const sorted = [...els].sort((a, b) => Number(a.get('y')) - Number(b.get('y')));
+          const totalH = sorted.reduce((acc, el) => acc + (Number(el.get('height')) || 0), 0);
+          const freeSpace = compound.height - totalH;
+          const gap = freeSpace / Math.max(1, sorted.length - 1);
+          let currY = compound.y;
+          sorted.forEach(el => {
+            el.set('y', currY);
+            currY += (Number(el.get('height')) || 0) + gap;
+          });
+          break;
+        }
+      }
+    }, LOCAL_ORIGIN);
+
+    const newBound = getCompoundBounds(selectedElementIds, yElement);
+    setBound(newBound);
+    scheduleRender();
+  }, [selectedElementIds, yElement, doc, scheduleRender, setBound]);
+
   const keybindingActions = useMemo(
     () => ({
       'tool.select': () => selectTool('select', actionType.Selecting, elementType.Select),
@@ -1901,6 +2033,16 @@ export default function App() {
       'tool.freehand': () => selectTool('freeHand', actionType.Drawing, elementType.Freehand),
       'tool.text': () => selectTool('text', actionType.Drawing, elementType.Text),
       'tool.image': () => imageInputRef.current?.click(),
+      'edit.editText': () => {
+        if (selectedYElement && selectedYElement.get('type') === elementType.Text) {
+          startEditingText(selectedYElement);
+        } else if (selectedElementIds.length === 1) {
+          const el = yElement.get(selectedElementIds[0]);
+          if (el && el.get('type') === elementType.Text) {
+            startEditingText(el);
+          }
+        }
+      },
       'edit.undo': handleUndoClick,
       'edit.redo': handleRedoClick,
       'edit.copy': handleCopy,
@@ -1944,6 +2086,10 @@ export default function App() {
       handleDeselect,
       handleGroup,
       handleUngroup,
+      startEditingText,
+      selectedYElement,
+      selectedElementIds,
+      yElement,
       resetCamera,
       zoomCamera,
       scheduleRender,
@@ -2070,10 +2216,22 @@ export default function App() {
         onChange={handleImageFileChange}
       />
       <RoughSketchToolbox
+        isDark={isDark}
         onDelete={handleDelete}
         onGroup={handleGroup}
         onUngroup={handleUngroup}
         onImageUpload={() => imageInputRef.current?.click()}
+        onEditText={() => {
+          if (selectedYElement && selectedYElement.get('type') === elementType.Text) {
+            startEditingText(selectedYElement);
+          } else if (selectedElementIds.length === 1) {
+            const el = yElement.get(selectedElementIds[0]);
+            if (el && el.get('type') === elementType.Text) {
+              startEditingText(el);
+            }
+          }
+        }}
+        onAlign={handleAlign}
       />
       <FeaturePanel isDark={isDark} onToggleDark={() => setIsDark(d => !d)} />
       {isCollaborating && connectionStatus === 'connected' && participants.map(p => {
@@ -2140,7 +2298,7 @@ export default function App() {
         </motion.div>
       )}
       <motion.div
-        className={`fixed ${isTouchDevice ? 'top-2 right-2' : 'top-4 right-4'} z-50 sketch-font select-none`}
+        className={`fixed ${isTouchDevice ? 'top-2 right-2' : 'top-4 right-4'} z-50 select-none`}
         initial={false}
       >
         {!isCollaborating ? (
@@ -2148,7 +2306,11 @@ export default function App() {
             {!showRoomInput ? (
               <motion.button
                 onClick={() => setShowRoomInput(true)}
-                className={`${isTouchDevice ? 'px-2 py-1.5 text-[10px]' : 'px-3 py-2 text-xs'} rough-btn font-bold uppercase tracking-wide flex items-center gap-1`}
+                className={`${isTouchDevice ? 'px-2 py-1.5 text-[10px]' : 'px-3 py-2 text-xs'} rounded-xl font-bold uppercase tracking-wide flex items-center gap-1.5 backdrop-blur-md shadow-lg transition-colors border ${
+                  isDark
+                    ? 'bg-slate-900/90 border-slate-700/80 text-slate-200 hover:bg-slate-800'
+                    : 'bg-white/90 border-slate-200 text-slate-700 hover:bg-slate-100 shadow-slate-200/50'
+                }`}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
@@ -2160,7 +2322,11 @@ export default function App() {
                 initial={{ opacity: 0, y: -20, scale: 0.9 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -20, scale: 0.9 }}
-                className={`modern-panel p-3 space-y-2 ${isTouchDevice ? 'w-[180px]' : 'w-[220px]'}`}
+                className={`backdrop-blur-xl rounded-2xl p-3 space-y-2 border shadow-2xl ${isTouchDevice ? 'w-[180px]' : 'w-[230px]'} ${
+                  isDark
+                    ? 'bg-slate-900/95 border-slate-700/80 text-slate-100'
+                    : 'bg-white/95 border-slate-200 text-slate-800'
+                }`}
                 transition={{ type: "spring", stiffness: 400, damping: 25 }}
               >
                 <input
@@ -2168,7 +2334,11 @@ export default function App() {
                   value={roomId}
                   onChange={(e) => setRoomId(e.target.value)}
                   placeholder='Room ID'
-                  className={`w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 ${isTouchDevice ? 'text-[10px]' : 'text-xs'}`}
+                  className={`w-full px-3 py-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isTouchDevice ? 'text-[10px]' : 'text-xs'} ${
+                    isDark
+                      ? 'bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500'
+                      : 'bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400'
+                  }`}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') startCollaboration();
                     if (e.key === 'Escape') {
@@ -2183,7 +2353,11 @@ export default function App() {
                   value={userName}
                   onChange={(e) => setUserName(e.target.value)}
                   placeholder='username'
-                  className={`w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 ${isTouchDevice ? 'text-[10px]' : 'text-xs'}`}
+                  className={`w-full px-3 py-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isTouchDevice ? 'text-[10px]' : 'text-xs'} ${
+                    isDark
+                      ? 'bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500'
+                      : 'bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400'
+                  }`}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && roomId) startCollaboration();
                     if (e.key === 'Escape') {
@@ -2197,7 +2371,7 @@ export default function App() {
                 <div className='flex gap-2'>
                   <button
                     onClick={startCollaboration}
-                    className={`flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold ${isTouchDevice ? 'text-[10px]' : 'text-xs'} uppercase tracking-wide transition-all active:scale-95 border border-blue-800 shadow-[2px_2px_0px_0px_#1e3a8a]`}
+                    className={`flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold ${isTouchDevice ? 'text-[10px]' : 'text-xs'} uppercase tracking-wide transition-all active:scale-95 shadow-md shadow-blue-500/20`}
                   >
                     Join
                   </button>
@@ -2206,7 +2380,9 @@ export default function App() {
                       setShowRoomInput(false);
                       setRoomId('');
                     }}
-                    className={`px-3 py-2 rough-btn ${isTouchDevice ? 'text-[10px]' : 'text-xs'} uppercase font-bold`}
+                    className={`px-3 py-2 rounded-lg ${isTouchDevice ? 'text-[10px]' : 'text-xs'} uppercase font-bold transition-colors ${
+                      isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                    }`}
                     title="Cancel"
                   >
                     ✕
@@ -2219,21 +2395,23 @@ export default function App() {
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className={`modern-panel p-2 space-y-2 ${isTouchDevice ? 'w-[140px]' : 'w-[180px]'}`}
+            className={`backdrop-blur-xl rounded-xl p-2.5 space-y-2 border shadow-xl ${isTouchDevice ? 'w-[140px]' : 'w-[180px]'} ${
+              isDark ? 'bg-slate-900/95 border-slate-800 text-slate-100' : 'bg-white/95 border-slate-200 text-slate-800'
+            }`}
           >
             <div className='flex items-center justify-between'>
               <div className='flex items-center gap-2'>
                 {connectionStatus === 'connecting' ? (
                   <>
                     <div className='w-2 h-2 bg-yellow-500 rounded-full animate-pulse'></div>
-                    <span className='text-[10px] font-bold uppercase text-gray-100'>
+                    <span className={`text-[10px] font-bold uppercase ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
                       Connecting
                     </span>
                   </>
                 ) : (
                   <>
                     <div className='w-2 h-2 bg-green-500 rounded-full animate-pulse'></div>
-                    <span className='text-[10px] font-bold uppercase text-gray-100'>
+                    <span className={`text-[10px] font-bold uppercase ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
                       Live
                     </span>
                   </>
@@ -2241,22 +2419,23 @@ export default function App() {
               </div>
               <button
                 onClick={stopCollaboration}
-                className='px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-[10px] font-bold uppercase transition-all active:scale-95 border border-red-900'
+                className='px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-[10px] font-bold uppercase transition-all active:scale-95'
                 title="Disconnect"
               >
                 ✕
               </button>
             </div>
-            <div className='text-[10px] text-gray-300 font-mono bg-gray-950 px-2 py-1 rounded border border-gray-800 truncate'>
+            <div className={`text-[10px] font-mono px-2 py-1 rounded border truncate ${
+              isDark ? 'bg-slate-950 text-slate-300 border-slate-800' : 'bg-slate-50 text-slate-700 border-slate-200'
+            }`}>
               {roomId}
             </div>
           </motion.div>
         )}
       </motion.div>
 
-
       <motion.div
-        className={`fixed ${isTouchDevice ? 'bottom-2 right-2' : 'bottom-4 right-4'} z-50 flex items-center gap-2 sketch-font select-none`}
+        className={`fixed ${isTouchDevice ? 'bottom-2 right-2' : 'bottom-4 right-4'} z-50 flex items-center gap-2 select-none`}
         onPointerDown={(e) => e.stopPropagation()}
         onPointerMove={(e) => e.stopPropagation()}
         onPointerUp={(e) => e.stopPropagation()}
@@ -2265,7 +2444,11 @@ export default function App() {
         transition={{ delay: 0.2 }}
       >
         {/* Zoom & View Controls */}
-        <div className="flex items-center bg-gray-900/95 backdrop-blur-md border border-gray-800 rounded-xl p-1 shadow-xl text-white">
+        <div className={`flex items-center backdrop-blur-md rounded-xl p-1 shadow-xl border transition-colors ${
+          isDark
+            ? 'bg-slate-900/95 border-slate-800 text-slate-100 shadow-black/40'
+            : 'bg-white/90 border-slate-200 text-slate-700 shadow-slate-200/50'
+        }`}>
           <button
             onClick={() => {
               const canvas = canvasRef.current;
@@ -2274,7 +2457,9 @@ export default function App() {
               zoomCamera(-100, cx, cy);
               scheduleRender();
             }}
-            className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-800 text-gray-300 hover:text-white transition-colors"
+            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+              isDark ? 'hover:bg-slate-800 text-slate-300 hover:text-white' : 'hover:bg-slate-100 text-slate-600 hover:text-slate-900'
+            }`}
             title="Zoom Out"
           >
             <ZoomOut size={15} />
@@ -2285,7 +2470,9 @@ export default function App() {
               resetCamera();
               scheduleRender();
             }}
-            className="px-2 h-8 rounded-lg flex items-center justify-center hover:bg-gray-800 text-xs font-mono font-bold text-gray-200 hover:text-white transition-colors min-w-[50px]"
+            className={`px-2 h-8 rounded-lg flex items-center justify-center text-xs font-mono font-bold transition-colors min-w-[50px] ${
+              isDark ? 'hover:bg-slate-800 text-slate-200 hover:text-white' : 'hover:bg-slate-100 text-slate-700 hover:text-slate-900'
+            }`}
             title="Reset Zoom (100% / Ctrl+0)"
           >
             {Math.round(camera.scale * 100)}%
@@ -2299,7 +2486,9 @@ export default function App() {
               zoomCamera(100, cx, cy);
               scheduleRender();
             }}
-            className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-800 text-gray-300 hover:text-white transition-colors"
+            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+              isDark ? 'hover:bg-slate-800 text-slate-300 hover:text-white' : 'hover:bg-slate-100 text-slate-600 hover:text-slate-900'
+            }`}
             title="Zoom In"
           >
             <ZoomIn size={15} />
@@ -2310,7 +2499,9 @@ export default function App() {
               resetCamera();
               scheduleRender();
             }}
-            className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-800 text-gray-300 hover:text-white transition-colors border-l border-gray-800 ml-1 pl-1"
+            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors border-l ml-1 pl-1 ${
+              isDark ? 'hover:bg-slate-800 text-slate-300 hover:text-white border-slate-800' : 'hover:bg-slate-100 text-slate-600 hover:text-slate-900 border-slate-200'
+            }`}
             title="Reset View"
           >
             <Maximize2 size={14} />
@@ -2318,7 +2509,9 @@ export default function App() {
 
           <button
             onClick={handleExportPNG}
-            className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-800 text-gray-300 hover:text-white transition-colors border-l border-gray-800 ml-1 pl-1"
+            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors border-l ml-1 pl-1 ${
+              isDark ? 'hover:bg-slate-800 text-slate-300 hover:text-white border-slate-800' : 'hover:bg-slate-100 text-slate-600 hover:text-slate-900 border-slate-200'
+            }`}
             title="Export to PNG"
           >
             <Download size={14} />
@@ -2326,7 +2519,9 @@ export default function App() {
 
           <button
             onClick={() => setIsKeybindingsOpen(true)}
-            className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-800 text-gray-300 hover:text-white transition-colors border-l border-gray-800 ml-1 pl-1"
+            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors border-l ml-1 pl-1 ${
+              isDark ? 'hover:bg-slate-800 text-slate-300 hover:text-white border-slate-800' : 'hover:bg-slate-100 text-slate-600 hover:text-slate-900 border-slate-200'
+            }`}
             title="Keyboard Shortcuts (?)"
           >
             <Keyboard size={14} />
@@ -2336,7 +2531,11 @@ export default function App() {
         {/* Undo / Redo */}
         <motion.button
           onClick={handleUndoClick}
-          className={`${isTouchDevice ? 'w-9 h-9' : 'w-10 h-10'} rough-btn font-bold flex items-center justify-center`}
+          className={`${isTouchDevice ? 'w-9 h-9' : 'w-10 h-10'} rounded-xl font-bold flex items-center justify-center shadow-lg border backdrop-blur-md transition-colors ${
+            isDark
+              ? 'bg-slate-900/95 border-slate-800 text-slate-200 hover:bg-slate-800'
+              : 'bg-white/90 border-slate-200 text-slate-700 hover:bg-slate-100 shadow-slate-200/50'
+          }`}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           title="Undo (Ctrl+Z)"
@@ -2346,7 +2545,11 @@ export default function App() {
 
         <motion.button
           onClick={handleRedoClick}
-          className={`${isTouchDevice ? 'w-9 h-9' : 'w-10 h-10'} rough-btn font-bold flex items-center justify-center`}
+          className={`${isTouchDevice ? 'w-9 h-9' : 'w-10 h-10'} rounded-xl font-bold flex items-center justify-center shadow-lg border backdrop-blur-md transition-colors ${
+            isDark
+              ? 'bg-slate-900/95 border-slate-800 text-slate-200 hover:bg-slate-800'
+              : 'bg-white/90 border-slate-200 text-slate-700 hover:bg-slate-100 shadow-slate-200/50'
+          }`}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           title="Redo (Ctrl+Y)"
@@ -2394,7 +2597,7 @@ export default function App() {
           }}
           onBlur={finishEditingText}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
               e.preventDefault();
               finishEditingText();
             } else if (e.key === 'Escape') {
@@ -2403,34 +2606,70 @@ export default function App() {
             }
           }}
           placeholder="Type text..."
-          style={{
-            position: 'absolute',
-            left: editingTextElement.x * camera.scale + camera.x,
-            top: editingTextElement.y * camera.scale + camera.y,
-            fontSize: `${editingTextElement.fontSize * camera.scale}px`,
-            fontFamily: editingTextElement.fontFamily,
-            color: editingTextElement.fillColor,
-            textAlign: editingTextElement.textAlign as React.CSSProperties['textAlign'],
-            lineHeight: 1.3,
-            background: 'transparent',
-            border: '1.5px dashed #3b82f6',
-            borderRadius: '4px',
-            outline: 'none',
-            resize: 'none',
-            padding: '2px 4px',
-            margin: 0,
-            zIndex: 60,
-            overflow: 'hidden',
-            whiteSpace: 'pre-wrap',
-            minWidth: `${120 * camera.scale}px`,
-            minHeight: `${36 * camera.scale}px`,
-          }}
+          style={(() => {
+            const lines = (editingTextElement.text || ' ').split('\n');
+            const canvas = canvasRef.current;
+            const ctx = canvas ? canvas.getContext('2d') : null;
+            let maxLineWidth = 0;
+            if (ctx) {
+              ctx.font = `${editingTextElement.fontSize}px ${editingTextElement.fontFamily}`;
+              lines.forEach((l) => {
+                maxLineWidth = Math.max(maxLineWidth, ctx.measureText(l || 'M').width);
+              });
+            }
+            const currentScale = camera.scale;
+            const editorWidth = Math.max(120 * currentScale, Math.ceil((maxLineWidth + 24) * currentScale));
+            const editorHeight = Math.max(36 * currentScale, Math.ceil((lines.length * editingTextElement.fontSize * 1.3 + 12) * currentScale));
+
+            let textColor = editingTextElement.fillColor;
+            if (isDark) {
+              if (!textColor || textColor === '#000000' || textColor === 'black' || textColor === '#1e293b' || textColor === '#0f172a') {
+                textColor = '#f8fafc';
+              }
+            } else {
+              if (!textColor || textColor === '#ffffff' || textColor === 'white' || textColor === '#f8fafc' || textColor === '#f1f5f9') {
+                textColor = '#0f172a';
+              }
+            }
+
+            return {
+              position: 'absolute',
+              left: editingTextElement.x * currentScale + camera.x,
+              top: editingTextElement.y * currentScale + camera.y,
+              width: `${editorWidth}px`,
+              height: `${editorHeight}px`,
+              fontSize: `${editingTextElement.fontSize * currentScale}px`,
+              fontFamily: editingTextElement.fontFamily,
+              color: textColor,
+              textAlign: editingTextElement.textAlign as React.CSSProperties['textAlign'],
+              lineHeight: 1.3,
+              background: isDark ? 'rgba(15, 23, 42, 0.92)' : 'rgba(255, 255, 255, 0.92)',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+              border: '2px solid #3b82f6',
+              borderRadius: '6px',
+              boxShadow: isDark
+                ? '0 0 0 1px rgba(59, 130, 246, 0.4), 0 8px 24px rgba(0, 0, 0, 0.6)'
+                : '0 0 0 1px rgba(59, 130, 246, 0.25), 0 8px 20px rgba(59, 130, 246, 0.15)',
+              outline: 'none',
+              resize: 'none',
+              padding: `${2 * currentScale}px ${6 * currentScale}px`,
+              margin: 0,
+              zIndex: 60,
+              overflow: 'hidden',
+              whiteSpace: 'pre-wrap',
+              caretColor: '#3b82f6',
+              transform: editingTextElement.angle ? `rotate(${editingTextElement.angle}rad)` : undefined,
+              transformOrigin: '0 0',
+            };
+          })()}
         />
       )}
 
       <KeybindingsDialog
         isOpen={isKeybindingsOpen}
         onClose={() => setIsKeybindingsOpen(false)}
+        isDark={isDark}
       />
     </div>
   );

@@ -47,9 +47,15 @@ export type AppState = {
   opacity: number;
   rotation: number;
   rotationAxis: 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+  fontSize: number;
+  fontFamily: string;
+  textAlign: 'left' | 'center' | 'right';
   camera: Camera;
   clipboard: Record<string, unknown> | Record<string, unknown>[] | null;
   //actions
+  setFontSize: (v: number) => void;
+  setFontFamily: (v: string) => void;
+  setTextAlign: (v: 'left' | 'center' | 'right') => void;
   setClipboard: (item: Record<string, unknown> | Record<string, unknown>[] | null) => void;
   setBound: (bound: boundType | null) => void;
   setStrokeColor: (color: string) => void;
@@ -119,9 +125,15 @@ export const useAppStore = create<AppState>((set) => ({
   opacity: 1,
   rotation: 0,
   rotationAxis: 'center',
+  fontSize: 24,
+  fontFamily: 'sans-serif',
+  textAlign: 'left',
   camera: { x: 0, y: 0, scale: 1 },
   clipboard: null,
 
+  setFontSize: (v) => set({ fontSize: v }),
+  setFontFamily: (v) => set({ fontFamily: v }),
+  setTextAlign: (v) => set({ textAlign: v }),
   setClipboard: (item) => set({ clipboard: item }),
   setBound: (bound) => set({ bound }),
   setStrokeColor: (strokeColor) => set({ strokeColor }),
@@ -141,7 +153,11 @@ export const useAppStore = create<AppState>((set) => ({
           case elementType.Rectangle:
           case elementType.Ellipse:
           case elementType.Line:
-            return { ...el, ...data } as typeof el;
+          case elementType.Arrow:
+          case elementType.ArrowTwoWay:
+          case elementType.Text:
+          case elementType.Image:
+            return { ...el, ...(data as Record<string, unknown>) } as typeof el;
           case elementType.Freehand:
             const freehandData = data as Partial<freeHandElement>;
             return {

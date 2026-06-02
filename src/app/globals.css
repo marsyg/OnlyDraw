@@ -2,13 +2,21 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #0f172a;
+  --card-bg: rgba(255, 255, 255, 0.92);
+  --card-border: rgba(226, 232, 240, 0.9);
+  --card-text: #0f172a;
+  --muted-text: #64748b;
 }
 
-/* Dark mode via .dark class (toggled by JS) */
+/* Dark mode via .dark class */
 html.dark {
   --background: #0f172a;
   --foreground: #f1f5f9;
+  --card-bg: rgba(15, 23, 42, 0.94);
+  --card-border: rgba(51, 65, 85, 0.8);
+  --card-text: #f1f5f9;
+  --muted-text: #94a3b8;
 }
 
 @theme inline {
@@ -18,18 +26,11 @@ html.dark {
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not(.light) {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-  transition: background 0.3s ease, color 0.3s ease;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  transition: background 0.25s ease, color 0.25s ease;
 }
 html, body {
   overscroll-behavior: none;

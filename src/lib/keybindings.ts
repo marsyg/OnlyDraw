@@ -89,6 +89,14 @@ export const KEYBINDINGS: KeybindingDef[] = [
 
   // Edit
   {
+    id: 'edit.editText',
+    key: 'Enter',
+    action: 'edit.editText',
+    category: 'Edit',
+    description: 'Edit selected text',
+    displayKeys: ['Enter'],
+  },
+  {
     id: 'edit.undo',
     key: 'z',
     ctrl: true,
