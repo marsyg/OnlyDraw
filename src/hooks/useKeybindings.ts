@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { KEYBINDINGS, KeybindingDef } from '@/lib/keybindings';
+import { KEYBINDINGS } from '@/lib/keybindings';
 
 export type KeybindingActionMap = Partial<Record<string, (e: KeyboardEvent) => void>>;
 

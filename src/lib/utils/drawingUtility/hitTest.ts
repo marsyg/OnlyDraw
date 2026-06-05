@@ -1,4 +1,4 @@
-import { elementType, Stroke } from '@/types/type';
+import { elementType } from '@/types/type';
 import { args } from '../../hitTest/argumentType';
 
 import { isInsideRectangle } from '../../hitTest/rectangle';

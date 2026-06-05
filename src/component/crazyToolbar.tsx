@@ -10,7 +10,6 @@ import {
   AlignLeft,
   AlignCenter,
   AlignRight,
-  Type,
   Edit3,
 } from 'lucide-react';
 import canvasDoc, { LOCAL_ORIGIN } from '@/Store/yjs-store';
@@ -513,17 +512,17 @@ export default function RoughSketchToolbox({
                         <span className={mutedColor}>Align Elements</span>
                       </div>
                       <div className="grid grid-cols-6 gap-1">
-                        {[
+                        {([
                           { id: 'left', label: 'L', title: 'Align Left' },
                           { id: 'center', label: 'C', title: 'Align Center Horizontal' },
                           { id: 'right', label: 'R', title: 'Align Right' },
                           { id: 'top', label: 'T', title: 'Align Top' },
                           { id: 'middle', label: 'M', title: 'Align Middle Vertical' },
                           { id: 'bottom', label: 'B', title: 'Align Bottom' },
-                        ].map((a) => (
+                        ] as const).map((a) => (
                           <button
                             key={a.id}
-                            onClick={() => onAlign(a.id as any)}
+                            onClick={() => onAlign(a.id)}
                             title={a.title}
                             className={`py-1 text-[10px] rounded border font-semibold transition-colors ${btnBase}`}
                           >

@@ -8,7 +8,6 @@ import {
   Type,
   ImageIcon,
   MousePointer,
-  Scaling,
   Trash,
 } from 'lucide-react';
 import { actionType, elementType, ToolBarDataType } from './type';
