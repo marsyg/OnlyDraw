@@ -172,6 +172,7 @@ export default function App() {
   const resizeOriginalElementsRef = useRef<ElementResizeSnapshot[]>([]);
   const justFinishedEditingTextRef = useRef<boolean>(false);
   const textCreationTimeRef = useRef<number>(0);
+  const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
 
   const flagRef = useRef<boolean>(false)
   const animationFrameIdRef = useRef<number | null>(null);
@@ -458,13 +459,137 @@ export default function App() {
     finishEditingTextRef.current = finishEditingText;
   }, [finishEditingText]);
 
-  const handleDoubleClick = useCallback((e: React.MouseEvent) => {
-    const [x, y] = getPointerCoordinates(e);
-    const hit = hitTestAtPoint([x, y]);
-    if (hit && hit.yEl && hit.yEl.get('type') === elementType.Text) {
-      startEditingText(hit.yEl);
-    }
-  }, [getPointerCoordinates, hitTestAtPoint, startEditingText]);
+  const handleDoubleClick = useCallback(
+    (e: React.MouseEvent) => {
+      const [x, y] = getPointerCoordinates(e);
+      const hit = hitTestAtPoint([x, y]);
+      if (hit && hit.yEl) {
+        if (hit.yEl.get('type') === elementType.Text) {
+          startEditingText(hit.yEl);
+          return;
+        }
+        // Double-clicked on a shape: center a new text element inside the shape
+        const shapeX = Number(hit.yEl.get('x'));
+        const shapeY = Number(hit.yEl.get('y'));
+        const shapeW = Number(hit.yEl.get('width')) || 120;
+        const shapeH = Number(hit.yEl.get('height')) || 40;
+
+        const defaultColor = isDark ? '#f8fafc' : '#0f172a';
+        let txtColor = fillColor || strokeColor || defaultColor;
+        if (isDark && (txtColor === '#000000' || txtColor === 'black' || txtColor === '#1e293b' || txtColor === '#0f172a')) {
+          txtColor = '#f8fafc';
+        } else if (!isDark && (txtColor === '#ffffff' || txtColor === 'white' || txtColor === '#f8fafc' || txtColor === '#f1f5f9')) {
+          txtColor = '#0f172a';
+        }
+
+        const textX = shapeX + Math.max(0, (shapeW - 120) / 2);
+        const textY = shapeY + Math.max(0, (shapeH - 36) / 2);
+
+        const textElement = handleDrawElement({
+          action: actionType.Drawing,
+          element: elementType.Text,
+          startPoint: [textX, textY],
+          endPoint: [textX + 120, textY + 36],
+          options: {
+            strokeColor: txtColor,
+            strokeWidth: strokeWidth,
+            fillColor: txtColor,
+            fillStyle: fillStyle,
+            roughness: roughness,
+            boundaryStyle: boundaryStyle,
+            fillWeight: fillWeight,
+            opacity: opacity,
+            hasShadow: hasShadow,
+            text: '',
+            fontSize: fontSize || 24,
+            fontFamily: fontFamily || 'sans-serif',
+            textAlign: 'center',
+          },
+        });
+
+        if (!textElement) return;
+        let createdYEl: Y.Map<unknown> | null = null;
+        doc.transact(() => {
+          createdYEl = yUtils.createYElement(textElement);
+          if (createdYEl) {
+            yElement.set(textElement.id, createdYEl);
+            order.push([textElement.id]);
+          }
+        }, LOCAL_ORIGIN);
+
+        if (createdYEl) {
+          startEditingText(createdYEl);
+        }
+        return;
+      }
+
+      // Double-clicked on empty canvas: create a new text element at [x, y]
+      const defaultColor = isDark ? '#f8fafc' : '#0f172a';
+      let txtColor = fillColor || strokeColor || defaultColor;
+      if (isDark && (txtColor === '#000000' || txtColor === 'black' || txtColor === '#1e293b' || txtColor === '#0f172a')) {
+        txtColor = '#f8fafc';
+      } else if (!isDark && (txtColor === '#ffffff' || txtColor === 'white' || txtColor === '#f8fafc' || txtColor === '#f1f5f9')) {
+        txtColor = '#0f172a';
+      }
+
+      const textElement = handleDrawElement({
+        action: actionType.Drawing,
+        element: elementType.Text,
+        startPoint: [x, y],
+        endPoint: [x + 120, y + 36],
+        options: {
+          strokeColor: txtColor,
+          strokeWidth: strokeWidth,
+          fillColor: txtColor,
+          fillStyle: fillStyle,
+          roughness: roughness,
+          boundaryStyle: boundaryStyle,
+          fillWeight: fillWeight,
+          opacity: opacity,
+          hasShadow: hasShadow,
+          text: '',
+          fontSize: fontSize || 24,
+          fontFamily: fontFamily || 'sans-serif',
+          textAlign: textAlign || 'left',
+        },
+      });
+
+      if (!textElement) return;
+      let createdYEl: Y.Map<unknown> | null = null;
+      doc.transact(() => {
+        createdYEl = yUtils.createYElement(textElement);
+        if (createdYEl) {
+          yElement.set(textElement.id, createdYEl);
+          order.push([textElement.id]);
+        }
+      }, LOCAL_ORIGIN);
+
+      if (createdYEl) {
+        startEditingText(createdYEl);
+      }
+    },
+    [
+      getPointerCoordinates,
+      hitTestAtPoint,
+      startEditingText,
+      isDark,
+      fillColor,
+      strokeColor,
+      strokeWidth,
+      fillStyle,
+      roughness,
+      boundaryStyle,
+      fillWeight,
+      opacity,
+      hasShadow,
+      fontSize,
+      fontFamily,
+      textAlign,
+      doc,
+      yElement,
+      order,
+    ]
+  );
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     const canvas = canvasRef.current;
@@ -1222,6 +1347,7 @@ export default function App() {
       arrowEndBindingRef.current = null;
     }
 
+    const wasMoving = isDrawing || isDragging || isResizing || isPanningRef.current;
     setIsDrawing(false);
     setIsDragging(false);
 
@@ -1232,6 +1358,20 @@ export default function App() {
     try {
       canvasRef.current?.releasePointerCapture(e.pointerId);
     } catch {}
+
+    if (!wasMoving && (e.pointerType === 'touch' || isTouchDevice)) {
+      const now = Date.now();
+      const lastTap = lastTapRef.current;
+      if (lastTap && now - lastTap.time < 350) {
+        const dist = Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y);
+        if (dist < 30) {
+          lastTapRef.current = null;
+          handleDoubleClick(e as unknown as React.MouseEvent);
+          return;
+        }
+      }
+      lastTapRef.current = { time: now, x: e.clientX, y: e.clientY };
+    }
 
     if (isResizing) {
       if (selectedElementIds.length > 1) {
@@ -1267,6 +1407,8 @@ export default function App() {
     setIsDrawing,
     setIsResizing,
     setResizeHandle,
+    handleDoubleClick,
+    isTouchDevice,
   ]);
 
 
@@ -1304,12 +1446,27 @@ export default function App() {
     } as unknown as React.PointerEvent;
 
     handlePointerMove(syntheticEvent);
-  }, [, handlePointerMove]);
+  }, [handlePointerMove]);
 
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
     e.preventDefault();
     const canvas = canvasRef.current;
     if (!canvas) return;
+
+    const touch = e.changedTouches[0];
+    if (touch) {
+      const now = Date.now();
+      const lastTap = lastTapRef.current;
+      if (lastTap && now - lastTap.time < 350) {
+        const dist = Math.hypot(touch.clientX - lastTap.x, touch.clientY - lastTap.y);
+        if (dist < 30) {
+          lastTapRef.current = null;
+          handleDoubleClick({ clientX: touch.clientX, clientY: touch.clientY } as unknown as React.MouseEvent);
+          return;
+        }
+      }
+      lastTapRef.current = { time: now, x: touch.clientX, y: touch.clientY };
+    }
 
     const syntheticEvent = {
       clientX: e.changedTouches[0]?.clientX || 0,
@@ -1319,7 +1476,7 @@ export default function App() {
     } as unknown as React.PointerEvent;
 
     handlePointerUp(syntheticEvent);
-  }, [handlePointerUp]);
+  }, [handlePointerUp, handleDoubleClick]);
   const [isCollaborating, setIsCollaborating] = useState(false);
   const [roomId, setRoomId] = useState('');
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
