@@ -49,10 +49,17 @@ export const getBounds = ({ element }: args): boundType => {
           }
         }
       }
-      const x1 = Math.min(ax1, ax2);
-      const y1 = Math.min(ay1, ay2);
-      const x2 = Math.max(ax1, ax2);
-      const y2 = Math.max(ay1, ay2);
+      const rawControl = element.get('controlPoint') as { x: number; y: number } | undefined;
+      let x1 = Math.min(ax1, ax2);
+      let y1 = Math.min(ay1, ay2);
+      let x2 = Math.max(ax1, ax2);
+      let y2 = Math.max(ay1, ay2);
+      if (rawControl) {
+        x1 = Math.min(x1, rawControl.x);
+        y1 = Math.min(y1, rawControl.y);
+        x2 = Math.max(x2, rawControl.x);
+        y2 = Math.max(y2, rawControl.y);
+      }
       return { x: x1, y: y1, width: x2 - x1, height: y2 - y1, angle, rotationAxis };
     }
 

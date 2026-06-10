@@ -59,6 +59,8 @@ export type arrowElement = baseType & {
   startBinding?: ArrowBinding | null;
   endBinding?: ArrowBinding | null;
   isTwoWay?: boolean;
+  routing?: 'straight' | 'curved' | 'angled';
+  controlPoint?: { x: number; y: number } | null;
 };
 
 export type freeHandElement = baseType & {
@@ -168,4 +170,6 @@ export type ElementOptions = {
   isTwoWay?: boolean;
   startBinding?: ArrowBinding | null;
   endBinding?: ArrowBinding | null;
+  routing?: 'straight' | 'curved' | 'angled';
+  controlPoint?: { x: number; y: number } | null;
 };

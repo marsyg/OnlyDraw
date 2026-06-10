@@ -69,6 +69,8 @@ export const handleDrawElement = ({
         isTwoWay: false,
         startBinding: options.startBinding || null,
         endBinding: options.endBinding || null,
+        routing: options.routing || 'straight',
+        controlPoint: options.controlPoint || null,
       };
 
     case elementType.ArrowTwoWay:
@@ -79,6 +81,8 @@ export const handleDrawElement = ({
         isTwoWay: true,
         startBinding: options.startBinding || null,
         endBinding: options.endBinding || null,
+        routing: options.routing || 'straight',
+        controlPoint: options.controlPoint || null,
       };
 
     case elementType.Ellipse:

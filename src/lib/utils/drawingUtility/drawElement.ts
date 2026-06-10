@@ -237,18 +237,6 @@ export const DrawElements = ({ ctx, element, rc }: DrawingArgs) => {
     const isTwoWay = type === elementType.ArrowTwoWay || !!element.get('isTwoWay');
 
     const seed = parseInt(String(element.get('seed')), 10) || 1;
-    const lineDrawable = withSeededMath(seed, () =>
-      generator.line(x1, y1, x2, y2, {
-        seed,
-        stroke: strokeColor,
-        strokeWidth: strokeWidth,
-        roughness: roughness,
-        strokeLineDash: getStrokeLineDash(boundaryStyle, strokeWidth),
-      })
-    );
-    rc.draw(lineDrawable);
-
-    const angle = Math.atan2(y2 - y1, x2 - x1);
     const arrowLen = Math.max(14, strokeWidth * 3.5);
     const arrowSpread = Math.PI / 6;
 
@@ -269,10 +257,75 @@ export const DrawElements = ({ ctx, element, rc }: DrawingArgs) => {
       rc.draw(headDrawable);
     };
 
-    drawHead(x2, y2, angle);
+    const rawControl = element.get('controlPoint') as { x: number; y: number } | undefined;
+    const routing = String(element.get('routing') || (rawControl ? 'curved' : 'straight'));
+    const isCurved = routing === 'curved' || !!rawControl;
+    const isAngled = routing === 'angled';
 
-    if (isTwoWay) {
-      drawHead(x1, y1, angle + Math.PI);
+    const cx = rawControl ? rawControl.x : (x1 + x2) / 2;
+    const cy = rawControl ? rawControl.y : (y1 + y2) / 2;
+
+    if (isCurved && (rawControl || routing === 'curved')) {
+      const curveDrawable = withSeededMath(seed, () =>
+        generator.path(`M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`, {
+          seed,
+          stroke: strokeColor,
+          strokeWidth: strokeWidth,
+          roughness: roughness,
+          strokeLineDash: getStrokeLineDash(boundaryStyle, strokeWidth),
+        })
+      );
+      rc.draw(curveDrawable);
+
+      const endAngle = Math.atan2(y2 - cy, x2 - cx);
+      const startAngle = Math.atan2(y1 - cy, x1 - cx);
+
+      drawHead(x2, y2, endAngle);
+      if (isTwoWay) {
+        drawHead(x1, y1, startAngle);
+      }
+    } else if (isAngled) {
+      const midX = (x1 + x2) / 2;
+      const pathPoints: [number, number][] = [
+        [x1, y1],
+        [midX, y1],
+        [midX, y2],
+        [x2, y2],
+      ];
+      const angledDrawable = withSeededMath(seed, () =>
+        generator.linearPath(pathPoints, {
+          seed,
+          stroke: strokeColor,
+          strokeWidth: strokeWidth,
+          roughness: roughness,
+          strokeLineDash: getStrokeLineDash(boundaryStyle, strokeWidth),
+        })
+      );
+      rc.draw(angledDrawable);
+
+      const endAngle = Math.atan2(y2 - y2, x2 - midX);
+      drawHead(x2, y2, endAngle);
+      if (isTwoWay) {
+        const startAngle = Math.atan2(y1 - y1, x1 - midX);
+        drawHead(x1, y1, startAngle);
+      }
+    } else {
+      const lineDrawable = withSeededMath(seed, () =>
+        generator.line(x1, y1, x2, y2, {
+          seed,
+          stroke: strokeColor,
+          strokeWidth: strokeWidth,
+          roughness: roughness,
+          strokeLineDash: getStrokeLineDash(boundaryStyle, strokeWidth),
+        })
+      );
+      rc.draw(lineDrawable);
+
+      const angle = Math.atan2(y2 - y1, x2 - x1);
+      drawHead(x2, y2, angle);
+      if (isTwoWay) {
+        drawHead(x1, y1, angle + Math.PI);
+      }
     }
 
     ctx.restore();

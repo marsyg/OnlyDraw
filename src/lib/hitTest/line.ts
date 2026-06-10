@@ -35,6 +35,44 @@ export function isNearLine({ point, element }: args) {
     }
   }
 
+  const rawControl = element.get('controlPoint') as { x: number; y: number } | undefined;
+  const routing = String(element.get('routing') || (rawControl ? 'curved' : 'straight'));
+
+  if (routing === 'curved' || rawControl) {
+    const cx = rawControl ? rawControl.x : (x1 + x2) / 2;
+    const cy = rawControl ? rawControl.y : (y1 + y2) / 2;
+    if (Math.hypot(px - cx, py - cy) <= threshold + 4) return true;
+    for (let i = 0; i <= 20; i++) {
+      const t = i / 20;
+      const inv = 1 - t;
+      const qx = inv * inv * x1 + 2 * inv * t * cx + t * t * x2;
+      const qy = inv * inv * y1 + 2 * inv * t * cy + t * t * y2;
+      if (Math.hypot(px - qx, py - qy) <= threshold) return true;
+    }
+    return false;
+  }
+
+  if (routing === 'angled') {
+    const midX = (x1 + x2) / 2;
+    const segs: [[number, number], [number, number]][] = [
+      [[x1, y1], [midX, y1]],
+      [[midX, y1], [midX, y2]],
+      [[midX, y2], [x2, y2]],
+    ];
+    for (const [[sx1, sy1], [sx2, sy2]] of segs) {
+      const sdx = sx2 - sx1;
+      const sdy = sy2 - sy1;
+      const slenSq = sdx * sdx + sdy * sdy;
+      if (slenSq === 0) {
+        if (Math.hypot(px - sx1, py - sy1) <= threshold) return true;
+        continue;
+      }
+      const st = Math.max(0, Math.min(1, ((px - sx1) * sdx + (py - sy1) * sdy) / slenSq));
+      if (Math.hypot(px - (sx1 + st * sdx), py - (sy1 + st * sdy)) <= threshold) return true;
+    }
+    return false;
+  }
+
   const dx = x2 - x1;
   const dy = y2 - y1;
   const lenSq = dx * dx + dy * dy;

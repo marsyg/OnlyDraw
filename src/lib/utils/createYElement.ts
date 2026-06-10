@@ -63,6 +63,8 @@ const createYElement = (element: OnlyDrawElement) => {
       newElement.set('isTwoWay', element.type === elementType.ArrowTwoWay || !!element.isTwoWay);
       newElement.set('startBinding', element.startBinding ?? null);
       newElement.set('endBinding', element.endBinding ?? null);
+      newElement.set('routing', element.routing || 'straight');
+      newElement.set('controlPoint', element.controlPoint ?? null);
       break;
     }
     case elementType.Rectangle:
@@ -140,6 +142,12 @@ const updateYElement = (element: OnlyDrawElement, yElement: Y.Map<unknown>) => {
       yElement.set('isTwoWay', element.type === elementType.ArrowTwoWay || !!element.isTwoWay);
       yElement.set('startBinding', element.startBinding ?? null);
       yElement.set('endBinding', element.endBinding ?? null);
+      if (element.routing !== undefined) {
+        yElement.set('routing', element.routing);
+      }
+      if (element.controlPoint !== undefined) {
+        yElement.set('controlPoint', element.controlPoint);
+      }
       break;
     }
     case elementType.Rectangle:

@@ -15,7 +15,7 @@ import { isPointInsideElement } from '@/lib/utils/drawingUtility/hitTest';
 import { DrawBounds } from '@/lib/drawBounds';
 import { getBounds } from '@/lib/utils/boundsUtility/getBounds';
 import { isPointInPaddedBounds } from '@/lib/utils/boundsUtility/isPointInPaddedBounds';
-import { findNearestSnapTarget, drawGhostSnapIndicators, SnapTarget, cleanupArrowBindings } from '@/lib/arrowSnap';
+import { findNearestSnapTarget, drawGhostSnapIndicators, SnapTarget, cleanupArrowBindings, getBindingPosition, SnapLocation } from '@/lib/arrowSnap';
 import { UndoManager } from '@/Store/yjs-store';
 import canvasDoc from '@/Store/yjs-store';
 import * as Y from 'yjs';
@@ -173,6 +173,7 @@ export default function App() {
   const justFinishedEditingTextRef = useRef<boolean>(false);
   const textCreationTimeRef = useRef<number>(0);
   const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
+  const isCurvingArrowRef = useRef<{ el: Y.Map<unknown> } | null>(null);
 
   const flagRef = useRef<boolean>(false)
   const animationFrameIdRef = useRef<number | null>(null);
@@ -246,6 +247,48 @@ export default function App() {
       );
       if (!isEditingCurrent) {
         DrawBounds({ context: ctx, bounds: bound });
+
+        const targetEl = selectedYElement || (selectedElementIds.length === 1 ? yElement.get(selectedElementIds[0]) : null);
+        if (targetEl && (targetEl.get('type') === elementType.Arrow || targetEl.get('type') === elementType.ArrowTwoWay)) {
+          let ax1 = Number(targetEl.get('x'));
+          let ay1 = Number(targetEl.get('y'));
+          let ax2 = ax1 + Number(targetEl.get('width'));
+          let ay2 = ay1 + Number(targetEl.get('height'));
+          const startBinding = targetEl.get('startBinding') as { elementId: string; point: SnapLocation } | undefined;
+          const endBinding = targetEl.get('endBinding') as { elementId: string; point: SnapLocation } | undefined;
+          if (startBinding) {
+            const sp = getBindingPosition(startBinding, yElement);
+            if (sp) { ax1 = sp[0]; ay1 = sp[1]; }
+          }
+          if (endBinding) {
+            const ep = getBindingPosition(endBinding, yElement);
+            if (ep) { ax2 = ep[0]; ay2 = ep[1]; }
+          }
+          const rawControl = targetEl.get('controlPoint') as { x: number; y: number } | undefined;
+          const midX = (ax1 + ax2) / 2;
+          const midY = (ay1 + ay2) / 2;
+          const cx = rawControl ? rawControl.x : midX;
+          const cy = rawControl ? rawControl.y : midY;
+
+          ctx.save();
+          ctx.strokeStyle = 'rgba(168, 85, 247, 0.7)';
+          ctx.setLineDash([3, 3]);
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.moveTo(midX, midY);
+          ctx.lineTo(cx, cy);
+          ctx.stroke();
+
+          ctx.setLineDash([]);
+          ctx.fillStyle = '#a855f7';
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(cx, cy, 6.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.restore();
+        }
       }
     }
 
@@ -633,6 +676,34 @@ export default function App() {
 
     setFreehandPoint([[initialPoint[0], initialPoint[1], 1] as PointsFreeHand]);
     if (currentTool.action === actionType.Selecting) {
+      const singleArrow = selectedYElement || (selectedElementIds.length === 1 ? yElement.get(selectedElementIds[0]) : null);
+      if (singleArrow && (singleArrow.get('type') === elementType.Arrow || singleArrow.get('type') === elementType.ArrowTwoWay)) {
+        let ax1 = Number(singleArrow.get('x'));
+        let ay1 = Number(singleArrow.get('y'));
+        let ax2 = ax1 + Number(singleArrow.get('width'));
+        let ay2 = ay1 + Number(singleArrow.get('height'));
+        const startBinding = singleArrow.get('startBinding') as { elementId: string; point: SnapLocation } | undefined;
+        const endBinding = singleArrow.get('endBinding') as { elementId: string; point: SnapLocation } | undefined;
+        if (startBinding) {
+          const sp = getBindingPosition(startBinding, yElement);
+          if (sp) { ax1 = sp[0]; ay1 = sp[1]; }
+        }
+        if (endBinding) {
+          const ep = getBindingPosition(endBinding, yElement);
+          if (ep) { ax2 = ep[0]; ay2 = ep[1]; }
+        }
+        const rawControl = singleArrow.get('controlPoint') as { x: number; y: number } | undefined;
+        const cx = rawControl ? rawControl.x : (ax1 + ax2) / 2;
+        const cy = rawControl ? rawControl.y : (ay1 + ay2) / 2;
+
+        if (Math.hypot(initialPoint[0] - cx, initialPoint[1] - cy) <= 12) {
+          isCurvingArrowRef.current = { el: singleArrow };
+          setCursorStyle('crosshair');
+          setIsDragging(false);
+          return;
+        }
+      }
+
       const handleHit = bound ? detectResizeHandle({ point: initialPoint, element: bound, tolerance: 10 }) : null;
       if (handleHit) {
         resizeHandleRef.current = handleHit;
@@ -915,6 +986,16 @@ export default function App() {
     }
 
     const [x, y] = getPointerCoordinates(e);
+
+    if (isCurvingArrowRef.current) {
+      const targetEl = isCurvingArrowRef.current.el;
+      doc.transact(() => {
+        targetEl.set('controlPoint', { x, y });
+        targetEl.set('routing', 'curved');
+      }, LOCAL_ORIGIN);
+      scheduleRender();
+      return;
+    }
 
     if (isMarqueeRef.current && marqueeStartRef.current) {
       const [startX, startY] = marqueeStartRef.current;
@@ -1345,6 +1426,14 @@ export default function App() {
       }
       arrowStartBindingRef.current = null;
       arrowEndBindingRef.current = null;
+    }
+
+    if (isCurvingArrowRef.current) {
+      const targetEl = isCurvingArrowRef.current.el;
+      isCurvingArrowRef.current = null;
+      setBound(getBounds({ element: targetEl }));
+      scheduleRender();
+      return;
     }
 
     const wasMoving = isDrawing || isDragging || isResizing || isPanningRef.current;
