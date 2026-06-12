@@ -1830,6 +1830,114 @@ export default function App() {
     scheduleRender();
   }, [setYElement, setBound, setLockedBounds, scheduleRender]);
 
+  const insertTextElement = useCallback(
+    (text: string, customX?: number, customY?: number) => {
+      const canvas = canvasRef.current;
+      const cam = cameraRef.current;
+      const screenCenterX = canvas ? canvas.width / 2 : window.innerWidth / 2;
+      const screenCenterY = canvas ? canvas.height / 2 : window.innerHeight / 2;
+      const defaultX = (screenCenterX - cam.x) / cam.scale;
+      const defaultY = (screenCenterY - cam.y) / cam.scale;
+      const targetX = customX !== undefined ? customX : defaultX - 80;
+      const targetY = customY !== undefined ? customY : defaultY - 20;
+
+      const fSize = fontSize || 24;
+      const fFam = fontFamily || 'sans-serif';
+      const lines = text.split('\n');
+
+      let maxW = 40;
+      if (typeof document !== 'undefined') {
+        const c = document.createElement('canvas');
+        const ctx = c.getContext('2d');
+        if (ctx) {
+          ctx.font = `${fSize}px ${fFam}`;
+          lines.forEach((line) => {
+            maxW = Math.max(maxW, ctx.measureText(line || 'M').width);
+          });
+        }
+      }
+      const measuredWidth = Math.ceil(maxW + 20);
+      const measuredHeight = Math.ceil(lines.length * fSize * 1.35 + 10);
+
+      const defaultColor = isDark ? '#f8fafc' : '#0f172a';
+      let txtColor = fillColor || strokeColor || defaultColor;
+      if (isDark && (txtColor === '#000000' || txtColor === 'black' || txtColor === '#1e293b' || txtColor === '#0f172a')) {
+        txtColor = '#f8fafc';
+      } else if (!isDark && (txtColor === '#ffffff' || txtColor === 'white' || txtColor === '#f8fafc' || txtColor === '#f1f5f9')) {
+        txtColor = '#0f172a';
+      }
+
+      const textElement = handleDrawElement({
+        action: actionType.Drawing,
+        element: elementType.Text,
+        startPoint: [targetX, targetY],
+        endPoint: [targetX + measuredWidth, targetY + measuredHeight],
+        options: {
+          strokeColor: txtColor,
+          strokeWidth: strokeWidth,
+          fillColor: txtColor,
+          isFillTransparent: true, // Transparent so it cleanly overlaps any diagram
+          fillStyle: fillStyle,
+          roughness: roughness,
+          boundaryStyle: boundaryStyle,
+          fillWeight: fillWeight,
+          opacity: opacity,
+          hasShadow: hasShadow,
+          text: text,
+          fontSize: fSize,
+          fontFamily: fFam,
+          textAlign: textAlign || 'left',
+        },
+      });
+
+      if (!textElement) return;
+
+      let createdYEl: Y.Map<unknown> | null = null;
+      doc.transact(() => {
+        createdYEl = yUtils.createYElement(textElement);
+        if (createdYEl) {
+          yElement.set(textElement.id, createdYEl);
+          order.push([textElement.id]);
+        }
+      }, LOCAL_ORIGIN);
+
+      if (createdYEl) {
+        setSelectedElementIds([textElement.id]);
+        setYElement(createdYEl);
+        setBound(getBounds({ element: createdYEl }));
+        setLockedBounds(true);
+        setCurrentTool({ action: actionType.Selecting, elementType: elementType.Select });
+        setActiveToolbarId('select');
+        scheduleRender();
+      }
+    },
+    [
+      doc,
+      yElement,
+      order,
+      fontSize,
+      fontFamily,
+      isDark,
+      fillColor,
+      strokeColor,
+      strokeWidth,
+      fillStyle,
+      roughness,
+      boundaryStyle,
+      fillWeight,
+      opacity,
+      hasShadow,
+      textAlign,
+      setSelectedElementIds,
+      setYElement,
+      setBound,
+      setLockedBounds,
+      setCurrentTool,
+      setActiveToolbarId,
+      scheduleRender,
+    ]
+  );
+
   const insertImageElement = useCallback((dataUrl: string, targetX: number, targetY: number) => {
     const img = new Image();
     img.onload = () => {
@@ -1909,20 +2017,28 @@ export default function App() {
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     const files = e.dataTransfer.files;
-    if (!files || files.length === 0) return;
-    const file = files[0];
-    if (!file.type.startsWith('image/')) return;
-
-    const [worldX, worldY] = getPointerCoordinates(e);
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      if (dataUrl) {
-        insertImageElement(dataUrl, worldX, worldY);
+    if (files && files.length > 0) {
+      const file = files[0];
+      if (file.type.startsWith('image/')) {
+        const [worldX, worldY] = getPointerCoordinates(e);
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const dataUrl = event.target?.result as string;
+          if (dataUrl) {
+            insertImageElement(dataUrl, worldX, worldY);
+          }
+        };
+        reader.readAsDataURL(file);
+        return;
       }
-    };
-    reader.readAsDataURL(file);
-  }, [getPointerCoordinates, insertImageElement]);
+    }
+
+    const textData = e.dataTransfer.getData('text/plain');
+    if (textData && textData.trim().length > 0) {
+      const [worldX, worldY] = getPointerCoordinates(e);
+      insertTextElement(textData, worldX, worldY);
+    }
+  }, [getPointerCoordinates, insertImageElement, insertTextElement]);
 
   useEffect(() => {
     const handleWindowPaste = (e: ClipboardEvent) => {
@@ -1933,36 +2049,43 @@ export default function App() {
         return;
       }
       const items = e.clipboardData?.items;
-      if (!items) return;
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        if (item.type.startsWith('image/')) {
-          const file = item.getAsFile();
-          if (file) {
-            e.preventDefault();
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-              const dataUrl = ev.target?.result as string;
-              if (dataUrl) {
-                const canvas = canvasRef.current;
-                const cam = cameraRef.current;
-                const screenCenterX = canvas ? canvas.width / 2 : window.innerWidth / 2;
-                const screenCenterY = canvas ? canvas.height / 2 : window.innerHeight / 2;
-                const worldX = (screenCenterX - cam.x) / cam.scale;
-                const worldY = (screenCenterY - cam.y) / cam.scale;
-                insertImageElement(dataUrl, worldX - 150, worldY - 100);
-              }
-            };
-            reader.readAsDataURL(file);
-            break;
+      if (items) {
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i];
+          if (item.type.startsWith('image/')) {
+            const file = item.getAsFile();
+            if (file) {
+              e.preventDefault();
+              const reader = new FileReader();
+              reader.onload = (ev) => {
+                const dataUrl = ev.target?.result as string;
+                if (dataUrl) {
+                  const canvas = canvasRef.current;
+                  const cam = cameraRef.current;
+                  const screenCenterX = canvas ? canvas.width / 2 : window.innerWidth / 2;
+                  const screenCenterY = canvas ? canvas.height / 2 : window.innerHeight / 2;
+                  const worldX = (screenCenterX - cam.x) / cam.scale;
+                  const worldY = (screenCenterY - cam.y) / cam.scale;
+                  insertImageElement(dataUrl, worldX - 150, worldY - 100);
+                }
+              };
+              reader.readAsDataURL(file);
+              return;
+            }
           }
         }
+      }
+
+      const text = e.clipboardData?.getData('text/plain');
+      if (text && text.trim().length > 0) {
+        e.preventDefault();
+        insertTextElement(text);
       }
     };
 
     window.addEventListener('paste', handleWindowPaste);
     return () => window.removeEventListener('paste', handleWindowPaste);
-  }, [insertImageElement]);
+  }, [insertImageElement, insertTextElement]);
 
   const selectTool = useCallback(
     (id: string, action: actionType, elType: elementType) => {
@@ -2052,32 +2175,41 @@ export default function App() {
     }
 
     try {
-      if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.read) {
-        const items = await navigator.clipboard.read();
-        for (const item of items) {
-          const imageType = item.types.find((t) => t.startsWith('image/'));
-          if (imageType) {
-            const blob = await item.getType(imageType);
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-              const dataUrl = ev.target?.result as string;
-              if (dataUrl) {
-                const canvas = canvasRef.current;
-                const cam = cameraRef.current;
-                const screenCenterX = canvas ? canvas.width / 2 : window.innerWidth / 2;
-                const screenCenterY = canvas ? canvas.height / 2 : window.innerHeight / 2;
-                const worldX = (screenCenterX - cam.x) / cam.scale;
-                const worldY = (screenCenterY - cam.y) / cam.scale;
-                insertImageElement(dataUrl, worldX - 150, worldY - 100);
-              }
-            };
-            reader.readAsDataURL(blob);
-            break;
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        if (navigator.clipboard.read) {
+          const items = await navigator.clipboard.read();
+          for (const item of items) {
+            const imageType = item.types.find((t) => t.startsWith('image/'));
+            if (imageType) {
+              const blob = await item.getType(imageType);
+              const reader = new FileReader();
+              reader.onload = (ev) => {
+                const dataUrl = ev.target?.result as string;
+                if (dataUrl) {
+                  const canvas = canvasRef.current;
+                  const cam = cameraRef.current;
+                  const screenCenterX = canvas ? canvas.width / 2 : window.innerWidth / 2;
+                  const screenCenterY = canvas ? canvas.height / 2 : window.innerHeight / 2;
+                  const worldX = (screenCenterX - cam.x) / cam.scale;
+                  const worldY = (screenCenterY - cam.y) / cam.scale;
+                  insertImageElement(dataUrl, worldX - 150, worldY - 100);
+                }
+              };
+              reader.readAsDataURL(blob);
+              return;
+            }
+          }
+        }
+        if (navigator.clipboard.readText) {
+          const text = await navigator.clipboard.readText();
+          if (text && text.trim().length > 0) {
+            insertTextElement(text);
+            return;
           }
         }
       }
     } catch {}
-  }, [clipboard, doc, yElement, order, setClipboard, setSelectedElementIds, setYElement, setBound, setLockedBounds, scheduleRender, insertImageElement]);
+  }, [clipboard, doc, yElement, order, setClipboard, setSelectedElementIds, setYElement, setBound, setLockedBounds, scheduleRender, insertImageElement, insertTextElement]);
 
   const handleDuplicate = useCallback(() => {
     if (selectedElementIds.length > 1) {
