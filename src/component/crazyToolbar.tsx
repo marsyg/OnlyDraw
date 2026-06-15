@@ -160,6 +160,11 @@ export default function RoughSketchToolbox({
     ? ["#f8fafc", "#3b82f6", "#10b981", "#8b5cf6", "#f59e0b", "#ef4444", "#94a3b8", "#1e293b"]
     : ["#0f172a", "#3b82f6", "#10b981", "#8b5cf6", "#f59e0b", "#ef4444", "#64748b", "#ffffff"];
 
+  // Dedicated light/pastel fill swatches designed for readability when writing text over shapes
+  const fillSwatches = isDark
+    ? ["#1e293b", "#1e3a5f", "#14532d", "#3b1e54", "#451a03", "#450a0a", "#334155", "#0f172a"]
+    : ["#dbeafe", "#dcfce7", "#ede9fe", "#fef3c7", "#fee2e2", "#e0f2fe", "#f1f5f9", "#ffffff"];
+
   const textSwatches = isDark
     ? ["#f8fafc", "#94a3b8", "#60a5fa", "#34d399", "#a78bfa", "#fbbf24", "#f87171", "#38bdf8"]
     : ["#0f172a", "#475569", "#2563eb", "#10b981", "#8b5cf6", "#d97706", "#dc2626", "#0284c7"];
@@ -802,7 +807,7 @@ export default function RoughSketchToolbox({
                           )}
                         </button>
                         <div className="flex flex-wrap gap-1 items-center flex-1">
-                          {shapeSwatches.map((c) => (
+                          {fillSwatches.map((c) => (
                             <button
                               key={'fill-' + c}
                               onClick={() => {

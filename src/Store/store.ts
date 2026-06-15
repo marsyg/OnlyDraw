@@ -102,7 +102,7 @@ export const useAppStore = create<AppState>((set) => ({
     elementType: null,
   },
   strokeColor: '#1e293b',
-  fillColor: '#3b82f6',
+  fillColor: '#dbeafe',
   isDrawing: false,
   isDragging: false,
   isResizing: false,
