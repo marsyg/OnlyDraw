@@ -144,6 +144,7 @@ export default function RoughSketchToolbox({
     boundaryStyle, setBoundaryStyle, hasShadow, setHasShadow, opacity, setOpacity, setBound,
     rotation, setRotation, rotationAxis, setRotationAxis, selectedYElement, selectedElementIds,
     fontSize, setFontSize, fontFamily, setFontFamily, textAlign, setTextAlign,
+    arrowRouting, setArrowRouting,
   } = useAppStore();
 
   const colorRef = useRef<HTMLInputElement | null>(null);
@@ -153,6 +154,24 @@ export default function RoughSketchToolbox({
   const isTextElement = Boolean(
     selectedType === elementType.Text ||
     (currentTool.elementType === elementType.Text)
+  );
+
+  const isArrowElement = Boolean(
+    selectedType === elementType.Arrow ||
+    selectedType === elementType.ArrowTwoWay ||
+    currentTool.elementType === elementType.Arrow ||
+    currentTool.elementType === elementType.ArrowTwoWay
+  );
+
+  const isLineElement = Boolean(
+    selectedType === elementType.Line ||
+    currentTool.elementType === elementType.Line
+  );
+
+  const showFillControl = !isArrowElement && !isLineElement;
+
+  const currentRouting = String(
+    selectedYElement?.get('routing') || arrowRouting || 'straight'
   );
 
   // Palettes tuned for light / dark
@@ -278,6 +297,8 @@ export default function RoughSketchToolbox({
       if (fFam) setFontFamily(fFam);
       const tAlign = selectedYElement.get('textAlign') as 'left' | 'center' | 'right' | undefined;
       if (tAlign) setTextAlign(tAlign);
+      const rting = selectedYElement.get('routing') as 'straight' | 'curved' | 'angled' | undefined;
+      if (rting) setArrowRouting(rting);
     }
   }, [
     selectedYElement,
@@ -296,7 +317,24 @@ export default function RoughSketchToolbox({
     setFontSize,
     setFontFamily,
     setTextAlign,
+    setArrowRouting,
   ]);
+
+  const changeArrowRouting = (newRouting: 'straight' | 'curved' | 'angled') => {
+    setArrowRouting(newRouting);
+    getSelectedElements().forEach((el) => {
+      const type = el.get('type') as elementType;
+      if (type === elementType.Arrow || type === elementType.ArrowTwoWay) {
+        el.set('routing', newRouting);
+        if (newRouting === 'straight') {
+          el.set('controlPoint', null);
+        }
+      }
+    });
+    if (selectedYElement) {
+      setBound(getBounds({ element: selectedYElement }));
+    }
+  };
 
   // Handlers
   const handleClick = (id: string, action: actionType, elType: elementType) => {
@@ -731,6 +769,35 @@ export default function RoughSketchToolbox({
               ───────────────────────────────────────────────────────────── */}
               {!isTextElement && (
                 <>
+                  {/* Arrow Routing Style (Straight, Curved, Angled) */}
+                  {isArrowElement && (
+                    <div className="space-y-1.5 pb-2 border-b border-slate-200/50 dark:border-slate-800/80">
+                      <div className="flex justify-between items-center text-[11px]">
+                        <span className={`font-semibold ${labelColor}`}>Arrow Type</span>
+                        <span className={`font-mono text-[10px] uppercase ${mutedColor}`}>{currentRouting}</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-1">
+                        {[
+                          { id: 'straight', label: 'Straight' },
+                          { id: 'curved', label: 'Curved' },
+                          { id: 'angled', label: 'Angled' },
+                        ].map((rt) => (
+                          <button
+                            key={rt.id}
+                            onClick={() => changeArrowRouting(rt.id as 'straight' | 'curved' | 'angled')}
+                            className={`py-1.5 text-[10px] rounded border font-medium transition-colors ${
+                              currentRouting === rt.id
+                                ? 'bg-blue-600 text-white border-blue-500 shadow-sm'
+                                : btnBase
+                            }`}
+                          >
+                            {rt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* 1. Stroke Color */}
                   <div className="space-y-1.5">
                     <div className="flex justify-between items-center text-[11px]">

@@ -51,8 +51,10 @@ export type AppState = {
   fontFamily: string;
   textAlign: 'left' | 'center' | 'right';
   camera: Camera;
+  arrowRouting: 'straight' | 'curved' | 'angled';
   clipboard: Record<string, unknown> | Record<string, unknown>[] | null;
   //actions
+  setArrowRouting: (routing: 'straight' | 'curved' | 'angled') => void;
   setFontSize: (v: number) => void;
   setFontFamily: (v: string) => void;
   setTextAlign: (v: 'left' | 'center' | 'right') => void;
@@ -128,9 +130,11 @@ export const useAppStore = create<AppState>((set) => ({
   fontSize: 24,
   fontFamily: 'sans-serif',
   textAlign: 'left',
+  arrowRouting: 'straight',
   camera: { x: 0, y: 0, scale: 1 },
   clipboard: null,
 
+  setArrowRouting: (routing) => set({ arrowRouting: routing }),
   setFontSize: (v) => set({ fontSize: v }),
   setFontFamily: (v) => set({ fontFamily: v }),
   setTextAlign: (v) => set({ textAlign: v }),

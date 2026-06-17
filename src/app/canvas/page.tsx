@@ -93,6 +93,7 @@ export default function App() {
     setFontSize,
     setFontFamily,
     setTextAlign,
+    arrowRouting,
   } = useAppStore();
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   const [isDark, setIsDark] = useState<boolean>(() => {
@@ -930,6 +931,7 @@ export default function App() {
           hasShadow: hasShadow,
           startBinding: arrowStartBindingRef.current,
           endBinding: null,
+          routing: isArrowTool ? arrowRouting : undefined,
         },
         stroke: {
           points: [[startPoint[0], startPoint[1], 1]],
