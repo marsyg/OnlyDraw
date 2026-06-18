@@ -168,8 +168,6 @@ export default function RoughSketchToolbox({
     currentTool.elementType === elementType.Line
   );
 
-  const showFillControl = !isArrowElement && !isLineElement;
-
   const currentRouting = String(
     selectedYElement?.get('routing') || arrowRouting || 'straight'
   );
@@ -396,7 +394,12 @@ export default function RoughSketchToolbox({
   };
 
   const hasSelection = Boolean(selectedYElement || selectedElementIds.length > 0);
-  const showFillControl = !isTextElement && (!currentTool.elementType || currentTool.elementType === elementType.Rectangle || currentTool.elementType === elementType.Ellipse || hasSelection);
+  const showFillControl = !isTextElement && !isArrowElement && !isLineElement && (
+    !currentTool.elementType ||
+    currentTool.elementType === elementType.Rectangle ||
+    currentTool.elementType === elementType.Ellipse ||
+    hasSelection
+  );
 
   // Theme-aware color tokens
   const panelClasses = isDark
