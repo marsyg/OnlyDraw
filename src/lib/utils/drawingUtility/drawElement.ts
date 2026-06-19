@@ -10,6 +10,7 @@ import getStrokeLineDash from '@/lib/helperfunc/getStrokedLine';
 import { BoundaryStyle } from '@/Store/store';
 import { getPivotPoint } from '@/lib/math/pivot';
 import { getBindingPosition, SnapLocation } from '@/lib/arrowSnap';
+import { getArrowLabelBounds } from '@/lib/utils/arrowLabel';
 type DrawingArgs = {
   ctx: CanvasRenderingContext2D;
   element: Y.Map<unknown>;
@@ -325,6 +326,47 @@ export const DrawElements = ({ ctx, element, rc }: DrawingArgs) => {
       drawHead(x2, y2, angle);
       if (isTwoWay) {
         drawHead(x1, y1, angle + Math.PI);
+      }
+    }
+
+    const labelText = String(element.get('text') || '').trim();
+    const isEditingThis = typeof window !== 'undefined' && (window as unknown as { __canvas_editing_text_id?: string }).__canvas_editing_text_id === element.get('id');
+
+    if (labelText && !isEditingThis) {
+      const bounds = getArrowLabelBounds(element, parentMap, ctx);
+      if (bounds) {
+        ctx.save();
+        const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+        const bgFill = isDark ? '#0f172a' : '#ffffff';
+        const textColor = isDark ? '#f8fafc' : '#0f172a';
+        const borderColor = isDark ? 'rgba(148, 163, 184, 0.4)' : 'rgba(203, 213, 225, 0.9)';
+
+        // Draw pill/badge background to mask the arrow line seamlessly
+        ctx.beginPath();
+        if (typeof ctx.roundRect === 'function') {
+          ctx.roundRect(bounds.x, bounds.y, bounds.width, bounds.height, 6);
+        } else {
+          ctx.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+        }
+        ctx.fillStyle = bgFill;
+        ctx.fill();
+        ctx.strokeStyle = borderColor;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Draw text lines centered inside the pill
+        ctx.font = `600 ${bounds.fontSize}px ${bounds.fontFamily}`;
+        ctx.fillStyle = textColor;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const lineHeight = bounds.fontSize * 1.35;
+        const centerX = bounds.x + bounds.width / 2;
+        const startY = bounds.y + (bounds.height - (bounds.lines.length - 1) * lineHeight) / 2;
+
+        bounds.lines.forEach((line, idx) => {
+          ctx.fillText(line, centerX, startY + idx * lineHeight);
+        });
+        ctx.restore();
       }
     }
 

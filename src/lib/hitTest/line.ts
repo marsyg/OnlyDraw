@@ -2,6 +2,7 @@ import { args } from './argumentType';
 import * as Y from 'yjs';
 import canvasDoc from '@/Store/yjs-store';
 import { getBindingPosition, SnapLocation } from '@/lib/arrowSnap';
+import { getArrowLabelBounds } from '@/lib/utils/arrowLabel';
 
 export function isNearLine({ point, element }: args) {
   const px = point[0];
@@ -31,6 +32,18 @@ export function isNearLine({ point, element }: args) {
           x2 = ep[0];
           y2 = ep[1];
         }
+      }
+    }
+
+    const labelBounds = getArrowLabelBounds(element, parentMap);
+    if (labelBounds) {
+      if (
+        px >= labelBounds.x - 4 &&
+        px <= labelBounds.x + labelBounds.width + 4 &&
+        py >= labelBounds.y - 4 &&
+        py <= labelBounds.y + labelBounds.height + 4
+      ) {
+        return true;
       }
     }
   }

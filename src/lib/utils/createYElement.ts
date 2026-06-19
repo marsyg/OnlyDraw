@@ -65,6 +65,9 @@ const createYElement = (element: OnlyDrawElement) => {
       newElement.set('endBinding', element.endBinding ?? null);
       newElement.set('routing', element.routing || 'straight');
       newElement.set('controlPoint', element.controlPoint ?? null);
+      if (element.text !== undefined) newElement.set('text', element.text);
+      if (element.fontSize !== undefined) newElement.set('fontSize', element.fontSize);
+      if (element.fontFamily !== undefined) newElement.set('fontFamily', element.fontFamily);
       break;
     }
     case elementType.Rectangle:
@@ -147,6 +150,15 @@ const updateYElement = (element: OnlyDrawElement, yElement: Y.Map<unknown>) => {
       }
       if (element.controlPoint !== undefined) {
         yElement.set('controlPoint', element.controlPoint);
+      }
+      if (element.text !== undefined) {
+        yElement.set('text', element.text);
+      }
+      if (element.fontSize !== undefined) {
+        yElement.set('fontSize', element.fontSize);
+      }
+      if (element.fontFamily !== undefined) {
+        yElement.set('fontFamily', element.fontFamily);
       }
       break;
     }

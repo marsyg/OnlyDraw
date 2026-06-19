@@ -61,6 +61,9 @@ export type arrowElement = baseType & {
   isTwoWay?: boolean;
   routing?: 'straight' | 'curved' | 'angled';
   controlPoint?: { x: number; y: number } | null;
+  text?: string;
+  fontSize?: number;
+  fontFamily?: string;
 };
 
 export type freeHandElement = baseType & {
@@ -173,3 +176,12 @@ export type ElementOptions = {
   routing?: 'straight' | 'curved' | 'angled';
   controlPoint?: { x: number; y: number } | null;
 };
+
+export interface WorkspaceMeta {
+  id: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+  elementCount?: number;
+}
+
