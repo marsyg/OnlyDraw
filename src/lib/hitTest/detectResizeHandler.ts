@@ -32,10 +32,11 @@ function detectResizeHandle({ point, element, tolerance }: args): ResizeHandleIn
   const w = element.width;
   const h = element.height;
 
-  const boxX = x - BOUNDS_PADDING;
-  const boxY = y - BOUNDS_PADDING;
-  const boxWidth = w + BOUNDS_PADDING * 2;
-  const boxHeight = h + BOUNDS_PADDING * 2;
+  const padding = element.padding !== undefined ? element.padding : BOUNDS_PADDING;
+  const boxX = x - padding;
+  const boxY = y - padding;
+  const boxWidth = w + padding * 2;
+  const boxHeight = h + padding * 2;
 
   // Check rotation handle first
   const rotX = boxX + boxWidth / 2;

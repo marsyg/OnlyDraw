@@ -30,19 +30,21 @@ const getRoughnessLabel = (value: number) => {
 };
 
 const measureTextDims = (text: string, fSize: number, fFam: string) => {
-  if (typeof document === 'undefined') return { width: 120, height: 36 };
+  if (typeof document === 'undefined') return { width: 30, height: 24 };
   const c = document.createElement('canvas');
   const ctx = c.getContext('2d');
-  if (!ctx) return { width: 120, height: 36 };
+  if (!ctx) return { width: 30, height: 24 };
   ctx.font = `${fSize}px ${fFam}`;
   const lines = text.split('\n');
-  let maxW = 40;
+  let maxW = 20;
   lines.forEach((l) => {
     maxW = Math.max(maxW, ctx.measureText(l || 'M').width);
   });
   return {
-    width: Math.ceil(maxW + 16),
-    height: Math.ceil(lines.length * fSize * 1.3 + 8),
+    width: Math.ceil(maxW),
+    height: Math.ceil(
+      lines.length > 1 ? (lines.length - 1) * (fSize * 1.25) + fSize : fSize * 1.15
+    ),
   };
 };
 
@@ -772,33 +774,68 @@ export default function RoughSketchToolbox({
               ───────────────────────────────────────────────────────────── */}
               {!isTextElement && (
                 <>
-                  {/* Arrow Routing Style (Straight, Curved, Angled) */}
+                  {/* Arrow Routing Style (Straight, Curved, Angled) & Label */}
                   {isArrowElement && (
-                    <div className="space-y-1.5 pb-2 border-b border-slate-200/50 dark:border-slate-800/80">
-                      <div className="flex justify-between items-center text-[11px]">
-                        <span className={`font-semibold ${labelColor}`}>Arrow Type</span>
-                        <span className={`font-mono text-[10px] uppercase ${mutedColor}`}>{currentRouting}</span>
+                    <>
+                      <div className="space-y-1.5 pb-2 border-b border-slate-200/50 dark:border-slate-800/80">
+                        <div className="flex justify-between items-center text-[11px]">
+                          <span className={`font-semibold ${labelColor}`}>Arrow Type</span>
+                          <span className={`font-mono text-[10px] uppercase ${mutedColor}`}>{currentRouting}</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-1">
+                          {[
+                            { id: 'straight', label: 'Straight' },
+                            { id: 'curved', label: 'Curved' },
+                            { id: 'angled', label: 'Angled' },
+                          ].map((rt) => (
+                            <button
+                              key={rt.id}
+                              onClick={() => changeArrowRouting(rt.id as 'straight' | 'curved' | 'angled')}
+                              className={`py-1.5 text-[10px] rounded border font-medium transition-colors ${
+                                currentRouting === rt.id
+                                  ? 'bg-blue-600 text-white border-blue-500 shadow-sm'
+                                  : btnBase
+                              }`}
+                            >
+                              {rt.label}
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                      <div className="grid grid-cols-3 gap-1">
-                        {[
-                          { id: 'straight', label: 'Straight' },
-                          { id: 'curved', label: 'Curved' },
-                          { id: 'angled', label: 'Angled' },
-                        ].map((rt) => (
-                          <button
-                            key={rt.id}
-                            onClick={() => changeArrowRouting(rt.id as 'straight' | 'curved' | 'angled')}
-                            className={`py-1.5 text-[10px] rounded border font-medium transition-colors ${
-                              currentRouting === rt.id
-                                ? 'bg-blue-600 text-white border-blue-500 shadow-sm'
-                                : btnBase
-                            }`}
-                          >
-                            {rt.label}
-                          </button>
-                        ))}
+
+                      <div className="space-y-1.5 pb-2 border-b border-slate-200/50 dark:border-slate-800/80">
+                        <div className="flex justify-between items-center text-[11px]">
+                          <span className={`font-semibold ${labelColor}`}>Arrow Label</span>
+                          {onEditText && (
+                            <button
+                              onClick={onEditText}
+                              className="text-[10px] text-blue-500 hover:text-blue-400 font-medium transition-colors"
+                              title="Double click arrow on canvas or open editor"
+                            >
+                              Edit on Canvas
+                            </button>
+                          )}
+                        </div>
+                        <input
+                          type="text"
+                          placeholder="Label this arrow..."
+                          value={String(selectedYElement?.get('text') || '')}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (selectedYElement) {
+                              canvasDoc.doc.transact(() => {
+                                selectedYElement.set('text', val);
+                              }, LOCAL_ORIGIN);
+                            }
+                          }}
+                          className={`w-full px-2 py-1.5 text-xs rounded-lg border transition-colors focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                            isDark
+                              ? 'bg-slate-800/80 border-slate-700 text-slate-100 placeholder-slate-500'
+                              : 'bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400'
+                          }`}
+                        />
                       </div>
-                    </div>
+                    </>
                   )}
 
                   {/* 1. Stroke Color */}

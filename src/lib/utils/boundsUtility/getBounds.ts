@@ -14,6 +14,7 @@ export type boundType = {
   height: number;
   angle?: number;
   rotationAxis?: string;
+  padding?: number;
 };
 export const getBounds = ({ element }: args): boundType => {
   const x = Number(element.get('x'));
@@ -63,10 +64,17 @@ export const getBounds = ({ element }: args): boundType => {
       return { x: x1, y: y1, width: x2 - x1, height: y2 - y1, angle, rotationAxis };
     }
 
+    case elementType.Text: {
+      const x1 = Math.min(x, x + width);
+      const y1 = Math.min(y, y + height);
+      const x2 = Math.max(x, x + width);
+      const y2 = Math.max(y, y + height);
+      return { x: x1, y: y1, width: x2 - x1, height: y2 - y1, angle, rotationAxis, padding: 3 };
+    }
+
     case elementType.Line:
     case elementType.Rectangle:
     case elementType.Ellipse:
-    case elementType.Text:
     case elementType.Image: {
       const x1 = Math.min(x, x + width);
       const y1 = Math.min(y, y + height);

@@ -9,7 +9,7 @@ type args = {
 
 export const DrawBounds = ({ context, bounds }: args) => {
   const { x, y, width, height, angle } = bounds;
-  const padding = BOUNDS_PADDING;
+  const padding = bounds.padding !== undefined ? bounds.padding : BOUNDS_PADDING;
   const handleSize = 8;
   const halfHandle = handleSize / 2;
 

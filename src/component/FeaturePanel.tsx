@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Moon, Sun, Zap, Users, Pencil, Shapes, RotateCcw, MousePointer2, ChevronRight, Move, Database, Download } from 'lucide-react';
+import { X, Moon, Sun, Zap, Users, Pencil, Shapes, RotateCcw, MousePointer2, ChevronRight, Move, Database, Download, Layers, Tag } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface FeaturePanelProps {
@@ -66,6 +66,18 @@ const FEATURES = [
     desc: 'Export your artwork as a crisp, cropped PNG image with one click.',
     color: '#14b8a6',
   },
+  {
+    icon: Tag,
+    title: 'Arrow Labels',
+    desc: 'Label any straight, curved or angled arrow with perfectly centered, auto-masking text pills.',
+    color: '#0ea5e9',
+  },
+  {
+    icon: Layers,
+    title: 'Multiple Workspaces',
+    desc: 'Create, duplicate, rename and switch between separate workspaces saved locally in IndexedDB.',
+    color: '#8b5cf6',
+  },
 ];
 
 const SHORTCUTS = [
@@ -76,6 +88,7 @@ const SHORTCUTS = [
   { keys: ['Ctrl', 'Z'], action: 'Undo' },
   { keys: ['Ctrl', 'Y'], action: 'Redo' },
   { keys: ['Del'], action: 'Delete selected' },
+  { keys: ['Double-Click', 'Arrow'], action: 'Label arrow' },
   { keys: ['Esc'], action: 'Cancel / Close' },
 ];
 

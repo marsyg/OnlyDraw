@@ -39,10 +39,14 @@ import { getPivotPoint } from '@/lib/math/pivot';
 import { getCompoundBounds, isRectIntersecting } from '@/lib/utils/boundsUtility/compoundBounds';
 import { getGroupMembers, groupElements, ungroupElements, cleanupOrphanGroups } from '@/lib/grouping';
 import { nanoid } from 'nanoid';
-
-
+import WorkspaceManager from '@/component/WorkspaceManager';
+import { getArrowLabelPosition } from '@/lib/utils/arrowLabel';
 
 export default function App() {
+  const [activeWorkspaceId, setActiveWorkspaceIdState] = useState<string>(() => {
+    return canvasDoc.activeWorkspaceId;
+  });
+
   const { doc, yElement, order } = canvasDoc;
 
 
@@ -134,6 +138,7 @@ export default function App() {
     fillColor: string;
     angle?: number;
     rotationAxis?: string;
+    isArrow?: boolean;
   };
   const [editingTextElement, setEditingTextElement] = useState<EditingTextState | null>(null);
   const editingTextElementRef = useRef<EditingTextState | null>(null);
@@ -386,6 +391,9 @@ export default function App() {
 
   const startEditingText = useCallback((yEl: Y.Map<unknown>) => {
     const id = yEl.get('id') as string;
+    const type = yEl.get('type') as string;
+    const isArrow = type === elementType.Arrow || type === elementType.ArrowTwoWay;
+
     setYElement(yEl);
     setSelectedElementIds([id]);
     setSelectedElementId(id);
@@ -403,29 +411,55 @@ export default function App() {
       }
     }
 
+    let edX = Number(yEl.get('x'));
+    let edY = Number(yEl.get('y'));
+    let edW = Number(yEl.get('width')) || 120;
+    let edH = Number(yEl.get('height')) || 36;
+    let edFontSize = Number(yEl.get('fontSize')) || 24;
+    let edAlign = String(yEl.get('textAlign') || 'left');
+
+    if (isArrow) {
+      const pos = getArrowLabelPosition(yEl, yElement);
+      edFontSize = Number(yEl.get('fontSize')) || 16;
+      edAlign = 'center';
+      edW = 120;
+      edH = 36;
+      edX = pos.x;
+      edY = pos.y;
+    }
+
+    if (typeof window !== 'undefined') {
+      (window as unknown as { __canvas_editing_text_id?: string | null }).__canvas_editing_text_id = id;
+    }
+
     const nextState: EditingTextState = {
       id,
       text: String(yEl.get('text') || ''),
-      x: Number(yEl.get('x')),
-      y: Number(yEl.get('y')),
-      width: Number(yEl.get('width')) || 120,
-      height: Number(yEl.get('height')) || 36,
-      fontSize: Number(yEl.get('fontSize')) || 24,
+      x: edX,
+      y: edY,
+      width: edW,
+      height: edH,
+      fontSize: edFontSize,
       fontFamily: String(yEl.get('fontFamily') || 'sans-serif'),
-      textAlign: String(yEl.get('textAlign') || 'left'),
+      textAlign: edAlign,
       fillColor: color,
-      angle: Number(yEl.get('angle')) || 0,
+      angle: isArrow ? 0 : (Number(yEl.get('angle')) || 0),
       rotationAxis: String(yEl.get('rotationAxis') || 'center'),
+      isArrow,
     };
     textCreationTimeRef.current = Date.now();
     editingTextElementRef.current = nextState;
     setEditingTextElement(nextState);
     scheduleRender();
-  }, [setYElement, setSelectedElementIds, setSelectedElementId, setBound, isDark, scheduleRender]);
+  }, [setYElement, setSelectedElementIds, setSelectedElementId, setBound, isDark, yElement, scheduleRender]);
 
   const finishEditingText = useCallback(() => {
     const currentEditing = editingTextElementRef.current;
     if (!currentEditing) return;
+
+    if (typeof window !== 'undefined') {
+      (window as unknown as { __canvas_editing_text_id?: string | null }).__canvas_editing_text_id = null;
+    }
 
     // Guard against premature blur from the click that spawned the textarea
     if (Date.now() - textCreationTimeRef.current < 250) {
@@ -445,7 +479,16 @@ export default function App() {
     }
 
     const trimmed = text.trim();
-    if (!trimmed) {
+    const isArrow = targetYEl.get('type') === elementType.Arrow || targetYEl.get('type') === elementType.ArrowTwoWay;
+
+    if (isArrow) {
+      doc.transact(() => {
+        targetYEl.set('text', trimmed);
+      }, LOCAL_ORIGIN);
+      setYElement(targetYEl);
+      setSelectedElementIds([id]);
+      setBound(getBounds({ element: targetYEl }));
+    } else if (!trimmed) {
       doc.transact(() => {
         const delSet = new Set([id]);
         cleanupArrowBindings(delSet, yElement);
@@ -464,15 +507,19 @@ export default function App() {
 
       const canvas = canvasRef.current;
       const ctx = canvas ? canvas.getContext('2d') : null;
-      let maxWidth = 40;
+      let maxWidth = 20;
       if (ctx) {
         ctx.font = `${fontSize}px ${fontFamily}`;
         lines.forEach((l) => {
           maxWidth = Math.max(maxWidth, ctx.measureText(l || 'M').width);
         });
       }
-      const measuredWidth = Math.ceil(maxWidth + 16);
-      const measuredHeight = Math.ceil(lines.length * fontSize * 1.3 + 8);
+      const measuredWidth = Math.ceil(maxWidth);
+      const measuredHeight = Math.ceil(
+        lines.length > 1
+          ? (lines.length - 1) * (fontSize * 1.25) + fontSize
+          : fontSize * 1.15
+      );
 
       doc.transact(() => {
         targetYEl.set('text', text);
@@ -508,7 +555,8 @@ export default function App() {
       const [x, y] = getPointerCoordinates(e);
       const hit = hitTestAtPoint([x, y]);
       if (hit && hit.yEl) {
-        if (hit.yEl.get('type') === elementType.Text) {
+        const hitType = hit.yEl.get('type');
+        if (hitType === elementType.Text || hitType === elementType.Arrow || hitType === elementType.ArrowTwoWay) {
           startEditingText(hit.yEl);
           return;
         }
@@ -1858,8 +1906,10 @@ export default function App() {
           });
         }
       }
-      const measuredWidth = Math.ceil(maxW + 20);
-      const measuredHeight = Math.ceil(lines.length * fSize * 1.35 + 10);
+      const measuredWidth = Math.ceil(maxW);
+      const measuredHeight = Math.ceil(
+        lines.length > 1 ? (lines.length - 1) * (fSize * 1.25) + fSize : fSize * 1.15
+      );
 
       const defaultColor = isDark ? '#f8fafc' : '#0f172a';
       let txtColor = fillColor || strokeColor || defaultColor;
@@ -2492,10 +2542,25 @@ export default function App() {
     },
   });
 
+  // Listen for workspace changes to re-render and re-bind active Y.Doc
+  useEffect(() => {
+    const handleWsChange = (e: Event) => {
+      const custom = e as CustomEvent<{ workspaceId: string }>;
+      const newId = custom.detail?.workspaceId || canvasDoc.activeWorkspaceId;
+      setActiveWorkspaceIdState(newId);
+      setYElement(null);
+      setSelectedElementIds([]);
+      setBound(null);
+      scheduleRender();
+    };
+    window.addEventListener('canvas:workspace-changed', handleWsChange);
+    return () => window.removeEventListener('canvas:workspace-changed', handleWsChange);
+  }, [scheduleRender, setYElement, setSelectedElementIds, setBound]);
+
   // IndexedDB local storage sync listener
   useEffect(() => {
-    if (!persistence) return;
-    const p = persistence;
+    const p = canvasDoc.persistence;
+    if (!p) return;
     const handleSynced = () => {
       scheduleRender();
     };
@@ -2503,18 +2568,20 @@ export default function App() {
     return () => {
       p.off('synced', handleSynced);
     };
-  }, [scheduleRender]);
+  }, [scheduleRender, activeWorkspaceId]);
 
   useEffect(() => {
-    const observerDeep = (events: Array<unknown>, transaction: Y.Transaction) => {
+    const currentYEl = canvasDoc.yElement;
+    const observerDeep = () => {
       scheduleRender();
     };
 
-    canvasDoc.yElement.observeDeep(observerDeep);
+    currentYEl.observeDeep(observerDeep);
+    scheduleRender();
     return () => {
-      canvasDoc.yElement.unobserveDeep(observerDeep);
+      currentYEl.unobserveDeep(observerDeep);
     };
-  }, [scheduleRender, yElement]);
+  }, [scheduleRender, activeWorkspaceId]);
 
   useEffect(() => {
     const handleGlobalPointerUp = (e: PointerEvent) => {
@@ -2602,11 +2669,15 @@ export default function App() {
         onUngroup={handleUngroup}
         onImageUpload={() => imageInputRef.current?.click()}
         onEditText={() => {
-          if (selectedYElement && selectedYElement.get('type') === elementType.Text) {
+          const isTextOrArrow = (el: Y.Map<unknown>) => {
+            const t = el.get('type');
+            return t === elementType.Text || t === elementType.Arrow || t === elementType.ArrowTwoWay;
+          };
+          if (selectedYElement && isTextOrArrow(selectedYElement)) {
             startEditingText(selectedYElement);
           } else if (selectedElementIds.length === 1) {
             const el = yElement.get(selectedElementIds[0]);
-            if (el && el.get('type') === elementType.Text) {
+            if (el && isTextOrArrow(el)) {
               startEditingText(el);
             }
           }
@@ -2614,6 +2685,10 @@ export default function App() {
         onAlign={handleAlign}
       />
       <FeaturePanel isDark={isDark} onToggleDark={() => setIsDark(d => !d)} />
+      {/* ── Top Left: Workspace Manager ── */}
+      <div className={`fixed ${isTouchDevice ? 'top-2 left-2' : 'top-4 left-4'} z-50 select-none`}>
+        <WorkspaceManager isDark={isDark} />
+      </div>
       {isCollaborating && connectionStatus === 'connected' && participants.map(p => {
 
         if (!p.cursor || p.clientId === providerRef.current?.awareness.clientID) return null;
@@ -2985,7 +3060,7 @@ export default function App() {
               finishEditingText();
             }
           }}
-          placeholder="Type text..."
+          placeholder={editingTextElement.isArrow ? "Label arrow..." : "Type text..."}
           style={(() => {
             const lines = (editingTextElement.text || ' ').split('\n');
             const canvas = canvasRef.current;
@@ -2998,8 +3073,11 @@ export default function App() {
               });
             }
             const currentScale = camera.scale;
-            const editorWidth = Math.max(120 * currentScale, Math.ceil((maxLineWidth + 24) * currentScale));
-            const editorHeight = Math.max(36 * currentScale, Math.ceil((lines.length * editingTextElement.fontSize * 1.3 + 12) * currentScale));
+            const lineH = editingTextElement.fontSize * 1.25;
+            const minW = editingTextElement.isArrow ? 40 : 20;
+            const textW = Math.max(editingTextElement.text ? minW : 48, maxLineWidth);
+            const editorWidth = Math.ceil((textW + 4) * currentScale);
+            const editorHeight = Math.ceil((Math.max(1, lines.length) * lineH + 2) * currentScale);
 
             let textColor = editingTextElement.fillColor;
             if (isDark) {
@@ -3012,33 +3090,40 @@ export default function App() {
               }
             }
 
+            const leftPos = editingTextElement.isArrow
+              ? editingTextElement.x * currentScale + camera.x - editorWidth / 2
+              : editingTextElement.x * currentScale + camera.x;
+            const topPos = editingTextElement.isArrow
+              ? editingTextElement.y * currentScale + camera.y - editorHeight / 2
+              : editingTextElement.y * currentScale + camera.y;
+
             return {
               position: 'absolute',
-              left: editingTextElement.x * currentScale + camera.x,
-              top: editingTextElement.y * currentScale + camera.y,
+              left: leftPos,
+              top: topPos,
               width: `${editorWidth}px`,
               height: `${editorHeight}px`,
               fontSize: `${editingTextElement.fontSize * currentScale}px`,
               fontFamily: editingTextElement.fontFamily,
               color: textColor,
               textAlign: editingTextElement.textAlign as React.CSSProperties['textAlign'],
-              lineHeight: 1.3,
-              background: isDark ? 'rgba(15, 23, 42, 0.92)' : 'rgba(255, 255, 255, 0.92)',
+              lineHeight: 1.25,
+              background: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)',
               backdropFilter: 'blur(8px)',
               WebkitBackdropFilter: 'blur(8px)',
-              border: '2px solid #3b82f6',
-              borderRadius: '6px',
+              border: isDark ? '1px dashed rgba(255, 255, 255, 0.35)' : '1px dashed rgba(0, 0, 0, 0.35)',
+              borderRadius: '4px',
               boxShadow: isDark
-                ? '0 0 0 1px rgba(59, 130, 246, 0.4), 0 8px 24px rgba(0, 0, 0, 0.6)'
-                : '0 0 0 1px rgba(59, 130, 246, 0.25), 0 8px 20px rgba(59, 130, 246, 0.15)',
+                ? '0 4px 16px rgba(0, 0, 0, 0.5)'
+                : '0 2px 8px rgba(0, 0, 0, 0.08)',
               outline: 'none',
               resize: 'none',
-              padding: `${2 * currentScale}px ${6 * currentScale}px`,
+              padding: `${1 * currentScale}px ${2 * currentScale}px`,
               margin: 0,
               zIndex: 60,
               overflow: 'hidden',
               whiteSpace: 'pre-wrap',
-              caretColor: '#3b82f6',
+              caretColor: textColor,
               transform: editingTextElement.angle ? `rotate(${editingTextElement.angle}rad)` : undefined,
               transformOrigin: '0 0',
             };

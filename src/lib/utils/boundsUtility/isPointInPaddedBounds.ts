@@ -17,10 +17,11 @@ export const isPointInPaddedBounds = (
     py = unrotated[1];
   }
 
-  const boxX = x - BOUNDS_PADDING;
-  const boxY = y - BOUNDS_PADDING;
-  const boxWidth = width + BOUNDS_PADDING * 2;
-  const boxHeight = height + BOUNDS_PADDING * 2;
+  const padding = bounds.padding !== undefined ? bounds.padding : BOUNDS_PADDING;
+  const boxX = x - padding;
+  const boxY = y - padding;
+  const boxWidth = width + padding * 2;
+  const boxHeight = height + padding * 2;
 
   return (
     px >= boxX &&
