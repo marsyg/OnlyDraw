@@ -865,13 +865,18 @@ export default function App() {
             setGlobalPointerPosition([x - cBound.x, y - cBound.y]);
           }
         } else {
-          if (selectedElementIds.includes(hit.id) && selectedElementIds.length > 1) {
+          // Check if any group member of the hit element is already in the multi-selection.
+          // This prevents a click on an ungrouped nearby element from hijacking a multi-drag.
+          const anyMemberSelected = groupMembers.some((id) => selectedElementIds.includes(id));
+          if (anyMemberSelected && selectedElementIds.length > 1) {
+            // User clicked inside an already-selected group — keep the full multi-drag
             setIsDragging(true);
             setLockedBounds(true);
             if (bound) {
               setGlobalPointerPosition([x - bound.x, y - bound.y]);
             }
           } else {
+            // New selection: resolve group members
             setSelectedElementIds(groupMembers);
             if (groupMembers.length === 1) {
               setYElement(hit.yEl);
@@ -3099,15 +3104,20 @@ export default function App() {
             if (ctx) {
               ctx.font = `${editingTextElement.fontSize}px ${editingTextElement.fontFamily}`;
               lines.forEach((l) => {
-                maxLineWidth = Math.max(maxLineWidth, ctx.measureText(l || 'M').width);
+                // Measure actual text + a one-character lookahead buffer (prevents clipping the char being typed)
+                const measured = ctx.measureText((l || '') + 'W').width;
+                maxLineWidth = Math.max(maxLineWidth, measured);
               });
             }
             const currentScale = camera.scale;
-            const lineH = editingTextElement.fontSize * 1.25;
-            const minW = editingTextElement.isArrow ? 40 : 20;
-            const textW = Math.max(editingTextElement.text ? minW : 48, maxLineWidth);
-            const editorWidth = Math.ceil((textW + 4) * currentScale);
-            const editorHeight = Math.ceil((Math.max(1, lines.length) * lineH + 2) * currentScale);
+            const lineH = editingTextElement.fontSize * 1.4;  // slightly taller to avoid cut-off descenders
+            // Generous padding: 24px horizontal buffer so text is never clipped mid-character
+            const hPad = 24;
+            const vPad = 8;
+            const minW = editingTextElement.isArrow ? 80 : 60;
+            const textW = Math.max(minW, maxLineWidth + hPad);
+            const editorWidth = Math.ceil(textW * currentScale);
+            const editorHeight = Math.ceil((Math.max(1, lines.length) * lineH + vPad) * currentScale);
 
             let textColor = editingTextElement.fillColor;
             if (isDark) {
@@ -3133,11 +3143,13 @@ export default function App() {
               top: topPos,
               width: `${editorWidth}px`,
               height: `${editorHeight}px`,
+              minWidth: `${Math.ceil(minW * currentScale)}px`,
+              minHeight: `${Math.ceil((lineH + vPad) * currentScale)}px`,
               fontSize: `${editingTextElement.fontSize * currentScale}px`,
               fontFamily: editingTextElement.fontFamily,
               color: textColor,
               textAlign: editingTextElement.textAlign as React.CSSProperties['textAlign'],
-              lineHeight: 1.25,
+              lineHeight: 1.4,
               background: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)',
               backdropFilter: 'blur(8px)',
               WebkitBackdropFilter: 'blur(8px)',
@@ -3148,14 +3160,17 @@ export default function App() {
                 : '0 2px 8px rgba(0, 0, 0, 0.08)',
               outline: 'none',
               resize: 'none',
-              padding: `${1 * currentScale}px ${2 * currentScale}px`,
+              // Allow box to grow as text is typed — no clipping
+              padding: `${Math.ceil(4 * currentScale)}px ${Math.ceil(8 * currentScale)}px`,
               margin: 0,
               zIndex: 60,
-              overflow: 'hidden',
-              whiteSpace: 'pre-wrap',
+              overflow: 'visible',
+              whiteSpace: 'pre',
+              wordBreak: 'keep-all',
               caretColor: textColor,
               transform: editingTextElement.angle ? `rotate(${editingTextElement.angle}rad)` : undefined,
               transformOrigin: '0 0',
+              boxSizing: 'border-box',
             };
           })()}
         />

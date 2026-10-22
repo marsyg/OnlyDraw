@@ -58,6 +58,7 @@ function elementDrawKey(element: Y.Map<unknown>) {
   const fillWeight = Number(element.get('fillWeight') || 0);
   const boundaryStyle = String(element.get('boundaryStyle') || '');
 
+  const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
   return JSON.stringify({
     x,
     y,
@@ -72,6 +73,7 @@ function elementDrawKey(element: Y.Map<unknown>) {
     fillStyle,
     fillWeight,
     boundaryStyle,
+    isDark,
   });
 }
 
@@ -94,7 +96,20 @@ function getOrCreateDrawable(
   const maxGap = 40;
   const hachureGap = maxGap - (uiGap - minGap);
 
-  const strokeColor = String(element.get('strokeColor') || '#1e293b');
+  const isDarkMode = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+  let strokeColor = String(element.get('strokeColor') || '#1e293b');
+  // Swap invisible colors to their complement based on theme
+  if (isDarkMode) {
+    const darkColors = ['#1e293b', '#0f172a', '#000000', '#000', 'black', '#020617', '#111827'];
+    if (!element.get('strokeColor') || darkColors.includes(strokeColor.toLowerCase())) {
+      strokeColor = '#e2e8f0';
+    }
+  } else {
+    const lightColors = ['#ffffff', '#fff', 'white', '#f8fafc', '#f1f5f9'];
+    if (!element.get('strokeColor') || lightColors.includes(strokeColor.toLowerCase())) {
+      strokeColor = '#1e293b';
+    }
+  }
   const strokeWidthVal = element.get('strokeWidth');
   const strokeWidth = (strokeWidthVal !== undefined && strokeWidthVal !== null) ? Number(strokeWidthVal) : 2;
   const roughnessVal = element.get('roughness');
@@ -229,7 +244,21 @@ export const DrawElements = ({ ctx, element, rc }: DrawingArgs) => {
       }
     }
 
-    const strokeColor = String(element.get('strokeColor') || '#1e293b');
+    const isDarkMode = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+    let strokeColor = String(element.get('strokeColor') || '#1e293b');
+    // On dark canvas, black/dark-slate arrows disappear — swap to a light complementary color
+    if (isDarkMode) {
+      const darkColors = ['#1e293b', '#0f172a', '#000000', '#000', 'black', '#020617', '#111827'];
+      if (!element.get('strokeColor') || darkColors.includes(strokeColor.toLowerCase())) {
+        strokeColor = '#e2e8f0';
+      }
+    } else {
+      // On light canvas, white/very-light arrows disappear — swap to dark
+      const lightColors = ['#ffffff', '#fff', 'white', '#f8fafc', '#f1f5f9'];
+      if (!element.get('strokeColor') || lightColors.includes(strokeColor.toLowerCase())) {
+        strokeColor = '#1e293b';
+      }
+    }
     const strokeWidthVal = element.get('strokeWidth');
     const strokeWidth = (strokeWidthVal !== undefined && strokeWidthVal !== null) ? Number(strokeWidthVal) : 2;
     const roughnessVal = element.get('roughness');
