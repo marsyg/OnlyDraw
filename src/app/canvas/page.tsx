@@ -41,6 +41,7 @@ import { getGroupMembers, groupElements, ungroupElements, cleanupOrphanGroups } 
 import { nanoid } from 'nanoid';
 import WorkspaceManager from '@/component/WorkspaceManager';
 import { getArrowLabelPosition } from '@/lib/utils/arrowLabel';
+import { computeAlignmentGuides, drawAlignmentGuides, AlignmentGuide } from '@/lib/alignmentGuides';
 
 export default function App() {
   const [activeWorkspaceId, setActiveWorkspaceIdState] = useState<string>(() => {
@@ -198,6 +199,7 @@ export default function App() {
   const activeSnapTargetRef = useRef<SnapTarget | null>(null);
   const arrowStartBindingRef = useRef<ArrowBinding | null>(null);
   const arrowEndBindingRef = useRef<ArrowBinding | null>(null);
+  const alignmentGuidesRef = useRef<AlignmentGuide[]>([]);
 
   const renderCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -312,6 +314,10 @@ export default function App() {
 
     if (activeSnapTargetRef.current) {
       drawGhostSnapIndicators(ctx, activeSnapTargetRef.current);
+    }
+
+    if (alignmentGuidesRef.current.length > 0) {
+      drawAlignmentGuides(ctx, alignmentGuidesRef.current);
     }
 
     ctx.restore();
@@ -1258,8 +1264,30 @@ export default function App() {
       if (!GlobalPointerPosition || !bound) return;
       const newBoundX = x - GlobalPointerPosition[0];
       const newBoundY = y - GlobalPointerPosition[1];
-      const dx = newBoundX - bound.x;
-      const dy = newBoundY - bound.y;
+      const rawDx = newBoundX - bound.x;
+      const rawDy = newBoundY - bound.y;
+
+      // Proposed bounds after raw move (before snap)
+      const proposedBounds = {
+        x: bound.x + rawDx,
+        y: bound.y + rawDy,
+        width: bound.width,
+        height: bound.height,
+      };
+
+      // Compute alignment snap (skip if Alt held — lets user bypass guides)
+      const movingIds = new Set<string>(
+        selectedElementIds.length > 0
+          ? selectedElementIds
+          : selectedYElement ? [selectedYElement.get('id') as string] : []
+      );
+      const { guides, snapDx, snapDy } = e.altKey
+        ? { guides: [] as AlignmentGuide[], snapDx: rawDx, snapDy: rawDy }
+        : computeAlignmentGuides(movingIds, proposedBounds, rawDx, rawDy, yElement as Y.Map<Y.Map<unknown>>);
+
+      alignmentGuidesRef.current = guides;
+      const dx = snapDx;
+      const dy = snapDy;
 
       try {
         doc.transact(() => {
@@ -1489,6 +1517,8 @@ export default function App() {
     const wasMoving = isDrawing || isDragging || isResizing || isPanningRef.current;
     setIsDrawing(false);
     setIsDragging(false);
+    // Clear alignment snap guides once drag finishes
+    alignmentGuidesRef.current = [];
 
     flagRef.current = false;
 
