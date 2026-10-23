@@ -109,7 +109,7 @@ export function getWorkspaceInstance(id: string): WorkspaceInstance {
     }
   }
 
-  const undoManager = new Y.UndoManager([elements], {
+  const undoManager = new Y.UndoManager([elements ,order], {
     captureTimeout: 500,
     trackedOrigins: new Set([LOCAL_ORIGIN]),
   });
