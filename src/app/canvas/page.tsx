@@ -22,7 +22,7 @@ import * as Y from 'yjs';
 import { Point } from 'roughjs/bin/geometry';
 import yUtils from '@/lib/utils/createYElement';
 import { handleUndo, handleRedo } from '@/lib/helperfunc/undo-redo';
-import { LOCAL_ORIGIN, persistence } from '@/Store/yjs-store';
+import { LOCAL_ORIGIN } from '@/Store/yjs-store';
 import detectResizeHandle from '@/lib/hitTest/detectResizeHandler';
 import resizeBound from '@/lib/resizeBound';
 import { resizeElement } from '@/lib/resizeElement';
@@ -36,7 +36,7 @@ import { useKeybindings } from '@/hooks/useKeybindings';
 import KeybindingsDialog from '@/component/KeybindingsDialog';
 import { serializeYElement, serializeYElements, deserializeYElement, deserializeYElements } from '@/lib/clipboard';
 import { getPivotPoint } from '@/lib/math/pivot';
-import { getCompoundBounds, isRectIntersecting, isElementIntersectingBox } from '@/lib/utils/boundsUtility/compoundBounds';
+import { getCompoundBounds, isElementIntersectingBox } from '@/lib/utils/boundsUtility/compoundBounds';
 import { getGroupMembers, groupElements, ungroupElements, cleanupOrphanGroups } from '@/lib/grouping';
 import { nanoid } from 'nanoid';
 import WorkspaceManager from '@/component/WorkspaceManager';
@@ -96,9 +96,6 @@ export default function App() {
     fontSize,
     fontFamily,
     textAlign,
-    setFontSize,
-    setFontFamily,
-    setTextAlign,
     arrowRouting,
   } = useAppStore();
   const [isTouchDevice, setIsTouchDevice] = useState(false);
@@ -322,7 +319,7 @@ export default function App() {
     }
 
     ctx.restore();
-  }, [isDark, isDragging, isResizing, isDrawing, yElement, selectedYElement, selectedElementIds, bound]);
+  }, [isDark, yElement, selectedYElement, selectedElementIds, bound]);
 
 
   const scheduleRender = useCallback(() => {
@@ -1587,7 +1584,6 @@ export default function App() {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const [x, y] = getPointerCoordinates(e);
     const syntheticEvent = {
       clientX: e.touches[0].clientX,
       clientY: e.touches[0].clientY,
@@ -1734,9 +1730,7 @@ export default function App() {
           awareness.off('change', awarenessHandlerRef.current);
           awarenessHandlerRef.current = null;
         }
-      } catch (e) {
-
-      }
+      } catch {}
 
       if (unloadHandlerRef.current) {
         window.removeEventListener('beforeunload', unloadHandlerRef.current);
@@ -1760,7 +1754,7 @@ export default function App() {
           if (awareness && awarenessHandlerRef.current) {
             awareness.off('change', awarenessHandlerRef.current);
           }
-        } catch (e) { }
+        } catch {}
         providerRef.current.destroy();
         providerRef.current = null;
       }
@@ -2387,7 +2381,7 @@ export default function App() {
     groupElements(selectedElementIds, yElement, doc);
     setBound(getCompoundBounds(selectedElementIds, yElement));
     scheduleRender();
-  }, [selectedElementIds, yElement, doc, scheduleRender]);
+  }, [selectedElementIds, yElement, doc, setBound, scheduleRender]);
 
   const handleUngroup = useCallback(() => {
     const targetIds = selectedElementIds.length > 0
@@ -2549,6 +2543,7 @@ export default function App() {
       resetCamera,
       zoomCamera,
       scheduleRender,
+      handleSelectAll,
     ]
   );
 

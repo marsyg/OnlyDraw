@@ -14,7 +14,6 @@ import {
   Search,
 } from 'lucide-react';
 import {
-  canvasDoc,
   getStoredWorkspaces,
   getStoredActiveWorkspaceId,
   createWorkspace,

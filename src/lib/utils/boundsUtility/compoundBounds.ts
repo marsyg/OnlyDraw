@@ -1,5 +1,6 @@
 import { boundType, getBounds } from './getBounds';
 import * as Y from 'yjs';
+import { getBindingPosition, SnapLocation } from '@/lib/arrowSnap';
 
 export function getCompoundBounds(
   elementIds: string[],
@@ -104,6 +105,25 @@ export function isElementIntersectingBox(
     let y1 = Number(element.get('y'));
     let x2 = x1 + Number(element.get('width'));
     let y2 = y1 + Number(element.get('height'));
+
+    if (yElementMap && (type === 'arrow' || type === 'arrow-two-way')) {
+      const startBinding = element.get('startBinding') as { elementId: string; point: SnapLocation } | undefined;
+      const endBinding = element.get('endBinding') as { elementId: string; point: SnapLocation } | undefined;
+      if (startBinding) {
+        const sp = getBindingPosition(startBinding, yElementMap);
+        if (sp) {
+          x1 = sp[0];
+          y1 = sp[1];
+        }
+      }
+      if (endBinding) {
+        const ep = getBindingPosition(endBinding, yElementMap);
+        if (ep) {
+          x2 = ep[0];
+          y2 = ep[1];
+        }
+      }
+    }
 
     const rawControl = element.get('controlPoint') as { x: number; y: number } | undefined;
     const routing = String(element.get('routing') || (rawControl ? 'curved' : 'straight'));

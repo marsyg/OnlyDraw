@@ -124,19 +124,9 @@ export default function RoughSketchToolbox({
   onEditText,
   onAlign,
 }: RoughSketchToolboxProps) {
-  const [isMobile, setIsMobile] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(true);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [target, setTarget] = useState<string | null>(null);
-
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
 
   // Store
   const {
