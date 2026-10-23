@@ -36,12 +36,13 @@ import { useKeybindings } from '@/hooks/useKeybindings';
 import KeybindingsDialog from '@/component/KeybindingsDialog';
 import { serializeYElement, serializeYElements, deserializeYElement, deserializeYElements } from '@/lib/clipboard';
 import { getPivotPoint } from '@/lib/math/pivot';
-import { getCompoundBounds, isRectIntersecting } from '@/lib/utils/boundsUtility/compoundBounds';
+import { getCompoundBounds, isRectIntersecting, isElementIntersectingBox } from '@/lib/utils/boundsUtility/compoundBounds';
 import { getGroupMembers, groupElements, ungroupElements, cleanupOrphanGroups } from '@/lib/grouping';
 import { nanoid } from 'nanoid';
 import WorkspaceManager from '@/component/WorkspaceManager';
 import { getArrowLabelPosition } from '@/lib/utils/arrowLabel';
 import { computeAlignmentGuides, drawAlignmentGuides, AlignmentGuide } from '@/lib/alignmentGuides';
+import { getThemeAdaptedColor } from '@/lib/utils/drawingUtility/drawElement';
 
 export default function App() {
   const [activeWorkspaceId, setActiveWorkspaceIdState] = useState<string>(() => {
@@ -386,7 +387,7 @@ export default function App() {
     for (let i = order.length - 1; i >= 0; i--) {
       const elementId = order.get(i) as string;
       const element = yElement.get(elementId);
-      if (!element) continue;
+      if (!element || element.get('isDeleted')) continue;
       if (isPointInsideElement({ point: pt, element })) {
         return { id: elementId, yEl: element };
       }
@@ -406,16 +407,7 @@ export default function App() {
     setBound(null); // Clear canvas bounds so only ONE clean box (the editor) is visible!
 
     const currentFill = String(yEl.get('fillColor') || yEl.get('strokeColor') || '');
-    let color = currentFill;
-    if (isDark) {
-      if (!color || color === '#000000' || color === 'black' || color === '#1e293b' || color === '#0f172a') {
-        color = '#f8fafc';
-      }
-    } else {
-      if (!color || color === '#ffffff' || color === 'white' || color === '#f8fafc' || color === '#f1f5f9') {
-        color = '#0f172a';
-      }
-    }
+    const color = getThemeAdaptedColor(currentFill || (isDark ? '#f8fafc' : '#0f172a'), isDark);
 
     let edX = Number(yEl.get('x'));
     let edY = Number(yEl.get('y'));
@@ -1451,8 +1443,7 @@ export default function App() {
         order.toArray().forEach((id) => {
           const el = yElement.get(id);
           if (el && !el.get('isDeleted')) {
-            const b = getBounds({ element: el });
-            if (b && isRectIntersecting(box, b)) {
+            if (isElementIntersectingBox(el, box, yElement)) {
               foundIds.push(id);
             }
           }
@@ -3104,31 +3095,21 @@ export default function App() {
             if (ctx) {
               ctx.font = `${editingTextElement.fontSize}px ${editingTextElement.fontFamily}`;
               lines.forEach((l) => {
-                // Measure actual text + a one-character lookahead buffer (prevents clipping the char being typed)
-                const measured = ctx.measureText((l || '') + 'W').width;
+                const measured = ctx.measureText(l || '').width;
                 maxLineWidth = Math.max(maxLineWidth, measured);
               });
             }
             const currentScale = camera.scale;
-            const lineH = editingTextElement.fontSize * 1.4;  // slightly taller to avoid cut-off descenders
-            // Generous padding: 24px horizontal buffer so text is never clipped mid-character
-            const hPad = 24;
-            const vPad = 8;
-            const minW = editingTextElement.isArrow ? 80 : 60;
-            const textW = Math.max(minW, maxLineWidth + hPad);
+            const lineH = editingTextElement.fontSize * 1.35;
+            const hPad = 36;
+            const vPad = 12;
+            const minW = editingTextElement.isArrow ? 130 : 180;
+            // Generous scale factor + padding ensures the box stays ahead of active typing
+            const textW = Math.max(minW, Math.ceil(maxLineWidth * 1.12) + hPad);
             const editorWidth = Math.ceil(textW * currentScale);
             const editorHeight = Math.ceil((Math.max(1, lines.length) * lineH + vPad) * currentScale);
 
-            let textColor = editingTextElement.fillColor;
-            if (isDark) {
-              if (!textColor || textColor === '#000000' || textColor === 'black' || textColor === '#1e293b' || textColor === '#0f172a') {
-                textColor = '#f8fafc';
-              }
-            } else {
-              if (!textColor || textColor === '#ffffff' || textColor === 'white' || textColor === '#f8fafc' || textColor === '#f1f5f9') {
-                textColor = '#0f172a';
-              }
-            }
+            const textColor = getThemeAdaptedColor(editingTextElement.fillColor || (isDark ? '#f8fafc' : '#0f172a'), isDark);
 
             const leftPos = editingTextElement.isArrow
               ? editingTextElement.x * currentScale + camera.x - editorWidth / 2
@@ -3149,24 +3130,23 @@ export default function App() {
               fontFamily: editingTextElement.fontFamily,
               color: textColor,
               textAlign: editingTextElement.textAlign as React.CSSProperties['textAlign'],
-              lineHeight: 1.4,
+              lineHeight: 1.35,
               background: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)',
               backdropFilter: 'blur(8px)',
               WebkitBackdropFilter: 'blur(8px)',
-              border: isDark ? '1px dashed rgba(255, 255, 255, 0.35)' : '1px dashed rgba(0, 0, 0, 0.35)',
-              borderRadius: '4px',
+              border: isDark ? '1.5px dashed rgba(148, 163, 184, 0.5)' : '1.5px dashed rgba(99, 102, 241, 0.5)',
+              borderRadius: '6px',
               boxShadow: isDark
-                ? '0 4px 16px rgba(0, 0, 0, 0.5)'
-                : '0 2px 8px rgba(0, 0, 0, 0.08)',
+                ? '0 4px 20px rgba(0, 0, 0, 0.6)'
+                : '0 4px 16px rgba(0, 0, 0, 0.08)',
               outline: 'none',
               resize: 'none',
-              // Allow box to grow as text is typed — no clipping
-              padding: `${Math.ceil(4 * currentScale)}px ${Math.ceil(8 * currentScale)}px`,
+              padding: `${Math.ceil(4 * currentScale)}px ${Math.ceil(10 * currentScale)}px`,
               margin: 0,
               zIndex: 60,
-              overflow: 'visible',
-              whiteSpace: 'pre',
-              wordBreak: 'keep-all',
+              overflow: 'hidden',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
               caretColor: textColor,
               transform: editingTextElement.angle ? `rotate(${editingTextElement.angle}rad)` : undefined,
               transformOrigin: '0 0',

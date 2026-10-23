@@ -43,6 +43,71 @@ function withSeededMath<T>(seed: number, fn: () => T): T {
   }
 }
 
+/**
+ * Analyzes color luminance and ensures high visibility across light and dark themes.
+ * Adapts dark tones (like black, dark slate, dark navy) to high-contrast crisp tones in dark mode,
+ * and adapts white/near-white tones to dark slate in light mode, while preserving vibrant colors.
+ */
+export function getThemeAdaptedColor(rawColor: string, isDark: boolean): string {
+  if (!rawColor || rawColor === 'transparent') return rawColor;
+
+  const lower = rawColor.trim().toLowerCase();
+
+  // Fast-path common neutrals
+  if (isDark) {
+    const darkNeutrals = ['#000000', '#000', 'black', '#1e293b', '#0f172a', '#020617', '#111827', '#18181b', '#171717', '#262626', '#334155'];
+    if (darkNeutrals.includes(lower)) {
+      return '#f8fafc';
+    }
+  } else {
+    const lightNeutrals = ['#ffffff', '#fff', 'white', '#f8fafc', '#f1f5f9', '#fdfdfd'];
+    if (lightNeutrals.includes(lower)) {
+      return '#0f172a';
+    }
+  }
+
+  // Parse RGB or Hex to check perceived luminance
+  let r = 0, g = 0, b = 0, hasColor = false;
+  if (lower.startsWith('#')) {
+    const hex = lower.slice(1);
+    if (hex.length === 3) {
+      r = parseInt(hex[0] + hex[0], 16);
+      g = parseInt(hex[1] + hex[1], 16);
+      b = parseInt(hex[2] + hex[2], 16);
+      hasColor = true;
+    } else if (hex.length >= 6) {
+      r = parseInt(hex.slice(0, 2), 16);
+      g = parseInt(hex.slice(2, 4), 16);
+      b = parseInt(hex.slice(4, 6), 16);
+      hasColor = true;
+    }
+  } else if (lower.startsWith('rgb')) {
+    const match = lower.match(/\(([^)]+)\)/);
+    if (match) {
+      const parts = match[1].split(',').map((p) => parseFloat(p.trim()));
+      if (parts.length >= 3) {
+        r = parts[0];
+        g = parts[1];
+        b = parts[2];
+        hasColor = true;
+      }
+    }
+  }
+
+  if (hasColor && !isNaN(r) && !isNaN(g) && !isNaN(b)) {
+    // Standard perceived relative luminance
+    const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+    if (isDark && luminance < 60) {
+      return '#f8fafc';
+    }
+    if (!isDark && luminance > 230) {
+      return '#0f172a';
+    }
+  }
+
+  return rawColor;
+}
+
 function elementDrawKey(element: Y.Map<unknown>) {
   const x = Number(element.get('x'));
   const y = Number(element.get('y'));
@@ -97,19 +162,8 @@ function getOrCreateDrawable(
   const hachureGap = maxGap - (uiGap - minGap);
 
   const isDarkMode = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
-  let strokeColor = String(element.get('strokeColor') || '#1e293b');
-  // Swap invisible colors to their complement based on theme
-  if (isDarkMode) {
-    const darkColors = ['#1e293b', '#0f172a', '#000000', '#000', 'black', '#020617', '#111827'];
-    if (!element.get('strokeColor') || darkColors.includes(strokeColor.toLowerCase())) {
-      strokeColor = '#e2e8f0';
-    }
-  } else {
-    const lightColors = ['#ffffff', '#fff', 'white', '#f8fafc', '#f1f5f9'];
-    if (!element.get('strokeColor') || lightColors.includes(strokeColor.toLowerCase())) {
-      strokeColor = '#1e293b';
-    }
-  }
+  const rawStroke = String(element.get('strokeColor') || '#1e293b');
+  const strokeColor = getThemeAdaptedColor(rawStroke, isDarkMode);
   const strokeWidthVal = element.get('strokeWidth');
   const strokeWidth = (strokeWidthVal !== undefined && strokeWidthVal !== null) ? Number(strokeWidthVal) : 2;
   const roughnessVal = element.get('roughness');
@@ -245,20 +299,8 @@ export const DrawElements = ({ ctx, element, rc }: DrawingArgs) => {
     }
 
     const isDarkMode = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
-    let strokeColor = String(element.get('strokeColor') || '#1e293b');
-    // On dark canvas, black/dark-slate arrows disappear — swap to a light complementary color
-    if (isDarkMode) {
-      const darkColors = ['#1e293b', '#0f172a', '#000000', '#000', 'black', '#020617', '#111827'];
-      if (!element.get('strokeColor') || darkColors.includes(strokeColor.toLowerCase())) {
-        strokeColor = '#e2e8f0';
-      }
-    } else {
-      // On light canvas, white/very-light arrows disappear — swap to dark
-      const lightColors = ['#ffffff', '#fff', 'white', '#f8fafc', '#f1f5f9'];
-      if (!element.get('strokeColor') || lightColors.includes(strokeColor.toLowerCase())) {
-        strokeColor = '#1e293b';
-      }
-    }
+    const rawStroke = String(element.get('strokeColor') || '#1e293b');
+    const strokeColor = getThemeAdaptedColor(rawStroke, isDarkMode);
     const strokeWidthVal = element.get('strokeWidth');
     const strokeWidth = (strokeWidthVal !== undefined && strokeWidthVal !== null) ? Number(strokeWidthVal) : 2;
     const roughnessVal = element.get('roughness');
@@ -419,15 +461,7 @@ export const DrawElements = ({ ctx, element, rc }: DrawingArgs) => {
     }
 
     const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
-    if (isDark) {
-      if (!fillColor || fillColor === '#000000' || fillColor === 'black' || fillColor === '#000' || fillColor === '#1e293b' || fillColor === '#0f172a') {
-        fillColor = '#f8fafc';
-      }
-    } else {
-      if (!fillColor || fillColor === '#ffffff' || fillColor === 'white' || fillColor === '#fff' || fillColor === '#f8fafc' || fillColor === '#f1f5f9') {
-        fillColor = '#0f172a';
-      }
-    }
+    fillColor = getThemeAdaptedColor(fillColor, isDark);
 
     ctx.font = `${fontSize}px ${fontFamily}`;
     ctx.fillStyle = fillColor;
@@ -530,7 +564,9 @@ export const DrawElements = ({ ctx, element, rc }: DrawingArgs) => {
 
     const path2D = new Path2D(path);
 
-    ctx.fillStyle = String(element.get('strokeColor'));
+    const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+    const rawStroke = String(element.get('strokeColor') || '#1e293b');
+    ctx.fillStyle = getThemeAdaptedColor(rawStroke, isDark);
     ctx.fill(path2D);
 
     ctx.translate(-x, -y);
@@ -551,7 +587,7 @@ export const DrawElements = ({ ctx, element, rc }: DrawingArgs) => {
         Number(element.get('height')),
         {
           seed,
-          stroke: String(element.get('strokeColor')),
+          stroke: getThemeAdaptedColor(String(element.get('strokeColor') || '#1e293b'), typeof document !== 'undefined' && document.documentElement.classList.contains('dark')),
           strokeWidth: Number(element.get('strokeWidth')),
           roughness: Number(element.get('roughness')),
           fill: String(element.get('fillColor')),
