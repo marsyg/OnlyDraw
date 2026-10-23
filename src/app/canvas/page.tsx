@@ -13,9 +13,9 @@ import { handleDrawElement } from '@/lib/handleElement';
 import { DrawElements } from '@/lib/utils/drawingUtility/drawElement';
 import { isPointInsideElement } from '@/lib/utils/drawingUtility/hitTest';
 import { DrawBounds } from '@/lib/drawBounds';
-import { getBounds } from '@/lib/utils/boundsUtility/getBounds';
+import { getBounds, boundType } from '@/lib/utils/boundsUtility/getBounds';
 import { isPointInPaddedBounds } from '@/lib/utils/boundsUtility/isPointInPaddedBounds';
-import { findNearestSnapTarget, drawGhostSnapIndicators, SnapTarget, cleanupArrowBindings, getBindingPosition, SnapLocation } from '@/lib/arrowSnap';
+import { findNearestSnapTarget, drawGhostSnapIndicators, SnapTarget, cleanupArrowBindings, getBindingPosition, SnapLocation, getLineEndpoints, isLineOrArrow } from '@/lib/arrowSnap';
 import { UndoManager } from '@/Store/yjs-store';
 import canvasDoc from '@/Store/yjs-store';
 import * as Y from 'yjs';
@@ -189,25 +189,30 @@ export default function App() {
   const startDragSnapshot = useCallback((targetIds: string[], targetBound: boundType | null, startPt: point) => {
     dragStartPointerRef.current = startPt;
     dragInitialBoundRef.current = targetBound;
-    dragElementsSnapshotRef.current = targetIds
-      .map((id) => {
-        const el = yElement.get(id);
-        if (!el || el.get('isDeleted')) return null;
-        const rawCp = el.get('controlPoint') as { x: number; y: number } | undefined;
-        return {
-          id,
-          origX: Number(el.get('x')),
-          origY: Number(el.get('y')),
-          origControlPoint: rawCp ? { x: Number(rawCp.x), y: Number(rawCp.y) } : undefined,
-        };
-      })
-      .filter((snap): snap is ElementDragSnapshot => snap !== null);
+    const snaps: ElementDragSnapshot[] = [];
+    targetIds.forEach((id) => {
+      const el = yElement.get(id);
+      if (!el || el.get('isDeleted')) return;
+      const rawCp = el.get('controlPoint') as { x: number; y: number } | undefined;
+      snaps.push({
+        id,
+        origX: Number(el.get('x')),
+        origY: Number(el.get('y')),
+        origControlPoint: rawCp ? { x: Number(rawCp.x), y: Number(rawCp.y) } : undefined,
+      });
+    });
+    dragElementsSnapshotRef.current = snaps;
   }, [yElement]);
 
   const justFinishedEditingTextRef = useRef<boolean>(false);
   const textCreationTimeRef = useRef<number>(0);
   const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
   const isCurvingArrowRef = useRef<{ el: Y.Map<unknown> } | null>(null);
+  const isDraggingEndpointRef = useRef<{
+    el: Y.Map<unknown>;
+    endpoint: 'start' | 'end';
+    fixedPt: [number, number];
+  } | null>(null);
 
   const flagRef = useRef<boolean>(false)
   const animationFrameIdRef = useRef<number | null>(null);
@@ -281,48 +286,74 @@ export default function App() {
          (selectedElementIds.length === 1 && selectedElementIds[0] === editingTextElementRef.current.id))
       );
       if (!isEditingCurrent) {
-        DrawBounds({ context: ctx, bounds: bound });
+        const singleTarget = (selectedElementIds.length === 1 ? yElement.get(selectedElementIds[0]) : null) || selectedYElement;
+        const targetType = singleTarget?.get('type') as string | undefined;
+        const isSingleLineOrArrow = Boolean(
+          singleTarget &&
+          selectedElementIds.length <= 1 &&
+          isLineOrArrow(targetType)
+        );
 
-        const targetEl = selectedYElement || (selectedElementIds.length === 1 ? yElement.get(selectedElementIds[0]) : null);
-        if (targetEl && (targetEl.get('type') === elementType.Arrow || targetEl.get('type') === elementType.ArrowTwoWay)) {
-          let ax1 = Number(targetEl.get('x'));
-          let ay1 = Number(targetEl.get('y'));
-          let ax2 = ax1 + Number(targetEl.get('width'));
-          let ay2 = ay1 + Number(targetEl.get('height'));
-          const startBinding = targetEl.get('startBinding') as { elementId: string; point: SnapLocation } | undefined;
-          const endBinding = targetEl.get('endBinding') as { elementId: string; point: SnapLocation } | undefined;
-          if (startBinding) {
-            const sp = getBindingPosition(startBinding, yElement);
-            if (sp) { ax1 = sp[0]; ay1 = sp[1]; }
-          }
-          if (endBinding) {
-            const ep = getBindingPosition(endBinding, yElement);
-            if (ep) { ax2 = ep[0]; ay2 = ep[1]; }
-          }
-          const rawControl = targetEl.get('controlPoint') as { x: number; y: number } | undefined;
-          const midX = (ax1 + ax2) / 2;
-          const midY = (ay1 + ay2) / 2;
-          const cx = rawControl ? rawControl.x : midX;
-          const cy = rawControl ? rawControl.y : midY;
+        if (isSingleLineOrArrow && singleTarget) {
+          const { x1: ax1, y1: ay1, x2: ax2, y2: ay2 } = getLineEndpoints(singleTarget, yElement as Y.Map<Y.Map<unknown>>);
+          const isArrow = targetType === elementType.Arrow || targetType === elementType.ArrowTwoWay;
+          const startBinding = isArrow ? singleTarget.get('startBinding') : null;
+          const endBinding = isArrow ? singleTarget.get('endBinding') : null;
+          const handleR = 6 / Math.min(1.4, Math.max(0.6, cam.scale));
+          const handleStroke = 2 / Math.min(1.4, Math.max(0.6, cam.scale));
 
           ctx.save();
-          ctx.strokeStyle = 'rgba(168, 85, 247, 0.7)';
-          ctx.setLineDash([3, 3]);
-          ctx.lineWidth = 1.2;
+
+          // 1. Draw Start Endpoint Handle (P1)
           ctx.beginPath();
-          ctx.moveTo(midX, midY);
-          ctx.lineTo(cx, cy);
+          ctx.arc(ax1, ay1, handleR, 0, Math.PI * 2);
+          ctx.fillStyle = startBinding ? '#2563eb' : '#ffffff';
+          ctx.fill();
+          ctx.strokeStyle = '#2563eb';
+          ctx.lineWidth = handleStroke;
           ctx.stroke();
 
-          ctx.setLineDash([]);
-          ctx.fillStyle = '#a855f7';
-          ctx.strokeStyle = '#ffffff';
-          ctx.lineWidth = 2;
+          // 2. Draw End Endpoint Handle (P2)
           ctx.beginPath();
-          ctx.arc(cx, cy, 6.5, 0, Math.PI * 2);
+          ctx.arc(ax2, ay2, handleR, 0, Math.PI * 2);
+          ctx.fillStyle = endBinding ? '#2563eb' : '#ffffff';
           ctx.fill();
+          ctx.strokeStyle = '#2563eb';
+          ctx.lineWidth = handleStroke;
           ctx.stroke();
+
+          // 3. For curved arrows, draw curve control handle
+          if (isArrow) {
+            const rawControl = singleTarget.get('controlPoint') as { x: number; y: number } | undefined;
+            const routing = String(singleTarget.get('routing') || (rawControl ? 'curved' : 'straight'));
+            if (rawControl || routing === 'curved') {
+              const midX = (ax1 + ax2) / 2;
+              const midY = (ay1 + ay2) / 2;
+              const cx = rawControl ? rawControl.x : midX;
+              const cy = rawControl ? rawControl.y : midY;
+
+              ctx.strokeStyle = 'rgba(168, 85, 247, 0.7)';
+              ctx.setLineDash([3, 3]);
+              ctx.lineWidth = 1.2 / Math.min(1.4, Math.max(0.6, cam.scale));
+              ctx.beginPath();
+              ctx.moveTo(midX, midY);
+              ctx.lineTo(cx, cy);
+              ctx.stroke();
+
+              ctx.setLineDash([]);
+              ctx.fillStyle = '#a855f7';
+              ctx.strokeStyle = '#ffffff';
+              ctx.lineWidth = handleStroke;
+              ctx.beginPath();
+              ctx.arc(cx, cy, handleR + 0.5, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.stroke();
+            }
+          }
+
           ctx.restore();
+        } else {
+          DrawBounds({ context: ctx, bounds: bound });
         }
       }
     }
@@ -749,37 +780,65 @@ export default function App() {
 
     setFreehandPoint([[initialPoint[0], initialPoint[1], 1] as PointsFreeHand]);
     if (currentTool.action === actionType.Selecting) {
-      const singleArrow = selectedYElement || (selectedElementIds.length === 1 ? yElement.get(selectedElementIds[0]) : null);
-      if (singleArrow && (singleArrow.get('type') === elementType.Arrow || singleArrow.get('type') === elementType.ArrowTwoWay)) {
-        let ax1 = Number(singleArrow.get('x'));
-        let ay1 = Number(singleArrow.get('y'));
-        let ax2 = ax1 + Number(singleArrow.get('width'));
-        let ay2 = ay1 + Number(singleArrow.get('height'));
-        const startBinding = singleArrow.get('startBinding') as { elementId: string; point: SnapLocation } | undefined;
-        const endBinding = singleArrow.get('endBinding') as { elementId: string; point: SnapLocation } | undefined;
-        if (startBinding) {
-          const sp = getBindingPosition(startBinding, yElement);
-          if (sp) { ax1 = sp[0]; ay1 = sp[1]; }
-        }
-        if (endBinding) {
-          const ep = getBindingPosition(endBinding, yElement);
-          if (ep) { ax2 = ep[0]; ay2 = ep[1]; }
-        }
-        const rawControl = singleArrow.get('controlPoint') as { x: number; y: number } | undefined;
-        const cx = rawControl ? rawControl.x : (ax1 + ax2) / 2;
-        const cy = rawControl ? rawControl.y : (ay1 + ay2) / 2;
+      const singleTarget = (selectedElementIds.length === 1 ? yElement.get(selectedElementIds[0]) : null) || selectedYElement;
+      const targetType = singleTarget?.get('type') as string | undefined;
+      const isSingleLineOrArrow = Boolean(
+        singleTarget &&
+        selectedElementIds.length <= 1 &&
+        isLineOrArrow(targetType)
+      );
 
-        if (Math.hypot(initialPoint[0] - cx, initialPoint[1] - cy) <= 12) {
-          isCurvingArrowRef.current = { el: singleArrow };
+      if (isSingleLineOrArrow && singleTarget) {
+        const { x1: ax1, y1: ay1, x2: ax2, y2: ay2 } = getLineEndpoints(singleTarget, yElement as Y.Map<Y.Map<unknown>>);
+        const hitRadius = Math.max(12, 14 / (cameraRef.current?.scale || 1));
+
+        // 1. Check curve control handle if arrow
+        if (targetType === elementType.Arrow || targetType === elementType.ArrowTwoWay) {
+          const rawControl = singleTarget.get('controlPoint') as { x: number; y: number } | undefined;
+          const cx = rawControl ? rawControl.x : (ax1 + ax2) / 2;
+          const cy = rawControl ? rawControl.y : (ay1 + ay2) / 2;
+          if (Math.hypot(initialPoint[0] - cx, initialPoint[1] - cy) <= hitRadius) {
+            isCurvingArrowRef.current = { el: singleTarget };
+            setCursorStyle('crosshair');
+            setIsDragging(false);
+            setIsResizing(false);
+            return;
+          }
+        }
+
+        // 2. Check start endpoint handle (P1)
+        if (Math.hypot(initialPoint[0] - ax1, initialPoint[1] - ay1) <= hitRadius) {
+          isDraggingEndpointRef.current = {
+            el: singleTarget,
+            endpoint: 'start',
+            fixedPt: [ax2, ay2],
+          };
           setCursorStyle('crosshair');
           setIsDragging(false);
+          setIsResizing(false);
           return;
         }
-      }
 
-      const handleHit = bound ? detectResizeHandle({ point: initialPoint, element: bound, tolerance: 10 }) : null;
-      if (handleHit) {
-        resizeHandleRef.current = handleHit;
+        // 3. Check end endpoint handle (P2)
+        if (Math.hypot(initialPoint[0] - ax2, initialPoint[1] - ay2) <= hitRadius) {
+          isDraggingEndpointRef.current = {
+            el: singleTarget,
+            endpoint: 'end',
+            fixedPt: [ax1, ay1],
+          };
+          setCursorStyle('crosshair');
+          setIsDragging(false);
+          setIsResizing(false);
+          return;
+        }
+
+        // Single line/arrow does not use rectangular 8-scale box
+        resizeHandleRef.current = null;
+      } else {
+        const handleHit = bound ? detectResizeHandle({ point: initialPoint, element: bound, tolerance: 10 }) : null;
+        if (handleHit) {
+          resizeHandleRef.current = handleHit;
+        }
       }
 
       if (resizeHandleRef.current) {
@@ -862,6 +921,33 @@ export default function App() {
       const hit = hitTestAtPoint(initialPoint);
 
       if (hit && hit.yEl) {
+        const hitType = hit.yEl.get('type') as string;
+        if (isLineOrArrow(hitType) && !e.shiftKey) {
+          const { x1: ax1, y1: ay1, x2: ax2, y2: ay2 } = getLineEndpoints(hit.yEl, yElement as Y.Map<Y.Map<unknown>>);
+          const hitRadius = Math.max(12, 14 / (cameraRef.current?.scale || 1));
+          const d1 = Math.hypot(initialPoint[0] - ax1, initialPoint[1] - ay1);
+          const d2 = Math.hypot(initialPoint[0] - ax2, initialPoint[1] - ay2);
+
+          if (d1 <= hitRadius || d2 <= hitRadius) {
+            setSelectedElementIds([hit.id]);
+            setYElement(hit.yEl);
+            const b = getBounds({ element: hit.yEl });
+            setBound(b);
+            setLockedBounds(true);
+            isDraggingEndpointRef.current = {
+              el: hit.yEl,
+              endpoint: d1 <= d2 ? 'start' : 'end',
+              fixedPt: d1 <= d2 ? [ax2, ay2] : [ax1, ay1],
+            };
+            setIsDragging(false);
+            setIsResizing(false);
+            setCursorStyle('crosshair');
+            flagRef.current = true;
+            scheduleRender();
+            return;
+          }
+        }
+
         const groupMembers = getGroupMembers(hit.yEl, yElement);
         if (e.shiftKey) {
           const isSelected = groupMembers.some((id) => selectedElementIds.includes(id));
@@ -1081,6 +1167,65 @@ export default function App() {
       return;
     }
 
+    if (isDraggingEndpointRef.current) {
+      setCursorStyle('crosshair');
+      const { el, endpoint, fixedPt } = isDraggingEndpointRef.current;
+      const [fx, fy] = fixedPt;
+      const elType = el.get('type') as string;
+      const isArrow = elType === elementType.Arrow || elType === elementType.ArrowTwoWay;
+
+      let targetX = x;
+      let targetY = y;
+
+      // Shift-key: snap to 45-degree increments from fixed point
+      if (e.shiftKey) {
+        const dx = targetX - fx;
+        const dy = targetY - fy;
+        const dist = Math.hypot(dx, dy);
+        if (dist > 1) {
+          let angle = Math.atan2(dy, dx);
+          const snapAngle = Math.PI / 4;
+          angle = Math.round(angle / snapAngle) * snapAngle;
+          targetX = fx + dist * Math.cos(angle);
+          targetY = fy + dist * Math.sin(angle);
+        }
+      }
+
+      // Check snap target on surrounding shapes
+      const snap = findNearestSnapTarget([targetX, targetY], yElement as Y.Map<Y.Map<unknown>>, el.get('id') as string);
+      if (snap) {
+        targetX = snap.x;
+        targetY = snap.y;
+        activeSnapTargetRef.current = snap;
+      } else {
+        activeSnapTargetRef.current = null;
+      }
+
+      doc.transact(() => {
+        if (endpoint === 'start') {
+          el.set('x', targetX);
+          el.set('y', targetY);
+          el.set('width', fx - targetX);
+          el.set('height', fy - targetY);
+          if (isArrow) {
+            el.set('startBinding', snap ? { elementId: snap.elementId, point: snap.location } : null);
+          }
+        } else {
+          el.set('x', fx);
+          el.set('y', fy);
+          el.set('width', targetX - fx);
+          el.set('height', targetY - fy);
+          if (isArrow) {
+            el.set('endBinding', snap ? { elementId: snap.elementId, point: snap.location } : null);
+          }
+        }
+      }, LOCAL_ORIGIN);
+
+      setBound(getBounds({ element: el }));
+      scheduleRender();
+      return;
+    }
+
     if (isMarqueeRef.current && marqueeStartRef.current) {
       const [startX, startY] = marqueeStartRef.current;
       const boxX = Math.min(startX, x);
@@ -1117,7 +1262,43 @@ export default function App() {
     }
 
     if (currentTool.action === actionType.Selecting && !isDragging && !isResizing) {
-      // console.log("inside hover logic")
+      const singleTarget = (selectedElementIds.length === 1 ? yElement.get(selectedElementIds[0]) : null) || selectedYElement;
+      const targetType = singleTarget?.get('type') as string | undefined;
+      const isSingleLineOrArrow = Boolean(
+        singleTarget &&
+        selectedElementIds.length <= 1 &&
+        isLineOrArrow(targetType)
+      );
+
+      if (isSingleLineOrArrow && singleTarget) {
+        const { x1: ax1, y1: ay1, x2: ax2, y2: ay2 } = getLineEndpoints(singleTarget, yElement as Y.Map<Y.Map<unknown>>);
+        const hitTol = Math.max(10, 12 / (cameraRef.current?.scale || 1));
+        const isArrow = targetType === elementType.Arrow || targetType === elementType.ArrowTwoWay;
+        const rawControl = isArrow ? (singleTarget.get('controlPoint') as { x: number; y: number } | undefined) : undefined;
+        const cx = rawControl ? rawControl.x : (ax1 + ax2) / 2;
+        const cy = rawControl ? rawControl.y : (ay1 + ay2) / 2;
+
+        const nearStart = Math.hypot(pt[0] - ax1, pt[1] - ay1) <= hitTol;
+        const nearEnd = Math.hypot(pt[0] - ax2, pt[1] - ay2) <= hitTol;
+        const nearCurve = isArrow && Math.hypot(pt[0] - cx, pt[1] - cy) <= hitTol;
+
+        if (nearStart || nearEnd || nearCurve) {
+          setCursorStyle('crosshair');
+          resizeHandleRef.current = null;
+          return;
+        }
+
+        if (isPointInsideElement({ point: pt, element: singleTarget })) {
+          setCursorStyle('grab');
+          resizeHandleRef.current = null;
+          return;
+        }
+
+        setCursorStyle('default');
+        resizeHandleRef.current = null;
+        return;
+      }
+
       let foundElementToSelect: Y.Map<unknown> | null = null;
       let hit = null;
       if (lockedBounds && bound && isPointInPaddedBounds(pt, bound)) {
@@ -1536,6 +1717,18 @@ export default function App() {
     if (isCurvingArrowRef.current) {
       const targetEl = isCurvingArrowRef.current.el;
       isCurvingArrowRef.current = null;
+      setBound(getBounds({ element: targetEl }));
+      scheduleRender();
+      return;
+    }
+
+    if (isDraggingEndpointRef.current) {
+      const targetEl = isDraggingEndpointRef.current.el;
+      isDraggingEndpointRef.current = null;
+      activeSnapTargetRef.current = null;
+      try {
+        canvasRef.current?.releasePointerCapture(e.pointerId);
+      } catch {}
       setBound(getBounds({ element: targetEl }));
       scheduleRender();
       return;
