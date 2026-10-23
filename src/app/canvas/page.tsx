@@ -175,6 +175,35 @@ export default function App() {
     fontSize?: number;
   };
   const resizeOriginalElementsRef = useRef<ElementResizeSnapshot[]>([]);
+
+  type ElementDragSnapshot = {
+    id: string;
+    origX: number;
+    origY: number;
+    origControlPoint?: { x: number; y: number };
+  };
+  const dragStartPointerRef = useRef<point | null>(null);
+  const dragElementsSnapshotRef = useRef<ElementDragSnapshot[]>([]);
+  const dragInitialBoundRef = useRef<boundType | null>(null);
+
+  const startDragSnapshot = useCallback((targetIds: string[], targetBound: boundType | null, startPt: point) => {
+    dragStartPointerRef.current = startPt;
+    dragInitialBoundRef.current = targetBound;
+    dragElementsSnapshotRef.current = targetIds
+      .map((id) => {
+        const el = yElement.get(id);
+        if (!el || el.get('isDeleted')) return null;
+        const rawCp = el.get('controlPoint') as { x: number; y: number } | undefined;
+        return {
+          id,
+          origX: Number(el.get('x')),
+          origY: Number(el.get('y')),
+          origControlPoint: rawCp ? { x: Number(rawCp.x), y: Number(rawCp.y) } : undefined,
+        };
+      })
+      .filter((snap): snap is ElementDragSnapshot => snap !== null);
+  }, [yElement]);
+
   const justFinishedEditingTextRef = useRef<boolean>(false);
   const textCreationTimeRef = useRef<number>(0);
   const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
@@ -853,6 +882,7 @@ export default function App() {
           if (cBound) {
             setGlobalPointerPosition([x - cBound.x, y - cBound.y]);
           }
+          startDragSnapshot(nextIds, cBound, initialPoint);
         } else {
           // Check if any group member of the hit element is already in the multi-selection.
           // This prevents a click on an ungrouped nearby element from hijacking a multi-drag.
@@ -861,9 +891,11 @@ export default function App() {
             // User clicked inside an already-selected group — keep the full multi-drag
             setIsDragging(true);
             setLockedBounds(true);
-            if (bound) {
-              setGlobalPointerPosition([x - bound.x, y - bound.y]);
+            const curBound = bound || getCompoundBounds(selectedElementIds, yElement);
+            if (curBound) {
+              setGlobalPointerPosition([x - curBound.x, y - curBound.y]);
             }
+            startDragSnapshot(selectedElementIds, curBound, initialPoint);
           } else {
             // New selection: resolve group members
             setSelectedElementIds(groupMembers);
@@ -872,11 +904,13 @@ export default function App() {
               const b = getBounds({ element: hit.yEl });
               setBound(b);
               if (b) setGlobalPointerPosition([x - b.x, y - b.y]);
+              startDragSnapshot(groupMembers, b, initialPoint);
             } else {
               setYElement(null);
               const cBound = getCompoundBounds(groupMembers, yElement);
               setBound(cBound);
               if (cBound) setGlobalPointerPosition([x - cBound.x, y - cBound.y]);
+              startDragSnapshot(groupMembers, cBound, initialPoint);
             }
             setIsDragging(true);
             setLockedBounds(true);
@@ -1016,7 +1050,7 @@ export default function App() {
   }, [getPointerCoordinates, currentTool, bound, lockedBounds, selectedYElement, hitTestAtPoint,
     setYElement, setBound, setIsDragging, setIsResizing, setResizeHandle, strokeColor,
     strokeWidth, fillColor, isFillTransparent, fillStyle, roughness, boundaryStyle, fillWeight, doc, yElement,
-    order, setSelectedElementId, setIsDrawing]
+    order, setSelectedElementId, setIsDrawing, startDragSnapshot, selectedElementIds, setSelectedElementIds]
 
   );
   const lastMoveTimeRef = useRef<number>(0);
@@ -1255,55 +1289,55 @@ export default function App() {
 
     if (isDragging) {
       setCursorStyle("grabbing");
-      if (!GlobalPointerPosition || !bound) return;
-      const newBoundX = x - GlobalPointerPosition[0];
-      const newBoundY = y - GlobalPointerPosition[1];
-      const rawDx = newBoundX - bound.x;
-      const rawDy = newBoundY - bound.y;
+      const startPt = dragStartPointerRef.current;
+      const initialBound = dragInitialBoundRef.current;
+      const snapshots = dragElementsSnapshotRef.current;
 
-      // Proposed bounds after raw move (before snap)
+      if (!startPt || !initialBound || snapshots.length === 0) return;
+
+      const rawTotalDx = x - startPt[0];
+      const rawTotalDy = y - startPt[1];
+
+      // Proposed bounds after total displacement from initial position
       const proposedBounds = {
-        x: bound.x + rawDx,
-        y: bound.y + rawDy,
-        width: bound.width,
-        height: bound.height,
+        x: initialBound.x + rawTotalDx,
+        y: initialBound.y + rawTotalDy,
+        width: initialBound.width,
+        height: initialBound.height,
       };
 
       // Compute alignment snap (skip if Alt held — lets user bypass guides)
-      const movingIds = new Set<string>(
-        selectedElementIds.length > 0
-          ? selectedElementIds
-          : selectedYElement ? [selectedYElement.get('id') as string] : []
-      );
+      const movingIds = new Set<string>(snapshots.map((s) => s.id));
       const { guides, snapDx, snapDy } = e.altKey
-        ? { guides: [] as AlignmentGuide[], snapDx: rawDx, snapDy: rawDy }
-        : computeAlignmentGuides(movingIds, proposedBounds, rawDx, rawDy, yElement as Y.Map<Y.Map<unknown>>);
+        ? { guides: [] as AlignmentGuide[], snapDx: rawTotalDx, snapDy: rawTotalDy }
+        : computeAlignmentGuides(movingIds, proposedBounds, rawTotalDx, rawTotalDy, yElement as Y.Map<Y.Map<unknown>>);
 
       alignmentGuidesRef.current = guides;
-      const dx = snapDx;
-      const dy = snapDy;
+      const finalDx = snapDx;
+      const finalDy = snapDy;
 
       try {
         doc.transact(() => {
-          if (selectedElementIds.length > 1) {
-            selectedElementIds.forEach((id) => {
-              const el = yElement.get(id);
-              if (el && !el.get('isDeleted')) {
-                el.set("x", Number(el.get("x")) + dx);
-                el.set("y", Number(el.get("y")) + dy);
+          snapshots.forEach((snap) => {
+            const el = yElement.get(snap.id);
+            if (el && !el.get('isDeleted')) {
+              el.set("x", snap.origX + finalDx);
+              el.set("y", snap.origY + finalDy);
+              if (snap.origControlPoint) {
+                el.set("controlPoint", {
+                  x: snap.origControlPoint.x + finalDx,
+                  y: snap.origControlPoint.y + finalDy,
+                });
               }
-            });
-          } else if (selectedYElement) {
-            selectedYElement.set("x", Number(selectedYElement.get("x")) + dx);
-            selectedYElement.set("y", Number(selectedYElement.get("y")) + dy);
-          }
+            }
+          });
         }, LOCAL_ORIGIN);
 
-        if (selectedElementIds.length > 1) {
-          setBound(getCompoundBounds(selectedElementIds, yElement));
-        } else if (selectedYElement) {
-          setBound(getBounds({ element: selectedYElement }));
-        }
+        setBound({
+          ...initialBound,
+          x: initialBound.x + finalDx,
+          y: initialBound.y + finalDy,
+        });
       } catch (err) {
         console.error("Error updating Y element during drag:", err);
       }
@@ -1409,7 +1443,7 @@ export default function App() {
 
   }, [getPointerCoordinates, currentTool, isDragging, isResizing, lockedBounds, bound,
     selectedYElement, hitTestAtPoint, setBound, setYElement, setIsDragging, isDrawing,
-    freehandPoint, doc, scheduleRender, GlobalPointerPosition, resizeHandle]);
+    freehandPoint, doc, scheduleRender, GlobalPointerPosition, resizeHandle, yElement, selectedElementIds]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
     if (isPanningRef.current) {
@@ -1508,6 +1542,16 @@ export default function App() {
     }
 
     const wasMoving = isDrawing || isDragging || isResizing || isPanningRef.current;
+    if (isDragging) {
+      dragStartPointerRef.current = null;
+      dragElementsSnapshotRef.current = [];
+      dragInitialBoundRef.current = null;
+      if (selectedElementIds.length > 1) {
+        setBound(getCompoundBounds(selectedElementIds, yElement));
+      } else if (selectedYElement) {
+        setBound(getBounds({ element: selectedYElement }));
+      }
+    }
     setIsDrawing(false);
     setIsDragging(false);
     // Clear alignment snap guides once drag finishes
