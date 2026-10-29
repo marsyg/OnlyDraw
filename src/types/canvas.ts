@@ -1,4 +1,4 @@
-import { PointsFreeHand, point } from './type';
+import { PointsFreeHand } from './type';
 import * as Y from 'yjs';
 
 export type EditingTextState = {

@@ -9,7 +9,7 @@ import * as Y from 'yjs';
 
 import { point, actionType, elementType } from '@/types/type';
 import { useAppStore } from '@/Store/store';
-import canvasDoc, { LOCAL_ORIGIN } from '@/Store/yjs-store';
+import canvasDoc from '@/Store/yjs-store';
 import { DrawElements } from '@/lib/utils/drawingUtility/drawElement';
 import { DrawBounds } from '@/lib/drawBounds';
 import { drawGhostSnapIndicators, getLineEndpoints, isLineOrArrow } from '@/lib/arrowSnap';
@@ -55,7 +55,6 @@ export default function App() {
     opacity,
     hasShadow,
     camera,
-    panCamera,
     zoomCamera,
     resetCamera,
     clipboard,
@@ -223,8 +222,6 @@ export default function App() {
     setIsResizing: pointerEvents.setIsResizing,
     setIsDrawing: pointerEvents.setIsDrawing,
     scheduleRender: () => scheduleRender(),
-    resetCamera,
-    startEditingText: textEditing.startEditingText,
     finishEditingTextRef: textEditing.finishEditingTextRef,
     editingTextElementRef: textEditing.editingTextElementRef,
     setEditingTextElement: textEditing.setEditingTextElement,

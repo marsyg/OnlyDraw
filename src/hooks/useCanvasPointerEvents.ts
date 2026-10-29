@@ -1,14 +1,14 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import * as Y from 'yjs';
-import { actionType, elementType, point, PointsFreeHand, ArrowBinding } from '@/types/type';
-import { ElementDragSnapshot, ElementResizeSnapshot, EndpointDragState, MarqueeBox } from '@/types/canvas';
+import { actionType, elementType, point, PointsFreeHand, ArrowBinding, OnlyDrawElement } from '@/types/type';
+import { EditingTextState, ElementDragSnapshot, ElementResizeSnapshot, EndpointDragState, MarqueeBox } from '@/types/canvas';
 import { boundType, getBounds } from '@/lib/utils/boundsUtility/getBounds';
 import { getCompoundBounds, isElementIntersectingBox } from '@/lib/utils/boundsUtility/compoundBounds';
 import { isPointInPaddedBounds } from '@/lib/utils/boundsUtility/isPointInPaddedBounds';
 import { isPointInsideElement } from '@/lib/utils/drawingUtility/hitTest';
-import { findNearestSnapTarget, getBindingPosition, SnapLocation, SnapTarget, getLineEndpoints, isLineOrArrow } from '@/lib/arrowSnap';
+import { findNearestSnapTarget, SnapTarget, getLineEndpoints, isLineOrArrow } from '@/lib/arrowSnap';
 import { computeAlignmentGuides, AlignmentGuide } from '@/lib/alignmentGuides';
 import { getPivotPoint } from '@/lib/math/pivot';
 import { getGroupMembers } from '@/lib/grouping';
@@ -22,7 +22,7 @@ import { useAppStore } from '@/Store/store';
 
 interface UseCanvasPointerEventsProps {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
-  camera: { x: number; y: number; scale: number };
+  camera?: { x: number; y: number; scale: number };
   cameraRef: React.MutableRefObject<{ x: number; y: number; scale: number }>;
   currentTool: { action: actionType; elementType: elementType | null };
   doc: Y.Doc;
@@ -48,7 +48,7 @@ interface UseCanvasPointerEventsProps {
   textAlign?: 'left' | 'center' | 'right';
   arrowRouting?: 'straight' | 'curved' | 'angled';
   isTouchDevice: boolean;
-  editingTextElementRef: React.MutableRefObject<any>;
+  editingTextElementRef: React.MutableRefObject<EditingTextState | null>;
   finishEditingTextRef: React.MutableRefObject<() => void>;
   textCreationTimeRef: React.MutableRefObject<number>;
   justFinishedEditingTextRef: React.MutableRefObject<boolean>;
@@ -65,7 +65,6 @@ interface UseCanvasPointerEventsProps {
 
 export function useCanvasPointerEvents({
   canvasRef,
-  camera,
   cameraRef,
   currentTool,
   doc,
@@ -654,6 +653,7 @@ export function useCanvasPointerEvents({
       hitTestAtPoint,
       setYElement,
       setBound,
+      setLockedBounds,
       setIsDragging,
       setIsResizing,
       setResizeHandle,
@@ -897,7 +897,7 @@ export function useCanvasPointerEvents({
       if (currentTool.action === actionType.Drawing) {
         if (!selectedYElement) return;
 
-        const elementJSON = selectedYElement.toJSON() as any;
+        const elementJSON = selectedYElement.toJSON() as unknown as Record<string, unknown>;
         const type = selectedYElement.get('type') as unknown as elementType;
 
         if (type === elementType.Freehand && freehandPoint) {
@@ -920,7 +920,7 @@ export function useCanvasPointerEvents({
             width: maxX - minX,
             height: maxY - minY,
             stroke: { points: relPoints },
-          };
+          } as unknown as OnlyDrawElement;
 
           doc.transact(() => {
             yUtils.updateYElement(updatedElement, selectedYElement);
@@ -950,17 +950,17 @@ export function useCanvasPointerEvents({
             height: endY - startY,
             endBinding: arrowEndBindingRef.current,
             startBinding: arrowStartBindingRef.current,
-          };
+          } as unknown as OnlyDrawElement;
           doc.transact(() => {
-            yUtils.updateYElement(updatedElement as any, selectedYElement);
+            yUtils.updateYElement(updatedElement, selectedYElement);
           }, LOCAL_ORIGIN);
           scheduleRender();
         } else {
           const updatedElement = {
             ...elementJSON,
-            width: x - elementJSON.x,
-            height: y - elementJSON.y,
-          };
+            width: x - (Number(elementJSON.x) || 0),
+            height: y - (Number(elementJSON.y) || 0),
+          } as unknown as OnlyDrawElement;
           doc.transact(() => {
             yUtils.updateYElement(updatedElement, selectedYElement);
           }, LOCAL_ORIGIN);

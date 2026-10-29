@@ -4,17 +4,18 @@ import { useCallback, useEffect } from 'react';
 import * as Y from 'yjs';
 import rough from 'roughjs';
 import { nanoid } from 'nanoid';
-import { actionType, elementType } from '@/types/type';
-import { getBounds } from '@/lib/utils/boundsUtility/getBounds';
+import { actionType, elementType, ArrowBinding } from '@/types/type';
+import { getBounds, boundType } from '@/lib/utils/boundsUtility/getBounds';
 import { getCompoundBounds } from '@/lib/utils/boundsUtility/compoundBounds';
 import { serializeYElement, serializeYElements, deserializeYElement, deserializeYElements } from '@/lib/clipboard';
-import { cleanupArrowBindings } from '@/lib/arrowSnap';
+import { cleanupArrowBindings, SnapTarget } from '@/lib/arrowSnap';
 import { cleanupOrphanGroups, groupElements, ungroupElements } from '@/lib/grouping';
 import { handleUndo, handleRedo } from '@/lib/helperfunc/undo-redo';
 import { handleDrawElement } from '@/lib/handleElement';
 import { DrawElements } from '@/lib/utils/drawingUtility/drawElement';
 import yUtils from '@/lib/utils/createYElement';
 import canvasDoc, { LOCAL_ORIGIN } from '@/Store/yjs-store';
+import { EditingTextState, ElementResizeSnapshot, MarqueeBox } from '@/types/canvas';
 
 interface UseCanvasActionsProps {
   doc: Y.Doc;
@@ -22,7 +23,7 @@ interface UseCanvasActionsProps {
   order: Y.Array<string>;
   selectedYElement: Y.Map<unknown> | null;
   selectedElementIds: string[];
-  clipboard: any;
+  clipboard: Record<string, unknown> | Record<string, unknown>[] | null;
   isDark: boolean;
   camera: { x: number; y: number; scale: number };
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
@@ -39,29 +40,27 @@ interface UseCanvasActionsProps {
   opacity?: number;
   hasShadow?: boolean;
   textAlign?: 'left' | 'center' | 'right';
-  setClipboard: (c: any) => void;
+  setClipboard: (c: Record<string, unknown> | Record<string, unknown>[] | null) => void;
   setSelectedElementIds: (ids: string[]) => void;
   setYElement: (el: Y.Map<unknown> | null) => void;
-  setBound: (b: any) => void;
+  setBound: (b: boundType | null) => void;
   setLockedBounds: (l: boolean) => void;
-  setCurrentTool: (tool: any) => void;
+  setCurrentTool: (tool: { action: actionType; elementType: elementType | null }) => void;
   setActiveToolbarId: (id: string) => void;
   setIsSelecting: (s: boolean) => void;
   setIsDragging: (d: boolean) => void;
   setIsResizing: (r: boolean) => void;
   setIsDrawing: (d: boolean) => void;
   scheduleRender: () => void;
-  resetCamera: () => void;
-  startEditingText: (yEl: Y.Map<unknown>) => void;
   finishEditingTextRef: React.MutableRefObject<() => void>;
-  editingTextElementRef: React.MutableRefObject<any>;
-  setEditingTextElement: (state: any) => void;
+  editingTextElementRef: React.MutableRefObject<EditingTextState | null>;
+  setEditingTextElement: React.Dispatch<React.SetStateAction<EditingTextState | null>>;
   isMarqueeRef: React.MutableRefObject<boolean>;
-  marqueeBoxRef: React.MutableRefObject<any>;
-  activeSnapTargetRef: React.MutableRefObject<any>;
-  arrowStartBindingRef: React.MutableRefObject<any>;
-  arrowEndBindingRef: React.MutableRefObject<any>;
-  resizeOriginalElementsRef: React.MutableRefObject<any>;
+  marqueeBoxRef: React.MutableRefObject<MarqueeBox | null>;
+  activeSnapTargetRef: React.MutableRefObject<SnapTarget | null>;
+  arrowStartBindingRef: React.MutableRefObject<ArrowBinding | null>;
+  arrowEndBindingRef: React.MutableRefObject<ArrowBinding | null>;
+  resizeOriginalElementsRef: React.MutableRefObject<ElementResizeSnapshot[]>;
 }
 
 export function useCanvasActions({
@@ -99,8 +98,6 @@ export function useCanvasActions({
   setIsResizing,
   setIsDrawing,
   scheduleRender,
-  resetCamera,
-  startEditingText,
   finishEditingTextRef,
   editingTextElementRef,
   setEditingTextElement,
@@ -337,18 +334,19 @@ export function useCanvasActions({
         setLockedBounds(true);
         scheduleRender();
       } else {
+        const singleClip = clipboard as Record<string, unknown>;
         let newYElement: Y.Map<unknown> | null = null;
         let newId = '';
         doc.transact(() => {
-          newYElement = deserializeYElement(clipboard, { x: 30, y: 30 }, yElement);
+          newYElement = deserializeYElement(singleClip, { x: 30, y: 30 }, yElement);
           newId = newYElement.get('id') as string;
           order.push([newId]);
         }, LOCAL_ORIGIN);
 
         setClipboard({
-          ...clipboard,
-          x: (Number(clipboard.x) || 0) + 30,
-          y: (Number(clipboard.y) || 0) + 30,
+          ...singleClip,
+          x: (Number(singleClip.x) || 0) + 30,
+          y: (Number(singleClip.y) || 0) + 30,
         });
 
         if (newYElement) {
