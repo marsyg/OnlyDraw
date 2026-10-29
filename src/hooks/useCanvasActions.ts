@@ -11,8 +11,8 @@ import { serializeYElement, serializeYElements, deserializeYElement, deserialize
 import { cleanupArrowBindings, SnapTarget } from '@/lib/arrowSnap';
 import { cleanupOrphanGroups, groupElements, ungroupElements } from '@/lib/grouping';
 import { handleUndo, handleRedo } from '@/lib/helperfunc/undo-redo';
-import { handleDrawElement } from '@/lib/handleElement';
-import { DrawElements } from '@/lib/utils/drawingUtility/drawElement';
+import { DrawElements, getThemeAdaptedColor } from '@/lib/utils/drawingUtility/drawElement';
+import { createTextElement } from '@/lib/createTextElement';
 import yUtils from '@/lib/utils/createYElement';
 import canvasDoc, { LOCAL_ORIGIN } from '@/Store/yjs-store';
 import { EditingTextState, ElementResizeSnapshot, MarqueeBox } from '@/types/canvas';
@@ -172,50 +172,20 @@ export function useCanvasActions({
       const measuredH = Math.ceil(
         lines.length > 1 ? (lines.length - 1) * (fSize * 1.25) + fSize : fSize * 1.15
       );
-
-      const defaultColor = isDark ? '#f8fafc' : '#0f172a';
-      let txtColor = fillColor || strokeColor || defaultColor;
-      if (isDark && (txtColor === '#000000' || txtColor === 'black' || txtColor === '#1e293b' || txtColor === '#0f172a')) {
-        txtColor = '#f8fafc';
-      } else if (!isDark && (txtColor === '#ffffff' || txtColor === 'white' || txtColor === '#f8fafc' || txtColor === '#f1f5f9')) {
-        txtColor = '#0f172a';
-      }
-
-      const textElement = handleDrawElement({
-        action: actionType.Drawing,
-        element: elementType.Text,
+      
+      const createdYEl = createTextElement({
         startPoint: [targetX, targetY],
         endPoint: [targetX + measuredW, targetY + measuredH],
-        options: {
-          strokeColor: txtColor,
-          strokeWidth: strokeWidth ?? 2,
-          fillColor: txtColor,
-          fillStyle: fillStyle || 'solid',
-          roughness: roughness ?? 0,
-          boundaryStyle: boundaryStyle || 'solid',
-          fillWeight: fillWeight ?? 3,
-          opacity: opacity ?? 1,
-          hasShadow: hasShadow ?? false,
-          text,
-          fontSize: fSize,
-          fontFamily: fFam,
-          textAlign: textAlign || 'left',
-        },
+        text,
+        isDark,
+        style: { fillColor, strokeColor, strokeWidth, fillStyle, roughness, boundaryStyle, fillWeight, opacity, hasShadow, fontSize: fSize, fontFamily: fFam, textAlign },
+        doc,
+        yElement,
+        order,
       });
 
-      if (!textElement) return;
-
-      let createdYEl: Y.Map<unknown> | null = null;
-      doc.transact(() => {
-        createdYEl = yUtils.createYElement(textElement);
-        if (createdYEl) {
-          yElement.set(textElement.id, createdYEl);
-          order.push([textElement.id]);
-        }
-      }, LOCAL_ORIGIN);
-
       if (createdYEl) {
-        setSelectedElementIds([textElement.id]);
+        setSelectedElementIds([createdYEl.get('id') as string]);
         setYElement(createdYEl);
         setBound(getBounds({ element: createdYEl }));
         setLockedBounds(true);

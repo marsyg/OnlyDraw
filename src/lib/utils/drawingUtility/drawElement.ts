@@ -66,6 +66,8 @@ export function getThemeAdaptedColor(rawColor: string, isDark: boolean): string 
     }
   }
 
+
+
   // Parse RGB or Hex to check perceived luminance
   let r = 0, g = 0, b = 0, hasColor = false;
   if (lower.startsWith('#')) {
@@ -108,6 +110,16 @@ export function getThemeAdaptedColor(rawColor: string, isDark: boolean): string 
   return rawColor;
 }
 
+ export const getTextColor = (fillColor:string |undefined , strokeColor : string | undefined, isDark : boolean):string =>{
+   const defaultColor = isDark ? '#f8fafc' : '#0f172a';
+      let txtColor = fillColor || strokeColor || defaultColor;
+      if (isDark && (txtColor === '#000000' || txtColor === 'black' || txtColor === '#1e293b' || txtColor === '#0f172a')) {
+        txtColor = '#f8fafc';
+      } else if (!isDark && (txtColor === '#ffffff' || txtColor === 'white' || txtColor === '#f8fafc' || txtColor === '#f1f5f9')) {
+        txtColor = '#0f172a';
+      }
+      return txtColor;
+  }
 function elementDrawKey(element: Y.Map<unknown>) {
   const x = Number(element.get('x'));
   const y = Number(element.get('y'));

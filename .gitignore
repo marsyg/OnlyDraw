@@ -12,11 +12,11 @@
 
 # testing
 /coverage
-
+/.agents
 # next.js
 /.next/
 /out/
-
+/skills-lock.json
 # production
 /build
 

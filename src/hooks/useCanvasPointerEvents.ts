@@ -19,6 +19,7 @@ import { resizeElement } from '@/lib/resizeElement';
 import yUtils from '@/lib/utils/createYElement';
 import canvasDoc, { LOCAL_ORIGIN, UndoManager } from '@/Store/yjs-store';
 import { useAppStore } from '@/Store/store';
+import { createTextElement } from '@/lib/createTextElement';
 
 interface UseCanvasPointerEventsProps {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
@@ -531,46 +532,16 @@ export function useCanvasPointerEvents({
 
       if (currentTool.action === actionType.Drawing) {
         if (currentTool.elementType === elementType.Text) {
-          const defaultColor = isDark ? '#f8fafc' : '#0f172a';
-          let txtColor = fillColor || strokeColor || defaultColor;
-          if (isDark && (txtColor === '#000000' || txtColor === 'black' || txtColor === '#1e293b' || txtColor === '#0f172a')) {
-            txtColor = '#f8fafc';
-          } else if (!isDark && (txtColor === '#ffffff' || txtColor === 'white' || txtColor === '#f8fafc' || txtColor === '#f1f5f9')) {
-            txtColor = '#0f172a';
-          }
-
-          const textElement = handleDrawElement({
-            action: actionType.Drawing,
-            element: elementType.Text,
+          const createdYEl = createTextElement({
             startPoint: initialPoint,
             endPoint: [initialPoint[0] + 120, initialPoint[1] + 36],
-            options: {
-              strokeColor: txtColor,
-              strokeWidth: strokeWidth ?? 2,
-              fillColor: txtColor,
-              fillStyle: fillStyle || 'solid',
-              roughness: roughness ?? 0,
-              boundaryStyle: boundaryStyle || 'solid',
-              fillWeight: fillWeight ?? 3,
-              opacity: opacity ?? 1,
-              hasShadow: hasShadow ?? false,
-              text: '',
-              fontSize: fontSize || 24,
-              fontFamily: fontFamily || 'sans-serif',
-              textAlign: textAlign || 'left',
-            },
+            text: '',
+            isDark,
+            style: { fillColor, strokeColor, strokeWidth, fillStyle, roughness, boundaryStyle, fillWeight, opacity, hasShadow, fontSize, fontFamily, textAlign },
+            doc,
+            yElement,
+            order,
           });
-
-          if (!textElement) return;
-
-          let createdYEl: Y.Map<unknown> | null = null;
-          doc.transact(() => {
-            createdYEl = yUtils.createYElement(textElement);
-            if (createdYEl) {
-              yElement.set(textElement.id, createdYEl);
-              order.push([textElement.id]);
-            }
-          }, LOCAL_ORIGIN);
 
           if (createdYEl) {
             startEditingText(createdYEl);
