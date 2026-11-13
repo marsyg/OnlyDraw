@@ -54,6 +54,28 @@ export const handleDrawElement = ({
         boundaryStyle: options.boundaryStyle,
       };
 
+    case elementType.Diamond:
+      return {
+        ...baseProperties,
+        type: elementType.Diamond,
+        fillColor: options.fillColor,
+        isFillTransparent: options.isFillTransparent ?? true,
+        fillStyle: options.fillStyle,
+        fillWeight: options.fillWeight,
+        boundaryStyle: options.boundaryStyle,
+      };
+
+    case elementType.RoundedRect:
+      return {
+        ...baseProperties,
+        type: elementType.RoundedRect,
+        fillColor: options.fillColor,
+        isFillTransparent: options.isFillTransparent ?? true,
+        fillStyle: options.fillStyle,
+        fillWeight: options.fillWeight,
+        boundaryStyle: options.boundaryStyle,
+      };
+
     case elementType.Line:
       return {
         ...baseProperties,

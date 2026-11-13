@@ -156,20 +156,20 @@ export default function WorkspaceManager({ isDark = false }: WorkspaceManagerPro
         onClick={() => setIsOpen((prev) => !prev)}
         className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 backdrop-blur-md shadow-lg transition-all border ${
           isDark
-            ? 'bg-slate-900/90 border-slate-700/80 text-slate-100 hover:bg-slate-800'
-            : 'bg-white/90 border-slate-200 text-slate-800 hover:bg-slate-100 shadow-slate-200/50'
+            ? 'bg-zinc-900/90 border-zinc-800 text-zinc-100 hover:bg-zinc-800'
+            : 'bg-white/90 border-zinc-200 text-zinc-800 hover:bg-zinc-100 shadow-sm'
         }`}
         whileHover={{ scale: 1.03 }}
         whileTap={{ scale: 0.97 }}
         title="Switch or manage workspaces"
       >
-        <div className="w-5 h-5 rounded-lg bg-blue-500/15 text-blue-500 flex items-center justify-center flex-shrink-0">
+        <div className="w-5 h-5 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 flex items-center justify-center flex-shrink-0">
           <Layers size={13} className="text-blue-500" />
         </div>
         <span className="max-w-[130px] truncate font-medium">{activeWorkspace.name}</span>
         <ChevronDown
           size={13}
-          className={`text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+          className={`text-zinc-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
         />
       </motion.button>
 
@@ -183,21 +183,21 @@ export default function WorkspaceManager({ isDark = false }: WorkspaceManagerPro
             transition={{ type: 'spring', stiffness: 450, damping: 28 }}
             className={`absolute top-full mt-2 left-0 w-72 rounded-2xl p-2.5 border shadow-2xl backdrop-blur-xl z-50 ${
               isDark
-                ? 'bg-slate-900/95 border-slate-700/80 text-slate-100 shadow-black/60'
-                : 'bg-white/95 border-slate-200 text-slate-800 shadow-slate-300/60'
+                ? 'bg-zinc-900/98 border-zinc-800 text-zinc-100 shadow-black/60'
+                : 'bg-white/98 border-zinc-200 text-zinc-800 shadow-zinc-300/60'
             }`}
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-2 pb-2 border-b border-slate-200/60 dark:border-slate-800/80">
+            <div className="flex items-center justify-between px-2 pb-2 border-b border-zinc-200/80 dark:border-zinc-800/80">
               <div className="flex items-center gap-1.5">
                 <Layers size={14} className="text-blue-500" />
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                <span className="text-xs font-bold uppercase tracking-wider text-zinc-400">
                   Workspaces ({workspaces.length})
                 </span>
               </div>
               <button
                 onClick={() => setIsCreatingNew((v) => !v)}
-                className="p-1 rounded-md hover:bg-blue-500/10 text-blue-500 transition-colors flex items-center gap-1 text-[11px] font-semibold"
+                className="p-1 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 transition-colors flex items-center gap-1 text-[11px] font-semibold"
                 title="Create New Workspace"
               >
                 <Plus size={13} />
@@ -207,7 +207,7 @@ export default function WorkspaceManager({ isDark = false }: WorkspaceManagerPro
 
             {/* Quick create inline form */}
             {isCreatingNew && (
-              <form onSubmit={handleCreateNew} className="p-2 mt-1.5 mb-1.5 rounded-xl bg-blue-500/10 border border-blue-500/20 space-y-2">
+              <form onSubmit={handleCreateNew} className="p-2 mt-1.5 mb-1.5 rounded-xl bg-zinc-100/80 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 space-y-2">
                 <input
                   type="text"
                   autoFocus
@@ -216,21 +216,21 @@ export default function WorkspaceManager({ isDark = false }: WorkspaceManagerPro
                   onChange={(e) => setNewWorkspaceName(e.target.value)}
                   className={`w-full px-2.5 py-1.5 text-xs rounded-lg border transition-colors focus:outline-none focus:ring-1 focus:ring-blue-500 ${
                     isDark
-                      ? 'bg-slate-950 border-slate-700 text-slate-100 placeholder-slate-500'
-                      : 'bg-white border-slate-200 text-slate-800 placeholder-slate-400'
+                      ? 'bg-zinc-950 border-zinc-700 text-zinc-100 placeholder-zinc-500'
+                      : 'bg-white border-zinc-200 text-zinc-800 placeholder-zinc-400'
                   }`}
                 />
                 <div className="flex justify-end gap-1.5">
                   <button
                     type="button"
                     onClick={() => setIsCreatingNew(false)}
-                    className="px-2 py-1 text-[10px] rounded font-medium text-slate-400 hover:text-slate-200"
+                    className="px-2 py-1 text-[10px] rounded font-medium text-zinc-400 hover:text-zinc-200"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-3 py-1 text-[10px] rounded font-semibold bg-blue-600 text-white hover:bg-blue-500 shadow-sm transition-colors"
+                    className="px-3 py-1 text-[10px] rounded font-semibold bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-200 shadow-sm transition-colors"
                   >
                     Create
                   </button>
@@ -242,7 +242,7 @@ export default function WorkspaceManager({ isDark = false }: WorkspaceManagerPro
             {workspaces.length > 3 && (
               <div className="mt-2 px-1">
                 <div className="relative">
-                  <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
                   <input
                     type="text"
                     placeholder="Search workspaces..."
@@ -250,8 +250,8 @@ export default function WorkspaceManager({ isDark = false }: WorkspaceManagerPro
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className={`w-full pl-7 pr-2 py-1 text-xs rounded-lg border transition-colors focus:outline-none focus:ring-1 focus:ring-blue-500 ${
                       isDark
-                        ? 'bg-slate-950/60 border-slate-800 text-slate-100 placeholder-slate-500'
-                        : 'bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400'
+                        ? 'bg-zinc-950/60 border-zinc-800 text-zinc-100 placeholder-zinc-500'
+                        : 'bg-zinc-50 border-zinc-200 text-zinc-800 placeholder-zinc-400'
                     }`}
                   />
                 </div>
@@ -271,11 +271,11 @@ export default function WorkspaceManager({ isDark = false }: WorkspaceManagerPro
                     className={`group px-2.5 py-2 rounded-xl flex items-center justify-between transition-all cursor-pointer border ${
                       isActive
                         ? isDark
-                          ? 'bg-blue-600/15 border-blue-500/40 text-blue-400'
-                          : 'bg-blue-50 border-blue-200 text-blue-600'
+                          ? 'bg-zinc-800 border-zinc-700 text-zinc-100 font-semibold'
+                          : 'bg-zinc-100 border-zinc-300 text-zinc-900 font-semibold'
                         : isDark
-                        ? 'hover:bg-slate-800/60 border-transparent text-slate-200'
-                        : 'hover:bg-slate-100/80 border-transparent text-slate-700'
+                        ? 'hover:bg-zinc-800/60 border-transparent text-zinc-300'
+                        : 'hover:bg-zinc-100/80 border-transparent text-zinc-700'
                     }`}
                   >
                     {isEditing ? (
@@ -291,8 +291,8 @@ export default function WorkspaceManager({ isDark = false }: WorkspaceManagerPro
                           }}
                           className={`flex-1 px-2 py-1 text-xs rounded border transition-colors focus:outline-none ${
                             isDark
-                              ? 'bg-slate-950 border-blue-500 text-slate-100'
-                              : 'bg-white border-blue-500 text-slate-800'
+                              ? 'bg-zinc-950 border-blue-500 text-zinc-100'
+                              : 'bg-white border-blue-500 text-zinc-800'
                           }`}
                         />
                         <button
@@ -304,7 +304,7 @@ export default function WorkspaceManager({ isDark = false }: WorkspaceManagerPro
                         </button>
                         <button
                           onClick={() => setEditingId(null)}
-                          className="p-1 text-slate-400 hover:bg-slate-400/10 rounded"
+                          className="p-1 text-zinc-400 hover:bg-zinc-400/10 rounded"
                           title="Cancel"
                         >
                           <X size={13} />
@@ -314,11 +314,11 @@ export default function WorkspaceManager({ isDark = false }: WorkspaceManagerPro
                       <>
                         <div className="flex items-center gap-2 min-w-0">
                           {isActive ? (
-                            <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0 animate-pulse" />
+                            <div className="w-2 h-2 rounded-full bg-blue-600 flex-shrink-0" />
                           ) : (
                             <div className="w-2 h-2 rounded-full bg-transparent flex-shrink-0" />
                           )}
-                          <span className={`text-xs font-medium truncate ${isActive ? 'font-bold' : ''}`}>
+                          <span className={`text-xs truncate ${isActive ? 'font-semibold text-zinc-100' : 'font-medium'}`}>
                             {ws.name}
                           </span>
                         </div>
@@ -327,14 +327,14 @@ export default function WorkspaceManager({ isDark = false }: WorkspaceManagerPro
                         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button
                             onClick={(e) => handleStartRename(ws, e)}
-                            className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-100 transition-colors"
+                            className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
                             title="Rename"
                           >
                             <Edit2 size={12} />
                           </button>
                           <button
                             onClick={(e) => handleDuplicate(ws.id, e)}
-                            className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-100 transition-colors"
+                            className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
                             title="Duplicate"
                           >
                             <Copy size={12} />
@@ -342,7 +342,7 @@ export default function WorkspaceManager({ isDark = false }: WorkspaceManagerPro
                           {workspaces.length > 1 && (
                             <button
                               onClick={(e) => handleDelete(ws.id, e)}
-                              className="p-1 rounded hover:bg-red-500/15 text-slate-400 hover:text-red-500 transition-colors"
+                              className="p-1 rounded hover:bg-red-500/15 text-zinc-400 hover:text-red-500 transition-colors"
                               title="Delete workspace"
                             >
                               <Trash2 size={12} />
@@ -358,13 +358,13 @@ export default function WorkspaceManager({ isDark = false }: WorkspaceManagerPro
 
             {/* Bottom Create Button */}
             {!isCreatingNew && (
-              <div className="pt-2 mt-1 border-t border-slate-200/60 dark:border-slate-800/80">
+              <div className="pt-2 mt-1 border-t border-zinc-200/80 dark:border-zinc-800/80">
                 <button
                   onClick={() => setIsCreatingNew(true)}
                   className={`w-full py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors ${
                     isDark
-                      ? 'bg-slate-800/80 hover:bg-slate-700 text-slate-200'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                      ? 'bg-zinc-800/80 hover:bg-zinc-700 text-zinc-200'
+                      : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700'
                   }`}
                 >
                   <Plus size={13} />

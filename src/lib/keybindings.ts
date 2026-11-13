@@ -30,6 +30,14 @@ export const KEYBINDINGS: KeybindingDef[] = [
     displayKeys: ['R'],
   },
   {
+    id: 'tool.diamond',
+    key: 'd',
+    action: 'tool.diamond',
+    category: 'Tools',
+    description: 'Diamond tool',
+    displayKeys: ['D'],
+  },
+  {
     id: 'tool.ellipse',
     key: 'e',
     action: 'tool.ellipse',

@@ -3,6 +3,7 @@ import { args } from '../../hitTest/argumentType';
 
 import { isInsideRectangle } from '../../hitTest/rectangle';
 import { isInsideEllipse } from '../../hitTest/ellipse';
+import { isInsideDiamond } from '../../hitTest/diamond';
 import { isNearLine } from '../../hitTest/line';
 import { isNearFreehand } from '../../hitTest/free-hand';
 import { isInsideText } from '../../hitTest/text';
@@ -25,8 +26,12 @@ export const isPointInsideElement = ({ point, element }: args): boolean => {
   const type = element.get('type') as unknown as elementType;
   switch (type) {
     case elementType.Rectangle:
+    case elementType.RoundedRect:
     case elementType.Image: {
       return isInsideRectangle({ point: testPoint, element });
+    }
+    case elementType.Diamond: {
+      return isInsideDiamond({ point: testPoint, element });
     }
     case elementType.Ellipse: {
       return isInsideEllipse({ point: testPoint, element });

@@ -57,12 +57,12 @@ export function getThemeAdaptedColor(rawColor: string, isDark: boolean): string 
   if (isDark) {
     const darkNeutrals = ['#000000', '#000', 'black', '#1e293b', '#0f172a', '#020617', '#111827', '#18181b', '#171717', '#262626', '#334155'];
     if (darkNeutrals.includes(lower)) {
-      return '#f8fafc';
+      return '#fafafa';
     }
   } else {
-    const lightNeutrals = ['#ffffff', '#fff', 'white', '#f8fafc', '#f1f5f9', '#fdfdfd'];
+    const lightNeutrals = ['#ffffff', '#fff', 'white', '#f8fafc', '#fafafa', '#f1f5f9', '#fdfdfd'];
     if (lightNeutrals.includes(lower)) {
-      return '#0f172a';
+      return '#18181b';
     }
   }
 
@@ -100,29 +100,62 @@ export function getThemeAdaptedColor(rawColor: string, isDark: boolean): string 
     // Standard perceived relative luminance
     const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
     if (isDark && luminance < 60) {
-      return '#f8fafc';
+      return '#fafafa';
     }
     if (!isDark && luminance > 230) {
-      return '#0f172a';
+      return '#18181b';
     }
   }
 
   return rawColor;
 }
 
+export function withAlpha(color: string, alpha: number): string {
+  const clamped = Math.max(0, Math.min(1, alpha));
+  const lower = color.trim().toLowerCase();
+
+  if (lower.startsWith('#')) {
+    let hex = lower.slice(1);
+    if (hex.length === 3) {
+      hex = hex
+        .split('')
+        .map((c) => c + c)
+        .join('');
+    }
+    if (hex.length === 6) {
+      const r = parseInt(hex.slice(0, 2), 16);
+      const g = parseInt(hex.slice(2, 4), 16);
+      const b = parseInt(hex.slice(4, 6), 16);
+      if (!Number.isNaN(r) && !Number.isNaN(g) && !Number.isNaN(b)) {
+        return `rgba(${r}, ${g}, ${b}, ${clamped})`;
+      }
+    }
+  }
+
+  if (lower.startsWith('rgb')) {
+    const match = lower.match(/\(([^)]+)\)/);
+    if (match) {
+      const parts = match[1].split(',').map((p) => parseFloat(p.trim()));
+      if (parts.length >= 3 && parts.slice(0, 3).every((n) => !Number.isNaN(n))) {
+        return `rgba(${parts[0]}, ${parts[1]}, ${parts[2]}, ${clamped})`;
+      }
+    }
+  }
+
+  return color;
+}
+
  export const getTextColor = (fillColor:string |undefined , strokeColor : string | undefined, isDark : boolean):string =>{
-   const defaultColor = isDark ? '#f8fafc' : '#0f172a';
+   const defaultColor = isDark ? '#fafafa' : '#18181b';
       let txtColor = fillColor || strokeColor || defaultColor;
       if (isDark && (txtColor === '#000000' || txtColor === 'black' || txtColor === '#1e293b' || txtColor === '#0f172a')) {
-        txtColor = '#f8fafc';
+        txtColor = '#fafafa';
       } else if (!isDark && (txtColor === '#ffffff' || txtColor === 'white' || txtColor === '#f8fafc' || txtColor === '#f1f5f9')) {
-        txtColor = '#0f172a';
+        txtColor = '#18181b';
       }
       return txtColor;
   }
 function elementDrawKey(element: Y.Map<unknown>) {
-  const x = Number(element.get('x'));
-  const y = Number(element.get('y'));
   const width = Number(element.get('width'));
   const height = Number(element.get('height'));
   const seed = Number(element.get('seed')) || 0;
@@ -137,8 +170,6 @@ function elementDrawKey(element: Y.Map<unknown>) {
 
   const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
   return JSON.stringify({
-    x,
-    y,
     width,
     height,
     seed,
@@ -187,13 +218,16 @@ function getOrCreateDrawable(
   const fillStyle = String(element.get('fillStyle') || 'solid');
 
   drawable = withSeededMath(seed, () => {
+    const width = Number(element.get('width'));
+    const height = Number(element.get('height'));
+
     switch (type) {
       case elementType.Rectangle:
         return generator.rectangle(
-          Number(element.get('x')),
-          Number(element.get('y')),
-          Number(element.get('width')),
-          Number(element.get('height')),
+          0,
+          0,
+          width,
+          height,
           {
             seed,
             stroke: strokeColor,
@@ -205,12 +239,46 @@ function getOrCreateDrawable(
           }
         );
 
+      case elementType.Diamond: {
+        const cx = width / 2;
+        const cy = height / 2;
+        const diamondPts: [number, number][] = [
+          [cx, 0],
+          [width, cy],
+          [cx, height],
+          [0, cy],
+        ];
+        return generator.polygon(diamondPts, {
+          seed,
+          stroke: strokeColor,
+          strokeWidth: strokeWidth,
+          roughness: roughness,
+          ...(fill ? { fill, fillStyle } : {}),
+          hachureGap: hachureGap,
+          strokeLineDash: getStrokeLineDash(boundaryStyle, strokeWidth),
+        });
+      }
+
+      case elementType.RoundedRect: {
+        const r = Math.min(18, Math.min(Math.abs(width), Math.abs(height)) / 3);
+        const path = `M ${r} 0 ` +
+          `H ${width - r} Q ${width} 0 ${width} ${r} ` +
+          `V ${height - r} Q ${width} ${height} ${width - r} ${height} ` +
+          `H ${r} Q 0 ${height} 0 ${height - r} ` +
+          `V ${r} Q 0 0 ${r} 0 Z`;
+        return generator.path(path, {
+          seed,
+          stroke: strokeColor,
+          strokeWidth: strokeWidth,
+          roughness: roughness,
+          ...(fill ? { fill, fillStyle } : {}),
+          hachureGap: hachureGap,
+          strokeLineDash: getStrokeLineDash(boundaryStyle, strokeWidth),
+        });
+      }
+
       case elementType.Line: {
-        const x1 = Number(element.get('x'));
-        const y1 = Number(element.get('y'));
-        const x2 = x1 + Number(element.get('width'));
-        const y2 = y1 + Number(element.get('height'));
-        return generator.line(x1, y1, x2, y2, {
+        return generator.line(0, 0, width, height, {
           seed,
           stroke: strokeColor,
           strokeWidth: strokeWidth,
@@ -220,11 +288,7 @@ function getOrCreateDrawable(
       }
 
       case elementType.Ellipse: {
-        const x = Number(element.get('x'));
-        const y = Number(element.get('y'));
-        const width = Number(element.get('width'));
-        const height = Number(element.get('height'));
-        return generator.ellipse(x + width / 2, y + height / 2, width, height, {
+        return generator.ellipse(width / 2, height / 2, width, height, {
           seed,
           stroke: strokeColor,
           strokeWidth: strokeWidth,
@@ -248,10 +312,80 @@ function getOrCreateDrawable(
   return drawable;
 }
 
+function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+  const lines: string[] = [];
+  const paragraphs = text.split('\n');
+  for (const para of paragraphs) {
+    const words = para.split(/\s+/);
+    let curLine = '';
+    for (const w of words) {
+      if (!w) continue;
+      const testLine = curLine ? `${curLine} ${w}` : w;
+      if (curLine && ctx.measureText(testLine).width > maxWidth) {
+        lines.push(curLine);
+        curLine = w;
+      } else {
+        curLine = testLine;
+      }
+    }
+    if (curLine) lines.push(curLine);
+  }
+  return lines.length > 0 ? lines : [text];
+}
+
+function drawEmbeddedShapeLabel(ctx: CanvasRenderingContext2D, element: Y.Map<unknown>) {
+  const label = String(element.get('text') || '').trim();
+  if (!label) return;
+  const isEditingThis =
+    typeof window !== 'undefined' &&
+    (window as unknown as { __canvas_editing_text_id?: string }).__canvas_editing_text_id ===
+      element.get('id');
+  if (isEditingThis) return;
+
+  const x = Number(element.get('x'));
+  const y = Number(element.get('y'));
+  const width = Number(element.get('width'));
+  const height = Number(element.get('height'));
+  const type = element.get('type') as unknown as elementType;
+
+  const fontSize = Number(element.get('fontSize')) || 14;
+  const fontFamily = String(element.get('fontFamily') || 'sans-serif');
+  const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+  const rawTextColor = String(element.get('strokeColor') || (isDark ? '#fafafa' : '#18181b'));
+  const textColor = getThemeAdaptedColor(rawTextColor, isDark);
+
+  ctx.save();
+  ctx.font = `600 ${fontSize}px ${fontFamily}`;
+  ctx.fillStyle = textColor;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  let maxW = Math.max(30, width - 24);
+  if (type === elementType.Diamond) {
+    maxW = Math.max(30, width * 0.65 - 16);
+  } else if (type === elementType.Ellipse) {
+    maxW = Math.max(30, width * 0.72 - 16);
+  }
+
+  const lines = wrapText(ctx, label, maxW);
+  const lineHeight = fontSize * 1.35;
+  const totalTextH = lines.length * lineHeight;
+  const startY = y + (height - totalTextH) / 2 + lineHeight / 2;
+  const centerX = x + width / 2;
+
+  lines.forEach((line, idx) => {
+    ctx.fillText(line, centerX, startY + idx * lineHeight);
+  });
+
+  ctx.restore();
+}
+
 export const DrawElements = ({ ctx, element, rc }: DrawingArgs) => {
   const generator = rc.generator;
 
   ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
   const type = element.get('type') as unknown as elementType;
 
   // Apply opacity
@@ -264,8 +398,9 @@ export const DrawElements = ({ ctx, element, rc }: DrawingArgs) => {
   const hasShadow = element.get('hasShadow') as boolean | undefined;
   if (hasShadow) {
     const strokeColor = String(element.get('strokeColor') || '#000000');
-    ctx.shadowColor = strokeColor + '88';
-    ctx.shadowBlur = 12;
+    const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+    ctx.shadowColor = withAlpha(getThemeAdaptedColor(strokeColor, isDark), 0.55);
+    ctx.shadowBlur = 10 + (Number(element.get('strokeWidth')) || 2);
     ctx.shadowOffsetX = 3;
     ctx.shadowOffsetY = 3;
   }
@@ -321,7 +456,10 @@ export const DrawElements = ({ ctx, element, rc }: DrawingArgs) => {
     const isTwoWay = type === elementType.ArrowTwoWay || !!element.get('isTwoWay');
 
     const seed = parseInt(String(element.get('seed')), 10) || 1;
-    const arrowLen = Math.max(14, strokeWidth * 3.5);
+    const span = Math.hypot(x2 - x1, y2 - y1);
+    const preferredHead = Math.max(12, strokeWidth * 3.5);
+    const maxHead = span > 0 ? Math.max(6, span * (isTwoWay ? 0.3 : 0.42)) : preferredHead;
+    const arrowLen = Math.min(preferredHead, maxHead);
     const arrowSpread = Math.PI / 6;
 
     const drawHead = (tipX: number, tipY: number, tipAngle: number) => {
@@ -420,9 +558,9 @@ export const DrawElements = ({ ctx, element, rc }: DrawingArgs) => {
       if (bounds) {
         ctx.save();
         const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
-        const bgFill = isDark ? '#0f172a' : '#ffffff';
-        const textColor = isDark ? '#f8fafc' : '#0f172a';
-        const borderColor = isDark ? 'rgba(148, 163, 184, 0.4)' : 'rgba(203, 213, 225, 0.9)';
+        const bgFill = isDark ? '#121214' : '#ffffff';
+        const textColor = isDark ? '#fafafa' : '#18181b';
+        const borderColor = isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.12)';
 
         // Draw pill/badge background to mask the arrow line seamlessly
         ctx.beginPath();
@@ -555,20 +693,28 @@ export const DrawElements = ({ ctx, element, rc }: DrawingArgs) => {
       return;
     }
 
+    let pathLength = 0;
+    for (let i = 1; i < points.length; i++) {
+      pathLength += Math.hypot(points[i][0] - points[i - 1][0], points[i][1] - points[i - 1][1]);
+    }
+
+    const brushSize = Math.max(1, Number(element.get('strokeWidth')) || 2) * 2;
+    const endTaper = Math.min(brushSize * 6, pathLength * 0.35);
+
     const options = {
-      size: Number(element.get('strokeWidth')),
-      thinning: 0.5,
-      smoothing: 0.5,
+      size: brushSize,
+      thinning: 0.45,
+      smoothing: 0.55,
       streamline: 0.5,
       easing: (t: number) => t,
       start: { taper: 0, easing: (t: number) => t, cap: true },
-      end: { taper: 100, easing: (t: number) => t, cap: true },
+      end: { taper: endTaper, easing: (t: number) => t, cap: true },
     };
 
     const normalizedPoints = points.map(([x, y, pressure]) => ({
       x: Number(x),
       y: Number(y),
-      pressure: pressure ?? 1,
+      pressure: pressure ?? 0.5,
     }));
 
     const stroke = getStroke(normalizedPoints, options);
@@ -586,6 +732,10 @@ export const DrawElements = ({ ctx, element, rc }: DrawingArgs) => {
     return;
   }
 
+  const elX = Number(element.get('x'));
+  const elY = Number(element.get('y'));
+  ctx.translate(elX, elY);
+
   const drawable = getOrCreateDrawable(generator, element);
   if (drawable) {
     rc.draw(drawable);
@@ -593,8 +743,8 @@ export const DrawElements = ({ ctx, element, rc }: DrawingArgs) => {
     const seed = parseInt(String(element.get('seed')), 10) || 0;
     const fallbackDrawable = withSeededMath(seed, () =>
       generator.rectangle(
-        Number(element.get('x')),
-        Number(element.get('y')),
+        0,
+        0,
         Number(element.get('width')),
         Number(element.get('height')),
         {
@@ -614,6 +764,11 @@ export const DrawElements = ({ ctx, element, rc }: DrawingArgs) => {
     );
     if (fallbackDrawable) rc.draw(fallbackDrawable);
   }
+
+  ctx.translate(-elX, -elY);
+
+  // Draw embedded text label if present
+  drawEmbeddedShapeLabel(ctx, element);
 
   ctx.restore();
 };

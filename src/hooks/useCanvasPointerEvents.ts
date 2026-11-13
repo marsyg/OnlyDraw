@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import * as Y from 'yjs';
 import { actionType, elementType, point, PointsFreeHand, ArrowBinding, OnlyDrawElement } from '@/types/type';
 import { EditingTextState, ElementDragSnapshot, ElementResizeSnapshot, EndpointDragState, MarqueeBox } from '@/types/canvas';
@@ -20,6 +20,18 @@ import yUtils from '@/lib/utils/createYElement';
 import canvasDoc, { LOCAL_ORIGIN, UndoManager } from '@/Store/yjs-store';
 import { useAppStore } from '@/Store/store';
 import { createTextElement } from '@/lib/createTextElement';
+import { constrainBoxDraft, constrainLineDraft, getTapDraft } from '@/lib/drawConstraints';
+
+const getPointerPressure = (e: {
+  pointerType?: string;
+  pressure?: number;
+}): number => {
+  const pressure = Number(e.pressure);
+  if (e.pointerType === 'pen' || e.pointerType === 'touch') {
+    return pressure > 0 && pressure <= 1 ? pressure : 0.5;
+  }
+  return 0.5;
+};
 
 interface UseCanvasPointerEventsProps {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
@@ -125,6 +137,9 @@ export function useCanvasPointerEvents({
   const dragElementsSnapshotRef = useRef<ElementDragSnapshot[]>([]);
   const dragInitialBoundRef = useRef<boundType | null>(null);
 
+  // Anchor of the element currently being created (before shift/alt constraints)
+  const drawingStartRef = useRef<point | null>(null);
+
   // Resize snapshots
   const resizeStartPointerRef = useRef<point | null>(null);
   const resizeOriginalRectRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
@@ -228,6 +243,16 @@ export function useCanvasPointerEvents({
     [zoomCamera, panCamera, scheduleRender, canvasRef]
   );
 
+  // Keep the cursor in sync with the active tool (crosshair for drawing tools)
+  useEffect(() => {
+    if (isPanningRef.current) return;
+    if (currentTool.action === actionType.Drawing && currentTool.elementType !== elementType.Text) {
+      setCursorStyle('crosshair');
+    } else {
+      setCursorStyle(isSpacePressedRef.current ? 'grab' : 'default');
+    }
+  }, [currentTool]);
+
   const hitTestAtPoint = useCallback(
     (pt: point) => {
       const checkedIds = new Set<string>();
@@ -283,6 +308,8 @@ export function useCanvasPointerEvents({
       const context = canvas.getContext('2d');
       if (!context) return;
 
+      drawingStartRef.current = null;
+
       // Middle-mouse or space+left-click: start panning
       if (e.button === 1 || (e.button === 0 && isSpacePressedRef.current)) {
         e.preventDefault();
@@ -296,7 +323,7 @@ export function useCanvasPointerEvents({
       const [x, y] = getPointerCoordinates(e);
       const initialPoint: point = [x, y];
 
-      setFreehandPoint([[initialPoint[0], initialPoint[1], 1] as PointsFreeHand]);
+      setFreehandPoint([[initialPoint[0], initialPoint[1], getPointerPressure(e)] as PointsFreeHand]);
 
       if (currentTool.action === actionType.Selecting) {
         const singleTarget = (selectedElementIds.length === 1 ? yElement.get(selectedElementIds[0]) : null) || selectedYElement;
@@ -309,7 +336,7 @@ export function useCanvasPointerEvents({
 
         if (isSingleLineOrArrow && singleTarget) {
           const { x1: ax1, y1: ay1, x2: ax2, y2: ay2 } = getLineEndpoints(singleTarget, yElement as Y.Map<Y.Map<unknown>>);
-          const hitRadius = Math.max(12, 14 / (cameraRef.current?.scale || 1));
+            const hitRadius = 10 / Math.max(0.05, cameraRef.current?.scale || 1);
 
           // 1. Check curve control handle if arrow
           if (targetType === elementType.Arrow || targetType === elementType.ArrowTwoWay) {
@@ -353,7 +380,14 @@ export function useCanvasPointerEvents({
 
           resizeHandleRef.current = null;
         } else {
-          const handleHit = bound ? detectResizeHandle({ point: initialPoint, element: bound, tolerance: 10 }) : null;
+          const handleHit = bound
+            ? detectResizeHandle({
+                point: initialPoint,
+                element: bound,
+                tolerance: 10,
+                scale: cameraRef.current?.scale || 1,
+              })
+            : null;
           if (handleHit) {
             resizeHandleRef.current = handleHit;
           }
@@ -442,7 +476,7 @@ export function useCanvasPointerEvents({
           const hitType = hit.yEl.get('type') as string;
           if (isLineOrArrow(hitType) && !e.shiftKey) {
             const { x1: ax1, y1: ay1, x2: ax2, y2: ay2 } = getLineEndpoints(hit.yEl, yElement as Y.Map<Y.Map<unknown>>);
-            const hitRadius = Math.max(12, 14 / (cameraRef.current?.scale || 1));
+          const hitRadius = 10 / Math.max(0.05, cameraRef.current?.scale || 1);
             const d1 = Math.hypot(initialPoint[0] - ax1, initialPoint[1] - ay1);
             const d2 = Math.hypot(initialPoint[0] - ax2, initialPoint[1] - ay2);
 
@@ -586,7 +620,7 @@ export function useCanvasPointerEvents({
             routing: isArrowTool ? arrowRouting : undefined,
           },
           stroke: {
-            points: [[startPoint[0], startPoint[1], 1]],
+            points: [[startPoint[0], startPoint[1], getPointerPressure(e)]],
           },
         });
 
@@ -607,6 +641,7 @@ export function useCanvasPointerEvents({
             setYElement(createdYEl);
             setSelectedElementId(element.id);
             setIsDrawing(true);
+            drawingStartRef.current = startPoint;
             setGlobalPointerPosition([x, y]);
           }
         } catch (error) {
@@ -790,7 +825,7 @@ export function useCanvasPointerEvents({
 
         if (isSingleLineOrArrow && singleTarget) {
           const { x1: ax1, y1: ay1, x2: ax2, y2: ay2 } = getLineEndpoints(singleTarget, yElement as Y.Map<Y.Map<unknown>>);
-          const hitTol = Math.max(10, 12 / (cameraRef.current?.scale || 1));
+          const hitTol = 10 / Math.max(0.05, cameraRef.current?.scale || 1);
           const isArrow = targetType === elementType.Arrow || targetType === elementType.ArrowTwoWay;
           const rawControl = isArrow ? (singleTarget.get('controlPoint') as { x: number; y: number } | undefined) : undefined;
           const cx = rawControl ? rawControl.x : (ax1 + ax2) / 2;
@@ -837,7 +872,12 @@ export function useCanvasPointerEvents({
         const elementToCheck = selectedYElement || foundElementToSelect;
 
         if (bound || elementToCheck) {
-          const handleHit = detectResizeHandle({ point: pt, element: bound || getBounds({ element: elementToCheck! }), tolerance: 10 });
+          const handleHit = detectResizeHandle({
+            point: pt,
+            element: bound || getBounds({ element: elementToCheck! }),
+            tolerance: 10,
+            scale: cameraRef.current?.scale || 1,
+          });
           if (handleHit) {
             newResizeHandle = handleHit;
             newCursorStyle = handleHit.cursor;
@@ -872,7 +912,7 @@ export function useCanvasPointerEvents({
         const type = selectedYElement.get('type') as unknown as elementType;
 
         if (type === elementType.Freehand && freehandPoint) {
-          const newAbsPoints: PointsFreeHand[] = [...freehandPoint, [x, y, 1] as PointsFreeHand];
+          const newAbsPoints: PointsFreeHand[] = [...freehandPoint, [x, y, getPointerPressure(e)] as PointsFreeHand];
           setFreehandPoint(newAbsPoints);
 
           const xs = newAbsPoints.map(([px]) => px);
@@ -900,7 +940,7 @@ export function useCanvasPointerEvents({
           scheduleRender();
         } else if (type === elementType.Arrow || type === elementType.ArrowTwoWay) {
           const arrowId = selectedYElement.get('id') as string;
-          const snap = findNearestSnapTarget([x, y], yElement, arrowId);
+          const snap = e.shiftKey ? null : findNearestSnapTarget([x, y], yElement, arrowId);
           let endX = x;
           let endY = y;
           if (snap) {
@@ -913,12 +953,17 @@ export function useCanvasPointerEvents({
             arrowEndBindingRef.current = null;
           }
 
-          const startX = Number(selectedYElement.get('x'));
-          const startY = Number(selectedYElement.get('y'));
+          const startPoint: point = drawingStartRef.current || ([
+            Number(selectedYElement.get('x')),
+            Number(selectedYElement.get('y')),
+          ] as point);
+          const lineDraft = constrainLineDraft(startPoint, [endX, endY], e.shiftKey);
           const updatedElement = {
             ...elementJSON,
-            width: endX - startX,
-            height: endY - startY,
+            x: lineDraft.x,
+            y: lineDraft.y,
+            width: lineDraft.width,
+            height: lineDraft.height,
             endBinding: arrowEndBindingRef.current,
             startBinding: arrowStartBindingRef.current,
           } as unknown as OnlyDrawElement;
@@ -927,10 +972,17 @@ export function useCanvasPointerEvents({
           }, LOCAL_ORIGIN);
           scheduleRender();
         } else {
+          const startPoint: point = drawingStartRef.current || ([
+            Number(elementJSON.x) || 0,
+            Number(elementJSON.y) || 0,
+          ] as point);
+          const boxDraft = constrainBoxDraft(startPoint, [x, y], e.shiftKey, e.altKey);
           const updatedElement = {
             ...elementJSON,
-            width: x - (Number(elementJSON.x) || 0),
-            height: y - (Number(elementJSON.y) || 0),
+            x: boxDraft.x,
+            y: boxDraft.y,
+            width: boxDraft.width,
+            height: boxDraft.height,
           } as unknown as OnlyDrawElement;
           doc.transact(() => {
             yUtils.updateYElement(updatedElement, selectedYElement);
@@ -1128,7 +1180,13 @@ export function useCanvasPointerEvents({
         try {
           canvasRef.current?.releasePointerCapture(e.pointerId);
         } catch {}
-        setCursorStyle(isSpacePressedRef.current ? 'grab' : 'default');
+        setCursorStyle(
+          currentTool.action === actionType.Drawing && currentTool.elementType !== elementType.Text
+            ? 'crosshair'
+            : isSpacePressedRef.current
+              ? 'grab'
+              : 'default'
+        );
         return;
       }
 
@@ -1193,19 +1251,28 @@ export function useCanvasPointerEvents({
         activeSnapTargetRef.current = null;
         if (selectedYElement) {
           const type = selectedYElement.get('type') as unknown as elementType;
-          if (type === elementType.Arrow || type === elementType.ArrowTwoWay) {
-            const w = Number(selectedYElement.get('width'));
-            const h = Number(selectedYElement.get('height'));
-            if (Math.hypot(w, h) < 6) {
+          const width = Number(selectedYElement.get('width'));
+          const height = Number(selectedYElement.get('height'));
+          if (Math.hypot(width, height) < 6) {
+            const anchor: point = drawingStartRef.current || ([
+              Number(selectedYElement.get('x')),
+              Number(selectedYElement.get('y')),
+            ] as point);
+            const draft = getTapDraft(type, anchor);
+            if (draft) {
               doc.transact(() => {
-                selectedYElement.set('width', 100);
-                selectedYElement.set('height', 0);
+                selectedYElement.set('x', draft.x);
+                selectedYElement.set('y', draft.y);
+                selectedYElement.set('width', draft.width);
+                selectedYElement.set('height', draft.height);
               }, LOCAL_ORIGIN);
+              scheduleRender();
             }
           }
         }
         arrowStartBindingRef.current = null;
         arrowEndBindingRef.current = null;
+        drawingStartRef.current = null;
       }
 
       if (isCurvingArrowRef.current) {
@@ -1279,7 +1346,13 @@ export function useCanvasPointerEvents({
       isRotatingRef.current = false;
       UndoManager.stopCapturing();
       setResizeHandle(null);
-      setCursorStyle(isSpacePressedRef.current ? 'grab' : 'default');
+      setCursorStyle(
+        currentTool.action === actionType.Drawing && currentTool.elementType !== elementType.Text
+          ? 'crosshair'
+          : isSpacePressedRef.current
+            ? 'grab'
+            : 'default'
+      );
       resizeStartPointerRef.current = null;
       resizeOriginalRectRef.current = null;
       resizeOriginalElementsRef.current = [];
@@ -1289,6 +1362,7 @@ export function useCanvasPointerEvents({
       getPointerCoordinates,
       order,
       yElement,
+      currentTool,
       setSelectedElementIds,
       setYElement,
       setBound,

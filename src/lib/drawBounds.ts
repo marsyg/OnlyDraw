@@ -5,13 +5,20 @@ import { getPivotPoint } from './math/pivot';
 type args = {
   context: CanvasRenderingContext2D;
   bounds: boundType & { angle?: number; rotationAxis?: string };
+  /** Camera zoom. When provided, handles stay a constant size on screen. */
+  scale?: number;
 };
 
-export const DrawBounds = ({ context, bounds }: args) => {
+export const DrawBounds = ({ context, bounds, scale = 1 }: args) => {
   const { x, y, width, height, angle } = bounds;
-  const padding = bounds.padding !== undefined ? bounds.padding : BOUNDS_PADDING;
-  const handleSize = 8;
+  const inverseScale = 1 / Math.max(0.05, scale);
+  const padding =
+    (bounds.padding !== undefined ? bounds.padding : BOUNDS_PADDING) * inverseScale;
+  const handleSize = 8 * inverseScale;
   const halfHandle = handleSize / 2;
+  const lineWidth = 1.5 * inverseScale;
+  const dashLength = 4 * inverseScale;
+  const rotationOffset = ROTATION_HANDLE_OFFSET * inverseScale;
 
   context.save();
 
@@ -25,8 +32,8 @@ export const DrawBounds = ({ context, bounds }: args) => {
 
   // Bounding box dashed outline
   context.strokeStyle = 'rgba(59, 130, 246, 0.9)';
-  context.lineWidth = 1.5;
-  context.setLineDash([4, 4]);
+  context.lineWidth = lineWidth;
+  context.setLineDash([dashLength, dashLength]);
 
   const boxX = x - padding;
   const boxY = y - padding;
@@ -38,29 +45,29 @@ export const DrawBounds = ({ context, bounds }: args) => {
   // Rotation handle stem line
   const handleMidX = boxX + boxWidth / 2;
   const handleMinY = boxY;
-  const rotY = boxY - ROTATION_HANDLE_OFFSET;
+  const rotY = boxY - rotationOffset;
 
   context.setLineDash([]);
   context.beginPath();
   context.moveTo(handleMidX, handleMinY);
   context.lineTo(handleMidX, rotY);
   context.strokeStyle = 'rgba(59, 130, 246, 0.7)';
-  context.lineWidth = 1.5;
+  context.lineWidth = lineWidth;
   context.stroke();
 
   // Rotation handle circular knob
   context.beginPath();
-  context.arc(handleMidX, rotY, 5, 0, Math.PI * 2);
+  context.arc(handleMidX, rotY, 5 * inverseScale, 0, Math.PI * 2);
   context.fillStyle = '#ffffff';
   context.fill();
   context.strokeStyle = '#2563eb';
-  context.lineWidth = 1.5;
+  context.lineWidth = lineWidth;
   context.stroke();
 
   // 8 scale handles
   context.fillStyle = '#ffffff';
   context.strokeStyle = '#2563eb';
-  context.lineWidth = 1.5;
+  context.lineWidth = lineWidth;
 
   const handleMinX = boxX;
   const handleMaxX = boxX + boxWidth;

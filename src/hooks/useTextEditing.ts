@@ -94,7 +94,7 @@ export function useTextEditing({
       setBound(null);
 
       const currentFill = String(yEl.get('fillColor') || yEl.get('strokeColor') || '');
-      const color = getThemeAdaptedColor(currentFill || (isDark ? '#f8fafc' : '#0f172a'), isDark);
+      const color = getThemeAdaptedColor(currentFill || (isDark ? '#fafafa' : '#18181b'), isDark);
 
       let edX = Number(yEl.get('x'));
       let edY = Number(yEl.get('y'));

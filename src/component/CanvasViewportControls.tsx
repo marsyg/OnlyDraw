@@ -2,7 +2,15 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { ZoomIn, ZoomOut, Maximize2, Download, Keyboard } from 'lucide-react';
+import {
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  Download,
+  Keyboard,
+  Undo2,
+  Redo2,
+} from 'lucide-react';
 
 interface CanvasViewportControlsProps {
   isDark: boolean;
@@ -18,7 +26,7 @@ interface CanvasViewportControlsProps {
   onRedo: () => void;
 }
 
-export const CanvasViewportControls: React.FC<CanvasViewportControlsProps> = ({
+ const CanvasViewportControls: React.FC<CanvasViewportControlsProps> = ({
   isDark,
   isTouchDevice,
   cameraScale,
@@ -31,113 +39,109 @@ export const CanvasViewportControls: React.FC<CanvasViewportControlsProps> = ({
   onUndo,
   onRedo,
 }) => {
+  const panelStyle = isDark
+    ? 'bg-zinc-900/95 border-zinc-800 text-zinc-100 shadow-xl'
+    : 'bg-white/95 border-zinc-200 text-zinc-700 shadow-sm';
+
+  const btnHover = isDark
+    ? 'hover:bg-zinc-800 text-zinc-300 hover:text-white'
+    : 'hover:bg-zinc-100 text-zinc-600 hover:text-zinc-900';
+
   return (
     <motion.div
       className={`fixed ${isTouchDevice ? 'bottom-2 right-2' : 'bottom-4 right-4'} z-50 flex items-center gap-2 select-none`}
       onPointerDown={(e) => e.stopPropagation()}
       onPointerMove={(e) => e.stopPropagation()}
       onPointerUp={(e) => e.stopPropagation()}
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.2 }}
+      transition={{ delay: 0.15 }}
     >
-      {/* Zoom & View Controls */}
-      <div
-        className={`flex items-center backdrop-blur-md rounded-xl p-1 shadow-xl border transition-colors ${
-          isDark
-            ? 'bg-slate-900/95 border-slate-800 text-slate-100 shadow-black/40'
-            : 'bg-white/90 border-slate-200 text-slate-700 shadow-slate-200/50'
-        }`}
-      >
+      {/* Undo / Redo Pill */}
+      <div className={`flex items-center backdrop-blur-md rounded-xl p-1 shadow-lg border transition-colors ${panelStyle}`}>
+        <button
+          onClick={onUndo}
+          className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all active:scale-95 ${btnHover}`}
+          title="Undo (Ctrl+Z)"
+          aria-label="Undo canvas change"
+        >
+          <Undo2 size={15} />
+        </button>
+
+        <div className={`w-[1px] h-4 mx-0.5 ${isDark ? 'bg-zinc-800' : 'bg-zinc-200'}`} />
+
+        <button
+          onClick={onRedo}
+          className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all active:scale-95 ${btnHover}`}
+          title="Redo (Ctrl+Y)"
+          aria-label="Redo canvas change"
+        >
+          <Redo2 size={15} />
+        </button>
+      </div>
+
+      {/* Zoom & View Controls Pill */}
+      <div className={`flex items-center backdrop-blur-md rounded-xl p-1 shadow-lg border transition-colors ${panelStyle}`}>
         <button
           onClick={onZoomOut}
-          className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
-            isDark ? 'hover:bg-slate-800 text-slate-300 hover:text-white' : 'hover:bg-slate-100 text-slate-600 hover:text-slate-900'
-          }`}
-          title="Zoom Out"
+          className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all active:scale-95 ${btnHover}`}
+          title="Zoom Out (Ctrl+-)"
+          aria-label="Zoom Out"
         >
           <ZoomOut size={15} />
         </button>
 
         <button
           onClick={onResetZoom}
-          className={`px-2 h-8 rounded-lg flex items-center justify-center text-xs font-mono font-bold transition-colors min-w-[50px] ${
-            isDark ? 'hover:bg-slate-800 text-slate-200 hover:text-white' : 'hover:bg-slate-100 text-slate-700 hover:text-slate-900'
+          className={`px-2 h-8 rounded-lg flex items-center justify-center text-xs font-mono font-semibold transition-all min-w-[52px] ${
+            isDark
+              ? 'hover:bg-zinc-800 text-zinc-200 hover:text-white'
+              : 'hover:bg-zinc-100 text-zinc-800 hover:text-zinc-900'
           }`}
           title="Reset Zoom (100% / Ctrl+0)"
+          aria-label="Reset Zoom percentage"
         >
           {Math.round(cameraScale * 100)}%
         </button>
 
         <button
           onClick={onZoomIn}
-          className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
-            isDark ? 'hover:bg-slate-800 text-slate-300 hover:text-white' : 'hover:bg-slate-100 text-slate-600 hover:text-slate-900'
-          }`}
-          title="Zoom In"
+          className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all active:scale-95 ${btnHover}`}
+          title="Zoom In (Ctrl++)"
+          aria-label="Zoom In"
         >
           <ZoomIn size={15} />
         </button>
 
+        <div className={`w-[1px] h-4 mx-0.5 ${isDark ? 'bg-zinc-800' : 'bg-zinc-200'}`} />
+
         <button
           onClick={onResetView}
-          className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors border-l ml-1 pl-1 ${
-            isDark ? 'hover:bg-slate-800 text-slate-300 hover:text-white border-slate-800' : 'hover:bg-slate-100 text-slate-600 hover:text-slate-900 border-slate-200'
-          }`}
+          className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all active:scale-95 ${btnHover}`}
           title="Reset View"
+          aria-label="Reset View to Origin"
         >
           <Maximize2 size={14} />
         </button>
 
         <button
           onClick={onExportPNG}
-          className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors border-l ml-1 pl-1 ${
-            isDark ? 'hover:bg-slate-800 text-slate-300 hover:text-white border-slate-800' : 'hover:bg-slate-100 text-slate-600 hover:text-slate-900 border-slate-200'
-          }`}
+          className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all active:scale-95 ${btnHover}`}
           title="Export to PNG"
+          aria-label="Export canvas as PNG image"
         >
           <Download size={14} />
         </button>
 
         <button
           onClick={onOpenKeybindings}
-          className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors border-l ml-1 pl-1 ${
-            isDark ? 'hover:bg-slate-800 text-slate-300 hover:text-white border-slate-800' : 'hover:bg-slate-100 text-slate-600 hover:text-slate-900 border-slate-200'
-          }`}
+          className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all active:scale-95 ${btnHover}`}
           title="Keyboard Shortcuts (?)"
+          aria-label="Open keyboard shortcuts dialog"
         >
           <Keyboard size={14} />
         </button>
       </div>
-
-      {/* Undo / Redo */}
-      <motion.button
-        onClick={onUndo}
-        className={`${isTouchDevice ? 'w-9 h-9' : 'w-10 h-10'} rounded-xl font-bold flex items-center justify-center shadow-lg border backdrop-blur-md transition-colors ${
-          isDark
-            ? 'bg-slate-900/95 border-slate-800 text-slate-200 hover:bg-slate-800'
-            : 'bg-white/90 border-slate-200 text-slate-700 hover:bg-slate-100 shadow-slate-200/50'
-        }`}
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        title="Undo (Ctrl+Z)"
-      >
-        <span className={isTouchDevice ? 'text-base' : 'text-lg'}>↶</span>
-      </motion.button>
-
-      <motion.button
-        onClick={onRedo}
-        className={`${isTouchDevice ? 'w-9 h-9' : 'w-10 h-10'} rounded-xl font-bold flex items-center justify-center shadow-lg border backdrop-blur-md transition-colors ${
-          isDark
-            ? 'bg-slate-900/95 border-slate-800 text-slate-200 hover:bg-slate-800'
-            : 'bg-white/90 border-slate-200 text-slate-700 hover:bg-slate-100 shadow-slate-200/50'
-        }`}
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        title="Redo (Ctrl+Y)"
-      >
-        <span className={isTouchDevice ? 'text-base' : 'text-lg'}>↷</span>
-      </motion.button>
     </motion.div>
   );
 };

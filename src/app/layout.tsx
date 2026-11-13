@@ -13,9 +13,17 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ONLY DRAW",
-  icons : {
-    icon :'/icon.png'
+  title: "OnlyDraw — Collaborative Sketch Canvas & Diagramming",
+  description:
+    "Fast, real-time collaborative sketching and hand-drawn whiteboard canvas with AI-powered diagram generation.",
+  icons: {
+    icon: "/icon.png",
+  },
+  openGraph: {
+    title: "OnlyDraw — Collaborative Sketch Canvas",
+    description:
+      "Fast, real-time collaborative sketching and hand-drawn whiteboard canvas with AI-powered diagram generation.",
+    type: "website",
   },
 };
 

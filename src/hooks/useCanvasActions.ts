@@ -146,8 +146,8 @@ export function useCanvasActions({
     (text: string, customX?: number, customY?: number) => {
       const canvas = canvasRef.current;
       const cam = camera;
-      const screenCenterX = canvas ? canvas.width / 2 : window.innerWidth / 2;
-      const screenCenterY = canvas ? canvas.height / 2 : window.innerHeight / 2;
+      const screenCenterX = canvas ? canvas.offsetWidth / 2 : window.innerWidth / 2;
+      const screenCenterY = canvas ? canvas.offsetHeight / 2 : window.innerHeight / 2;
       const defaultX = (screenCenterX - cam.x) / cam.scale;
       const defaultY = (screenCenterY - cam.y) / cam.scale;
       const targetX = customX !== undefined ? customX : defaultX - 80;
@@ -345,8 +345,8 @@ export function useCanvasActions({
                 if (dataUrl) {
                   const canvas = canvasRef.current;
                   const cam = camera;
-                  const screenCenterX = canvas ? canvas.width / 2 : window.innerWidth / 2;
-                  const screenCenterY = canvas ? canvas.height / 2 : window.innerHeight / 2;
+                  const screenCenterX = canvas ? canvas.offsetWidth / 2 : window.innerWidth / 2;
+                  const screenCenterY = canvas ? canvas.offsetHeight / 2 : window.innerHeight / 2;
                   const worldX = (screenCenterX - cam.x) / cam.scale;
                   const worldY = (screenCenterY - cam.y) / cam.scale;
                   insertImageElement(dataUrl, worldX - 150, worldY - 100);
@@ -668,7 +668,7 @@ export function useCanvasActions({
     const expCtx = exportCanvas.getContext('2d');
     if (!expCtx) return;
 
-    expCtx.fillStyle = isDark ? '#0f172a' : '#ffffff';
+    expCtx.fillStyle = isDark ? '#121214' : '#ffffff';
     expCtx.fillRect(0, 0, width, height);
     expCtx.translate(-minX + padding, -minY + padding);
     const expRc = rough.canvas(exportCanvas);
@@ -725,8 +725,8 @@ export function useCanvasActions({
                 if (dataUrl) {
                   const canvas = canvasRef.current;
                   const cam = camera;
-                  const screenCenterX = canvas ? canvas.width / 2 : window.innerWidth / 2;
-                  const screenCenterY = canvas ? canvas.height / 2 : window.innerHeight / 2;
+                  const screenCenterX = canvas ? canvas.offsetWidth / 2 : window.innerWidth / 2;
+                  const screenCenterY = canvas ? canvas.offsetHeight / 2 : window.innerHeight / 2;
                   const worldX = (screenCenterX - cam.x) / cam.scale;
                   const worldY = (screenCenterY - cam.y) / cam.scale;
                   insertImageElement(dataUrl, worldX - 150, worldY - 100);

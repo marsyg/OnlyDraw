@@ -1,57 +1,48 @@
-import React from 'react'
-import Image from 'next/image'
+'use client';
 
-const CustomLoader = () => {
-    return (
-        <div className="w-full max-w-md space-y-2">
-            {/* Loader Container 
-        - h-4: Height of the bar
-        - w-full: Takes up full width of parent
-        - bg-green-100: Very light green background for the 'empty' part
-        - rounded-xl: 'Soft edges' (rounded corners)
-        - overflow-hidden: Ensures the inner bar doesn't poke out of the rounded corners
-      */}
-            <div className="h-4 w-full bg-green-100 rounded-xl overflow-hidden relative shadow-sm">
+import React from 'react';
 
-                {/* Animated Bar
-          - h-full: Matches container height
-          - bg-green-500: The main 'Greenish' color
-          - rounded-xl: Soft edges
-          - animate-fill: Custom animation defined in style tag below
-        */}
-                <div className="h-full bg-green-500 rounded-xl animate-loader"></div>
-            </div>
+export default function Loading() {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen w-full bg-[#fbfbfa] dark:bg-[#121214] text-zinc-900 dark:text-zinc-100 transition-colors select-none">
+      <div className="flex flex-col items-center max-w-xs w-full px-6 space-y-6">
+        {/* App Icon or Brand Emblem */}
+        <div className="relative w-14 h-14 rounded-2xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 flex items-center justify-center shadow-sm">
+          <div className="w-8 h-8 rounded-xl bg-zinc-900 dark:bg-zinc-100 flex items-center justify-center text-white dark:text-zinc-900 shadow-sm font-bold text-sm tracking-tight">
+            OD
+          </div>
+        </div>
 
-            {/* Optional styling for the animation itself */}
-            <style>{`
-        @keyframes fill-bar {
-          0% { width: 0%; opacity: 1; }
-          50% { width: 70%; }
-          90% { width: 100%; opacity: 1; }
-          100% { width: 100%; opacity: 0; }
-        }
-        .animate-loader {
-          animation: fill-bar 1s ;
+        {/* Title & Tagline */}
+        <div className="text-center space-y-1">
+          <h1 className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">OnlyDraw</h1>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            Initializing canvas workspace...
+          </p>
+        </div>
+
+        {/* Modern Animated Progress Track */}
+        <div className="w-full h-1 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden relative">
+          <div className="h-full bg-blue-600 rounded-full animate-[loading_1.5s_ease-in-out_infinite]" />
+        </div>
+      </div>
+
+      <style jsx>{`
+        @keyframes loading {
+          0% {
+            width: 0%;
+            margin-left: 0%;
+          }
+          50% {
+            width: 60%;
+            margin-left: 20%;
+          }
+          100% {
+            width: 0%;
+            margin-left: 100%;
+          }
         }
       `}</style>
-        </div>
-    );
-};
-function Loading() {
-    return (
-        <div className='flex items-center justify-center bg-white w-full h-screen'>
-            <div className=' flex flex-col  text-gray-500'>
-                <Image src="/icon.png" alt="" width={300} height={300} className='rounded-4xl' />
-                <div className='font-serif font-extrabold items-center text-black mb-6 text-center text-3xl'>
-                    <div>
-                        Only Draw
-                    </div>
-                </div>
-                <div>Loading ..</div>
-                <CustomLoader></CustomLoader>
-            </div>
-        </div>
-    )
+    </div>
+  );
 }
-
-export default Loading

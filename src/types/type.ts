@@ -30,6 +30,37 @@ export type rectangleElement = baseType & {
   fillStyle: string;
   fillWeight: number;
   boundaryStyle: string;
+  text?: string;
+  fontSize?: number;
+  fontFamily?: string;
+  textAlign?: 'left' | 'center' | 'right';
+};
+
+export type diamondElement = baseType & {
+  type: elementType.Diamond;
+  fillColor: string;
+  isFillTransparent?: boolean;
+  fillStyle: string;
+  fillWeight: number;
+  boundaryStyle: string;
+  text?: string;
+  fontSize?: number;
+  fontFamily?: string;
+  textAlign?: 'left' | 'center' | 'right';
+};
+
+export type roundedRectElement = baseType & {
+  type: elementType.RoundedRect;
+  fillColor: string;
+  isFillTransparent?: boolean;
+  fillStyle: string;
+  fillWeight: number;
+  boundaryStyle: string;
+  cornerRadius?: number;
+  text?: string;
+  fontSize?: number;
+  fontFamily?: string;
+  textAlign?: 'left' | 'center' | 'right';
 };
 
 export type ellipseElement = baseType & {
@@ -39,6 +70,10 @@ export type ellipseElement = baseType & {
   fillStyle: string;
   fillWeight: number;
   boundaryStyle: string;
+  text?: string;
+  fontSize?: number;
+  fontFamily?: string;
+  textAlign?: 'left' | 'center' | 'right';
 };
 
 export type lineElement = baseType & {
@@ -92,6 +127,8 @@ export type Degrees = number;
 
 export type OnlyDrawElement =
   | rectangleElement
+  | diamondElement
+  | roundedRectElement
   | lineElement
   | arrowElement
   | ellipseElement
@@ -131,6 +168,8 @@ export const enum actionType {
 
 export enum elementType {
   Rectangle = 'rectangle',
+  RoundedRect = 'rounded-rect',
+  Diamond = 'diamond',
   Ellipse = 'ellipse',
   Line = 'line',
   Arrow = 'arrow',

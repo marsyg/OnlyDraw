@@ -17,6 +17,18 @@ export type ShapeType = 'rect' | 'circle' | 'line' | 'freehand';
 export type FillStyle = 'solid' | 'hachure' | 'dots' | 'zigzag';
 export type BoundaryStyle = 'solid' | 'dashed' | 'dotted';
 export type Camera = { x: number; y: number; scale: number };
+
+export type AgentWorkingStage = 'intent' | 'planning' | 'compiling' | 'rendering';
+
+export type AgentState = {
+  isWorking: boolean;
+  prompt: string;
+  startedAt: number;
+  stage: AgentWorkingStage;
+  targetBbox: { x: number; y: number; w: number; h: number } | null;
+  abortController?: AbortController | null;
+};
+
 export type AppState = {
   elements: OnlyDrawElement[];
   currentTool: CurrentTool;
@@ -53,7 +65,10 @@ export type AppState = {
   camera: Camera;
   arrowRouting: 'straight' | 'curved' | 'angled';
   clipboard: Record<string, unknown> | Record<string, unknown>[] | null;
+  agentState: AgentState;
   //actions
+  setAgentState: (state: Partial<AgentState>) => void;
+  cancelAgent: () => void;
   setArrowRouting: (routing: 'straight' | 'curved' | 'angled') => void;
   setFontSize: (v: number) => void;
   setFontFamily: (v: string) => void;
@@ -91,9 +106,10 @@ export type AppState = {
   panCamera: (dx: number, dy: number) => void;
   zoomCamera: (delta: number, centerX: number, centerY: number) => void;
   resetCamera: () => void;
+  fitToBounds: (bbox: { x: number; y: number; w: number; h: number }, coverage?: number) => void;
 };
 
-export const useAppStore = create<AppState>((set) => ({
+export const useAppStore = create<AppState>((set, get) => ({
   elements: [],
   bound: null,
   selectedElementId: null,
@@ -103,7 +119,7 @@ export const useAppStore = create<AppState>((set) => ({
     action: actionType.Selecting,
     elementType: null,
   },
-  strokeColor: '#1e293b',
+  strokeColor: '#18181b',
   fillColor: '#dbeafe',
   isDrawing: false,
   isDragging: false,
@@ -115,9 +131,40 @@ export const useAppStore = create<AppState>((set) => ({
     activeToolId: null,
   },
 
+  agentState: {
+    isWorking: false,
+    prompt: '',
+    startedAt: 0,
+    stage: 'intent',
+    targetBbox: null,
+    abortController: null,
+  },
+  setAgentState: (state) =>
+    set((prev) => ({ agentState: { ...prev.agentState, ...state } })),
+  cancelAgent: () => {
+    const current = get().agentState;
+    if (current.abortController) {
+      try {
+        current.abortController.abort();
+      } catch {
+        // ignore
+      }
+    }
+    set({
+      agentState: {
+        isWorking: false,
+        prompt: '',
+        startedAt: 0,
+        stage: 'intent',
+        targetBbox: null,
+        abortController: null,
+      },
+    });
+  },
+
   isFillTransparent: true,
   strokeWidth: 2,
-  roughness: 0,
+  roughness: 0.8,
   fillStyle: 'solid',
   fillWeight: 3,
   shapeType: 'rect',
@@ -155,6 +202,8 @@ export const useAppStore = create<AppState>((set) => ({
 
         switch (el.type) {
           case elementType.Rectangle:
+          case elementType.Diamond:
+          case elementType.RoundedRect:
           case elementType.Ellipse:
           case elementType.Line:
           case elementType.Arrow:
@@ -222,4 +271,24 @@ export const useAppStore = create<AppState>((set) => ({
       };
     }),
   resetCamera: () => set({ camera: { x: 0, y: 0, scale: 1 } }),
+  fitToBounds: (bbox, coverage = 0.8) => {
+    if (typeof window === 'undefined') return;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const effectiveW = Math.max(10, bbox.w);
+    const effectiveH = Math.max(10, bbox.h);
+    const scaleX = (vw * coverage) / effectiveW;
+    const scaleY = (vh * coverage) / effectiveH;
+    const rawScale = Math.min(scaleX, scaleY);
+    const scale = Math.min(1.5, Math.max(0.1, rawScale));
+    const cx = bbox.x + bbox.w / 2;
+    const cy = bbox.y + bbox.h / 2;
+    set({
+      camera: {
+        x: vw / 2 - cx * scale,
+        y: vh / 2 - cy * scale,
+        scale,
+      },
+    });
+  },
 }));

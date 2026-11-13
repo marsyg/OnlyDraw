@@ -22,11 +22,15 @@ import WorkspaceManager from '@/component/WorkspaceManager';
 import KeybindingsDialog from '@/component/KeybindingsDialog';
 import CanvasViewportControls from '@/component/CanvasViewportControls';
 import CanvasTextEditor from '@/component/CanvasTextEditor';
+import AgentWorkingOverlay from '@/component/AgentWorkingOverlay';
+import { drawAgentWorking } from '@/lib/canvas/drawAgentWorking';
 
 import { useTextEditing } from '@/hooks/useTextEditing';
 import { useCanvasPointerEvents } from '@/hooks/useCanvasPointerEvents';
 import { useCanvasActions } from '@/hooks/useCanvasActions';
 import { useCanvasCollaboration } from '@/hooks/useCanvasCollaboration';
+import PromptInput from '@/component/PromptInput';
+import { Users, X, Radio } from 'lucide-react';
 
 export default function App() {
   const [activeWorkspaceId, setActiveWorkspaceIdState] = useState<string>(() => {
@@ -68,6 +72,8 @@ export default function App() {
     fontFamily,
     textAlign,
     arrowRouting,
+    agentState,
+    cancelAgent,
   } = useAppStore();
 
   const [isTouchDevice, setIsTouchDevice] = useState(false);
@@ -88,7 +94,7 @@ export default function App() {
     document.documentElement.classList.toggle('dark', isDark);
     try {
       localStorage.setItem('canvas_theme', isDark ? 'dark' : 'light');
-    } catch {}
+    } catch { }
   }, [isDark]);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -96,6 +102,13 @@ export default function App() {
   const roughCanvasRef = useRef<RoughCanvas | null>(null);
   const roughGeneratorRef = useRef<RoughGenerator | null>(null);
   const animationFrameIdRef = useRef<number | null>(null);
+  const agentHighlightRef = useRef<{
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    until: number;
+  } | null>(null);
 
   const cameraRef = useRef(camera);
   useEffect(() => {
@@ -252,11 +265,18 @@ export default function App() {
     }
     const rc = roughCanvasRef.current;
     const cam = cameraRef.current;
+    const dpr = Math.min(2, typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1);
+    const viewWidth = canvas.width / dpr;
+    const viewHeight = canvas.height / dpr;
 
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Adaptive infinite dot grid
-    const gridColor = isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.12)';
+    // Draw the grid in CSS pixels so dots keep a consistent density on HiDPI screens
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // Adaptive infinite dot grid - subtle, non-distracting density
+    const gridColor = isDark ? 'rgba(255, 255, 255, 0.07)' : 'rgba(0, 0, 0, 0.07)';
     let gridSpacing = 30 * cam.scale;
     while (gridSpacing < 18) gridSpacing *= 2;
     while (gridSpacing > 100) gridSpacing /= 2;
@@ -264,8 +284,8 @@ export default function App() {
     const offsetX = ((cam.x % gridSpacing) + gridSpacing) % gridSpacing;
     const offsetY = ((cam.y % gridSpacing) + gridSpacing) % gridSpacing;
     ctx.fillStyle = gridColor;
-    for (let gx = offsetX; gx < canvas.width; gx += gridSpacing) {
-      for (let gy = offsetY; gy < canvas.height; gy += gridSpacing) {
+    for (let gx = offsetX; gx < viewWidth; gx += gridSpacing) {
+      for (let gy = offsetY; gy < viewHeight; gy += gridSpacing) {
         ctx.beginPath();
         ctx.arc(gx, gy, dotR, 0, Math.PI * 2);
         ctx.fill();
@@ -274,7 +294,14 @@ export default function App() {
 
     // Apply camera transform
     ctx.save();
-    ctx.setTransform(cam.scale, 0, 0, cam.scale, cam.x, cam.y);
+    ctx.setTransform(cam.scale * dpr, 0, 0, cam.scale * dpr, cam.x * dpr, cam.y * dpr);
+
+    // Viewport bounds for culling off-screen elements
+    const cullPad = 60;
+    const viewLeft = -cam.x / cam.scale - cullPad;
+    const viewTop = -cam.y / cam.scale - cullPad;
+    const viewRight = (viewWidth - cam.x) / cam.scale + cullPad;
+    const viewBottom = (viewHeight - cam.y) / cam.scale + cullPad;
 
     // Render elements
     yElement.forEach((el) => {
@@ -282,6 +309,21 @@ export default function App() {
         if (textEditing.editingTextElementRef.current && el.get('id') === textEditing.editingTextElementRef.current.id) {
           return;
         }
+
+        // Viewport culling: skip drawing elements that are completely outside the visible canvas
+        const elX = Number(el.get('x')) || 0;
+        const elY = Number(el.get('y')) || 0;
+        const elW = Number(el.get('width')) || 0;
+        const elH = Number(el.get('height')) || 0;
+        const minX = Math.min(elX, elX + elW);
+        const maxX = Math.max(elX, elX + elW);
+        const minY = Math.min(elY, elY + elH);
+        const maxY = Math.max(elY, elY + elH);
+
+        if (maxX < viewLeft || minX > viewRight || maxY < viewTop || minY > viewBottom) {
+          return;
+        }
+
         DrawElements({ ctx, element: el, rc });
       }
     });
@@ -290,8 +332,8 @@ export default function App() {
     if ((selectedYElement || selectedElementIds.length > 0) && bound) {
       const isEditingCurrent = Boolean(
         textEditing.editingTextElementRef.current &&
-          ((selectedYElement && selectedYElement.get('id') === textEditing.editingTextElementRef.current.id) ||
-            (selectedElementIds.length === 1 && selectedElementIds[0] === textEditing.editingTextElementRef.current.id))
+        ((selectedYElement && selectedYElement.get('id') === textEditing.editingTextElementRef.current.id) ||
+          (selectedElementIds.length === 1 && selectedElementIds[0] === textEditing.editingTextElementRef.current.id))
       );
       if (!isEditingCurrent) {
         const singleTarget =
@@ -304,8 +346,8 @@ export default function App() {
           const isArrow = targetType === elementType.Arrow || targetType === elementType.ArrowTwoWay;
           const startBinding = isArrow ? singleTarget.get('startBinding') : null;
           const endBinding = isArrow ? singleTarget.get('endBinding') : null;
-          const handleR = 6 / Math.min(1.4, Math.max(0.6, cam.scale));
-          const handleStroke = 2 / Math.min(1.4, Math.max(0.6, cam.scale));
+          const handleR = 6 / Math.max(0.05, cam.scale);
+          const handleStroke = 2 / Math.max(0.05, cam.scale);
 
           ctx.save();
 
@@ -338,8 +380,8 @@ export default function App() {
               const cy = rawControl ? rawControl.y : midY;
 
               ctx.strokeStyle = 'rgba(168, 85, 247, 0.7)';
-              ctx.setLineDash([3, 3]);
-              ctx.lineWidth = 1.2 / Math.min(1.4, Math.max(0.6, cam.scale));
+              ctx.setLineDash([3 / Math.max(0.05, cam.scale), 3 / Math.max(0.05, cam.scale)]);
+              ctx.lineWidth = 1.2 / Math.max(0.05, cam.scale);
               ctx.beginPath();
               ctx.moveTo(midX, midY);
               ctx.lineTo(cx, cy);
@@ -358,7 +400,7 @@ export default function App() {
 
           ctx.restore();
         } else {
-          DrawBounds({ context: ctx, bounds: bound });
+          DrawBounds({ context: ctx, bounds: bound, scale: cam.scale });
         }
       }
     }
@@ -367,8 +409,8 @@ export default function App() {
     if (pointerEvents.marqueeBoxRef.current) {
       const mb = pointerEvents.marqueeBoxRef.current;
       ctx.save();
-      ctx.strokeStyle = 'rgba(59, 130, 246, 0.9)';
-      ctx.fillStyle = 'rgba(59, 130, 246, 0.12)';
+      ctx.strokeStyle = isDark ? 'rgba(96, 165, 250, 0.85)' : 'rgba(37, 99, 235, 0.85)';
+      ctx.fillStyle = isDark ? 'rgba(96, 165, 250, 0.08)' : 'rgba(37, 99, 235, 0.08)';
       ctx.lineWidth = 1;
       ctx.setLineDash([4, 4]);
       ctx.fillRect(mb.x, mb.y, mb.width, mb.height);
@@ -386,13 +428,88 @@ export default function App() {
       drawAlignmentGuides(ctx, pointerEvents.alignmentGuidesRef.current);
     }
 
+    // Agent creation highlight (fades out)
+    const highlight = agentHighlightRef.current;
+    if (highlight) {
+      const now = performance.now();
+      if (now >= highlight.until) {
+        agentHighlightRef.current = null;
+      } else {
+        const alpha = Math.min(1, (highlight.until - now) / 600);
+        const zoom = Math.max(0.4, Math.min(2, cam.scale));
+        const pad = 14;
+        const x = highlight.x - pad;
+        const y = highlight.y - pad;
+        const w = highlight.w + pad * 2;
+        const h = highlight.h + pad * 2;
+        const radius = 12;
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.roundRect(x, y, w, h, radius);
+        ctx.fillStyle = `rgba(37, 99, 235, ${0.06 * alpha})`;
+        ctx.fill();
+        ctx.strokeStyle = `rgba(37, 99, 235, ${0.85 * alpha})`;
+        ctx.lineWidth = 2 / zoom;
+        ctx.setLineDash([8 / zoom, 5 / zoom]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        const label = 'Created by agent';
+        const fontSize = 12 / zoom;
+        ctx.font = `600 ${fontSize}px sans-serif`;
+        const textWidth = ctx.measureText(label).width;
+        const tagH = fontSize + 10 / zoom;
+        const tagW = textWidth + 16 / zoom;
+        const tagX = x;
+        const tagY = y - tagH - 6 / zoom;
+
+        ctx.beginPath();
+        ctx.roundRect(tagX, tagY, tagW, tagH, tagH / 2);
+        ctx.fillStyle = `rgba(37, 99, 235, ${0.9 * alpha})`;
+        ctx.fill();
+
+        ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, tagX + tagW / 2, tagY + tagH / 2);
+        ctx.restore();
+      }
+    }
+
+    // On-canvas Holographic Blueprint & Agent Cursor when agent is drafting
+    if (agentState.isWorking && agentState.targetBbox) {
+      drawAgentWorking({
+        ctx,
+        agentState,
+        camera: cam,
+        isDark,
+        time: performance.now(),
+      });
+    }
+
     ctx.restore();
-  }, [isDark, yElement, selectedYElement, selectedElementIds, bound, pointerEvents, textEditing]);
+  }, [isDark, yElement, selectedYElement, selectedElementIds, bound, pointerEvents, textEditing, agentState]);
 
   const scheduleRender = useCallback(() => {
     if (animationFrameIdRef.current) cancelAnimationFrame(animationFrameIdRef.current);
     animationFrameIdRef.current = requestAnimationFrame(renderCanvas);
   }, [renderCanvas]);
+
+  // Continuous 60fps render loop while agent is actively working on canvas
+  useEffect(() => {
+    let animId: number;
+    if (agentState.isWorking) {
+      const loop = () => {
+        scheduleRender();
+        animId = requestAnimationFrame(loop);
+      };
+      animId = requestAnimationFrame(loop);
+    }
+    return () => {
+      if (animId) cancelAnimationFrame(animId);
+    };
+  }, [agentState.isWorking, scheduleRender]);
 
   // 6. Drag & Drop and Image Upload Handlers
   const handleImageFileChange = useCallback(
@@ -405,8 +522,8 @@ export default function App() {
         if (dataUrl) {
           const canvas = canvasRef.current;
           const cam = cameraRef.current;
-          const screenCenterX = canvas ? canvas.width / 2 : window.innerWidth / 2;
-          const screenCenterY = canvas ? canvas.height / 2 : window.innerHeight / 2;
+          const screenCenterX = canvas ? canvas.offsetWidth / 2 : window.innerWidth / 2;
+          const screenCenterY = canvas ? canvas.offsetHeight / 2 : window.innerHeight / 2;
           const worldX = (screenCenterX - cam.x) / cam.scale;
           const worldY = (screenCenterY - cam.y) / cam.scale;
           actions.insertImageElement(dataUrl, worldX - 150, worldY - 100);
@@ -457,6 +574,7 @@ export default function App() {
     () => ({
       'tool.select': () => actions.selectTool('select', actionType.Selecting, elementType.Select),
       'tool.rectangle': () => actions.selectTool('rectangle', actionType.Drawing, elementType.Rectangle),
+      'tool.diamond': () => actions.selectTool('diamond', actionType.Drawing, elementType.Diamond),
       'tool.ellipse': () => actions.selectTool('circle', actionType.Drawing, elementType.Ellipse),
       'tool.line': () => actions.selectTool('line', actionType.Drawing, elementType.Line),
       'tool.arrow': () => actions.selectTool('arrow', actionType.Drawing, elementType.Arrow),
@@ -482,7 +600,13 @@ export default function App() {
       'edit.cut': actions.handleCut,
       'edit.selectAll': actions.handleSelectAll,
       'edit.delete': actions.handleDelete,
-      'edit.deselect': actions.handleDeselect,
+      'edit.deselect': () => {
+        if (agentState.isWorking) {
+          cancelAgent();
+        } else {
+          actions.handleDeselect();
+        }
+      },
       'edit.group': actions.handleGroup,
       'edit.ungroup': actions.handleUngroup,
       'view.resetZoom': () => {
@@ -491,21 +615,21 @@ export default function App() {
       },
       'view.zoomIn': () => {
         const canvas = canvasRef.current;
-        const cx = canvas ? canvas.width / 2 : window.innerWidth / 2;
-        const cy = canvas ? canvas.height / 2 : window.innerHeight / 2;
+        const cx = canvas ? canvas.offsetWidth / 2 : window.innerWidth / 2;
+        const cy = canvas ? canvas.offsetHeight / 2 : window.innerHeight / 2;
         zoomCamera(100, cx, cy);
         scheduleRender();
       },
       'view.zoomOut': () => {
         const canvas = canvasRef.current;
-        const cx = canvas ? canvas.width / 2 : window.innerWidth / 2;
-        const cy = canvas ? canvas.height / 2 : window.innerHeight / 2;
+        const cx = canvas ? canvas.offsetWidth / 2 : window.innerWidth / 2;
+        const cy = canvas ? canvas.offsetHeight / 2 : window.innerHeight / 2;
         zoomCamera(-100, cx, cy);
         scheduleRender();
       },
       'help.toggle': () => setIsKeybindingsOpen((prev) => !prev),
     }),
-    [actions, textEditing, selectedYElement, selectedElementIds, yElement, resetCamera, zoomCamera, scheduleRender]
+    [actions, textEditing, selectedYElement, selectedElementIds, yElement, resetCamera, zoomCamera, scheduleRender, agentState.isWorking, cancelAgent]
   );
 
   useKeybindings({
@@ -585,13 +709,48 @@ export default function App() {
   }, [scheduleRender]);
 
   useEffect(() => {
+    let raf = 0;
+    const handleAgentHighlight = (event: Event) => {
+      const detail = (
+        event as CustomEvent<{ x: number; y: number; w: number; h: number; durationMs?: number }>
+      ).detail;
+      if (!detail) return;
+      agentHighlightRef.current = {
+        x: detail.x,
+        y: detail.y,
+        w: detail.w,
+        h: detail.h,
+        until: performance.now() + (detail.durationMs ?? 2800),
+      };
+      cancelAnimationFrame(raf);
+      const tick = () => {
+        const highlight = agentHighlightRef.current;
+        if (highlight && performance.now() < highlight.until) {
+          scheduleRender();
+          raf = requestAnimationFrame(tick);
+        } else {
+          agentHighlightRef.current = null;
+          scheduleRender();
+        }
+      };
+      raf = requestAnimationFrame(tick);
+    };
+    window.addEventListener('canvas:agent-highlight', handleAgentHighlight as EventListener);
+    return () => {
+      window.removeEventListener('canvas:agent-highlight', handleAgentHighlight as EventListener);
+      cancelAnimationFrame(raf);
+    };
+  }, [scheduleRender]);
+
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     roughCanvasRef.current = rough.canvas(canvas);
     roughGeneratorRef.current = roughCanvasRef.current.generator;
     const setSize = () => {
-      canvas.width = canvas.offsetWidth;
-      canvas.height = canvas.offsetHeight;
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      canvas.width = Math.max(1, Math.round(canvas.offsetWidth * dpr));
+      canvas.height = Math.max(1, Math.round(canvas.offsetHeight * dpr));
       scheduleRender();
     };
 
@@ -645,7 +804,7 @@ export default function App() {
   return (
     <div
       className="relative w-full h-screen overflow-hidden touch-none"
-      style={{ background: isDark ? '#0f172a' : '#ffffff', transition: 'background 0.3s ease' }}
+      style={{ background: isDark ? '#121214' : '#ffffff', transition: 'background 0.2s ease' }}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
@@ -740,16 +899,16 @@ export default function App() {
         collaboration.connectionStatus === 'connected' &&
         collaboration.participants.length > 0 && (
           <motion.div
-            className="fixed top-4 left-1/2 z-50 transform -translate-x-1/2"
+            className={`fixed ${isTouchDevice ? 'top-2 right-20' : 'top-4 right-28'} z-50`}
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
           >
-            <div className="px-2 py-1 flex items-center gap-2">
+            <div className="flex items-center gap-1.5 p-1 rounded-xl bg-white/95 dark:bg-zinc-900/95 border border-zinc-200 dark:border-zinc-800 shadow-md backdrop-blur-md">
               {collaboration.participants.map((p) => (
                 <div
                   key={p.clientId}
                   title={p.name}
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold text-white select-none"
+                  className="w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-bold text-white select-none shadow-sm"
                   style={{ backgroundColor: p.color }}
                 >
                   {p.name ? p.name.charAt(0).toUpperCase() : '?'}
@@ -769,15 +928,15 @@ export default function App() {
             {!collaboration.showRoomInput ? (
               <motion.button
                 onClick={() => collaboration.setShowRoomInput(true)}
-                className={`${isTouchDevice ? 'px-2 py-1.5 text-[10px]' : 'px-3 py-2 text-xs'} rounded-xl font-bold uppercase tracking-wide flex items-center gap-1.5 backdrop-blur-md shadow-lg transition-colors border ${
+                className={`${isTouchDevice ? 'px-2 py-1.5 text-[10px]' : 'px-3 py-2 text-xs'} rounded-xl font-semibold uppercase tracking-wide flex items-center gap-1.5 backdrop-blur-md shadow-sm transition-colors border ${
                   isDark
-                    ? 'bg-slate-900/90 border-slate-700/80 text-slate-200 hover:bg-slate-800'
-                    : 'bg-white/90 border-slate-200 text-slate-700 hover:bg-slate-100 shadow-slate-200/50'
+                    ? 'bg-zinc-900/95 border-zinc-800 text-zinc-200 hover:bg-zinc-800'
+                    : 'bg-white/95 border-zinc-200 text-zinc-700 hover:bg-zinc-100'
                 }`}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
-                <span className={isTouchDevice ? 'text-xs' : 'text-sm'}>🌐</span>
+                <Users size={14} className="text-zinc-500 dark:text-zinc-400" />
                 {!isTouchDevice && 'Collab'}
               </motion.button>
             ) : (
@@ -785,10 +944,10 @@ export default function App() {
                 initial={{ opacity: 0, y: -20, scale: 0.9 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -20, scale: 0.9 }}
-                className={`backdrop-blur-xl rounded-2xl p-3 space-y-2 border shadow-2xl ${isTouchDevice ? 'w-[180px]' : 'w-[230px]'} ${
+                className={`backdrop-blur-xl rounded-2xl p-3 space-y-2 border shadow-xl ${isTouchDevice ? 'w-[180px]' : 'w-[230px]'} ${
                   isDark
-                    ? 'bg-slate-900/95 border-slate-700/80 text-slate-100'
-                    : 'bg-white/95 border-slate-200 text-slate-800'
+                    ? 'bg-zinc-900/98 border-zinc-800 text-zinc-100'
+                    : 'bg-white/98 border-zinc-200 text-zinc-800'
                 }`}
                 transition={{ type: 'spring', stiffness: 400, damping: 25 }}
               >
@@ -797,10 +956,10 @@ export default function App() {
                   value={collaboration.roomId}
                   onChange={(e) => collaboration.setRoomId(e.target.value)}
                   placeholder="Room ID"
-                  className={`w-full px-3 py-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isTouchDevice ? 'text-[10px]' : 'text-xs'} ${
+                  className={`w-full px-3 py-2 rounded-lg transition-colors focus:outline-none focus:ring-1 focus:ring-zinc-400 ${isTouchDevice ? 'text-[10px]' : 'text-xs'} ${
                     isDark
-                      ? 'bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500'
-                      : 'bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400'
+                      ? 'bg-zinc-950 border border-zinc-800 text-zinc-100 placeholder-zinc-500'
+                      : 'bg-zinc-50 border border-zinc-200 text-zinc-800 placeholder-zinc-400'
                   }`}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') collaboration.startCollaboration();
@@ -815,11 +974,11 @@ export default function App() {
                   type="text"
                   value={collaboration.userName}
                   onChange={(e) => collaboration.setUserName(e.target.value)}
-                  placeholder="username"
-                  className={`w-full px-3 py-2 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${isTouchDevice ? 'text-[10px]' : 'text-xs'} ${
+                  placeholder="Username"
+                  className={`w-full px-3 py-2 rounded-lg transition-colors focus:outline-none focus:ring-1 focus:ring-zinc-400 ${isTouchDevice ? 'text-[10px]' : 'text-xs'} ${
                     isDark
-                      ? 'bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500'
-                      : 'bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400'
+                      ? 'bg-zinc-950 border border-zinc-800 text-zinc-100 placeholder-zinc-500'
+                      : 'bg-zinc-50 border border-zinc-200 text-zinc-800 placeholder-zinc-400'
                   }`}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && collaboration.roomId) collaboration.startCollaboration();
@@ -834,7 +993,7 @@ export default function App() {
                 <div className="flex gap-2">
                   <button
                     onClick={collaboration.startCollaboration}
-                    className={`flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold ${isTouchDevice ? 'text-[10px]' : 'text-xs'} uppercase tracking-wide transition-all active:scale-95 shadow-md shadow-blue-500/20`}
+                    className={`flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold ${isTouchDevice ? 'text-[10px]' : 'text-xs'} uppercase tracking-wide transition-all active:scale-95 shadow-sm`}
                   >
                     Join
                   </button>
@@ -843,12 +1002,12 @@ export default function App() {
                       collaboration.setShowRoomInput(false);
                       collaboration.setRoomId('');
                     }}
-                    className={`px-3 py-2 rounded-lg ${isTouchDevice ? 'text-[10px]' : 'text-xs'} uppercase font-bold transition-colors ${
-                      isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                    className={`px-3 py-2 rounded-lg ${isTouchDevice ? 'text-[10px]' : 'text-xs'} uppercase font-semibold transition-colors flex items-center justify-center ${
+                      isDark ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600'
                     }`}
                     title="Cancel"
                   >
-                    ✕
+                    <X size={13} />
                   </button>
                 </div>
               </motion.div>
@@ -858,23 +1017,23 @@ export default function App() {
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className={`backdrop-blur-xl rounded-xl p-2.5 space-y-2 border shadow-xl ${isTouchDevice ? 'w-[140px]' : 'w-[180px]'} ${
-              isDark ? 'bg-slate-900/95 border-slate-800 text-slate-100' : 'bg-white/95 border-slate-200 text-slate-800'
+            className={`backdrop-blur-xl rounded-xl p-2.5 space-y-2 border shadow-lg ${isTouchDevice ? 'w-[140px]' : 'w-[180px]'} ${
+              isDark ? 'bg-zinc-900/95 border-zinc-800 text-zinc-100' : 'bg-white/95 border-zinc-200 text-zinc-800'
             }`}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 {collaboration.connectionStatus === 'connecting' ? (
                   <>
-                    <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
-                    <span className={`text-[10px] font-bold uppercase ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+                    <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
+                    <span className={`text-[10px] font-bold uppercase ${isDark ? 'text-zinc-200' : 'text-zinc-700'}`}>
                       Connecting
                     </span>
                   </>
                 ) : (
                   <>
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    <span className={`text-[10px] font-bold uppercase ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
+                    <div className="w-2 h-2 bg-emerald-500 rounded-full" />
+                    <span className={`text-[10px] font-bold uppercase ${isDark ? 'text-zinc-200' : 'text-zinc-700'}`}>
                       Live
                     </span>
                   </>
@@ -882,15 +1041,15 @@ export default function App() {
               </div>
               <button
                 onClick={collaboration.stopCollaboration}
-                className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-[10px] font-bold uppercase transition-all active:scale-95"
+                className="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-md text-[10px] font-semibold uppercase transition-all active:scale-95 flex items-center gap-1"
                 title="Disconnect"
               >
-                ✕
+                <X size={10} />
               </button>
             </div>
             <div
               className={`text-[10px] font-mono px-2 py-1 rounded border truncate ${
-                isDark ? 'bg-slate-950 text-slate-300 border-slate-800' : 'bg-slate-50 text-slate-700 border-slate-200'
+                isDark ? 'bg-zinc-950 text-zinc-300 border-zinc-800' : 'bg-zinc-50 text-zinc-700 border-zinc-200'
               }`}
             >
               {collaboration.roomId}
@@ -906,15 +1065,15 @@ export default function App() {
         cameraScale={camera.scale}
         onZoomIn={() => {
           const canvas = canvasRef.current;
-          const cx = canvas ? canvas.width / 2 : window.innerWidth / 2;
-          const cy = canvas ? canvas.height / 2 : window.innerHeight / 2;
+          const cx = canvas ? canvas.offsetWidth / 2 : window.innerWidth / 2;
+          const cy = canvas ? canvas.offsetHeight / 2 : window.innerHeight / 2;
           zoomCamera(100, cx, cy);
           scheduleRender();
         }}
         onZoomOut={() => {
           const canvas = canvasRef.current;
-          const cx = canvas ? canvas.width / 2 : window.innerWidth / 2;
-          const cy = canvas ? canvas.height / 2 : window.innerHeight / 2;
+          const cx = canvas ? canvas.offsetWidth / 2 : window.innerWidth / 2;
+          const cy = canvas ? canvas.offsetHeight / 2 : window.innerHeight / 2;
           zoomCamera(-100, cx, cy);
           scheduleRender();
         }}
@@ -946,7 +1105,7 @@ export default function App() {
         onTouchMove={pointerEvents.handleTouchMove}
         onTouchEnd={pointerEvents.handleTouchEnd}
         style={{
-          border: isDark ? '1px solid #1e293b' : '1px solid #e2e8f0',
+          border: 'none',
           cursor: pointerEvents.CursorStyle,
           touchAction: 'none',
         }}
@@ -975,6 +1134,16 @@ export default function App() {
         onClose={() => setIsKeybindingsOpen(false)}
         isDark={isDark}
       />
+
+      {/* Amazing On-Canvas Agent Working Overlay */}
+      <AgentWorkingOverlay isDark={isDark} />
+
+      {/* Agent Prompt Input */}
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] w-full max-w-xl px-4 pointer-events-none">
+        <div className="pointer-events-auto">
+          <PromptInput isDark={isDark} onClose={() => { }} />
+        </div>
+      </div>
     </div>
   );
 }

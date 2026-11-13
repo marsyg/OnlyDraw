@@ -1,5 +1,6 @@
 import {
   SquareIcon,
+  Diamond,
   CircleIcon,
   MinusIcon,
   ArrowRight,
@@ -28,6 +29,14 @@ export const TOOLBAR_ITEM: ToolBarDataType[] = [
     actionType: actionType.Drawing,
     isActive: false,
     elementType: elementType.Rectangle,
+  },
+  {
+    id: 'diamond',
+    name: 'Diamond (D)',
+    icon: Diamond,
+    actionType: actionType.Drawing,
+    isActive: false,
+    elementType: elementType.Diamond,
   },
   {
     id: 'circle',

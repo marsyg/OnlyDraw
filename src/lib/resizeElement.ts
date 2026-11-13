@@ -98,6 +98,8 @@ export const resizeElement = ({
 
   switch (type) {
     case elementType.Rectangle:
+    case elementType.RoundedRect:
+    case elementType.Diamond:
     case elementType.Line:
     case elementType.Arrow:
     case elementType.ArrowTwoWay:

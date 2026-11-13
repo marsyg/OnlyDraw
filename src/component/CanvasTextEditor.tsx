@@ -47,7 +47,7 @@ export const CanvasTextEditor: React.FC<CanvasTextEditorProps> = ({
   const editorHeight = Math.ceil((Math.max(1, lines.length) * lineH + vPad) * currentScale);
 
   const textColor = getThemeAdaptedColor(
-    editingTextElement.fillColor || (isDark ? '#f8fafc' : '#0f172a'),
+    editingTextElement.fillColor || (isDark ? '#fafafa' : '#18181b'),
     isDark
   );
 
@@ -93,13 +93,13 @@ export const CanvasTextEditor: React.FC<CanvasTextEditorProps> = ({
         color: textColor,
         textAlign: editingTextElement.textAlign as React.CSSProperties['textAlign'],
         lineHeight: 1.35,
-        background: isDark ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+        background: isDark ? 'rgba(24, 24, 27, 0.95)' : 'rgba(255, 255, 255, 0.95)',
         backdropFilter: 'blur(8px)',
         WebkitBackdropFilter: 'blur(8px)',
         border: isDark
-          ? '1.5px dashed rgba(148, 163, 184, 0.5)'
-          : '1.5px dashed rgba(99, 102, 241, 0.5)',
-        borderRadius: '6px',
+          ? '1.5px dashed rgba(59, 130, 246, 0.7)'
+          : '1.5px dashed rgba(37, 99, 235, 0.6)',
+        borderRadius: '8px',
         boxShadow: isDark
           ? '0 4px 20px rgba(0, 0, 0, 0.6)'
           : '0 4px 16px rgba(0, 0, 0, 0.08)',

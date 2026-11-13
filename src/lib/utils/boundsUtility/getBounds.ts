@@ -74,6 +74,8 @@ export const getBounds = ({ element }: args): boundType => {
 
     case elementType.Line:
     case elementType.Rectangle:
+    case elementType.RoundedRect:
+    case elementType.Diamond:
     case elementType.Ellipse:
     case elementType.Image: {
       const x1 = Math.min(x, x + width);

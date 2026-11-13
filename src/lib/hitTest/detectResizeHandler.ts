@@ -9,6 +9,8 @@ export type args = {
   point: point;
   element: boundType & { angle?: number; rotationAxis?: string };
   tolerance: number;
+  /** Camera zoom. When provided, padding/handles stay constant on screen. */
+  scale?: number;
 };
 
 export type ResizeHandleInfo = {
@@ -16,7 +18,9 @@ export type ResizeHandleInfo = {
   cursor: string;
 };
 
-function detectResizeHandle({ point, element, tolerance }: args): ResizeHandleInfo | null {
+function detectResizeHandle({ point, element, tolerance, scale = 1 }: args): ResizeHandleInfo | null {
+  const inverseScale = 1 / Math.max(0.05, scale);
+  const hitTolerance = tolerance * inverseScale;
   const angle = element.angle || 0;
   let testPoint = point;
 
@@ -32,7 +36,7 @@ function detectResizeHandle({ point, element, tolerance }: args): ResizeHandleIn
   const w = element.width;
   const h = element.height;
 
-  const padding = element.padding !== undefined ? element.padding : BOUNDS_PADDING;
+  const padding = (element.padding !== undefined ? element.padding : BOUNDS_PADDING) * inverseScale;
   const boxX = x - padding;
   const boxY = y - padding;
   const boxWidth = w + padding * 2;
@@ -40,10 +44,10 @@ function detectResizeHandle({ point, element, tolerance }: args): ResizeHandleIn
 
   // Check rotation handle first
   const rotX = boxX + boxWidth / 2;
-  const rotY = boxY - ROTATION_HANDLE_OFFSET;
+  const rotY = boxY - ROTATION_HANDLE_OFFSET * inverseScale;
   const rotDx = pointerX - rotX;
   const rotDy = pointerY - rotY;
-  if (Math.sqrt(rotDx * rotDx + rotDy * rotDy) <= tolerance + 4) {
+  if (Math.sqrt(rotDx * rotDx + rotDy * rotDy) <= hitTolerance + 4 * inverseScale) {
     return { direction: 'rotate', cursor: 'grab' };
   }
 
@@ -67,7 +71,7 @@ function detectResizeHandle({ point, element, tolerance }: args): ResizeHandleIn
     const dx = pointerX - handle.x;
     const dy = pointerY - handle.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
-    if (distance <= tolerance) {
+    if (distance <= hitTolerance) {
       return { direction: key, cursor: handle.cursor };
     }
   }

@@ -63,16 +63,21 @@ export function useKeybindings({
         const requiresAlt = !!kb.alt;
 
         if (requiresCtrl !== isCtrl) return false;
-        if (requiresShift !== isShift) return false;
         if (requiresAlt !== isAlt) return false;
+
+        const isHelpKey = kb.key === '?';
+        const matchesKey = isHelpKey
+          ? pressedKey === '?' || (pressedKey === '/' && isShift)
+          : kb.key.toLowerCase() === pressedKey.toLowerCase();
+
+        // '?' is produced with Shift on most layouts, so don't require the
+        // binding to declare shift explicitly.
+        const expectsShift = isHelpKey ? true : requiresShift;
+        if (expectsShift !== isShift) return false;
 
         if (kb.code && kb.code === e.code) return true;
 
-        if (kb.key === '?') {
-          return pressedKey === '?' || (pressedKey === '/' && isShift);
-        }
-
-        return kb.key.toLowerCase() === pressedKey.toLowerCase();
+        return matchesKey;
       });
 
       if (match) {

@@ -40,3 +40,16 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .env
+
+# logs & process outputs
+*.log
+.inngest.log
+.devserver.log
+
+# document artifacts & reports
+*.docx
+*.pdf
+OnlyDraw_Minor_Project_Report.html
+OnlyDraw_Minor_Project_Report_ES451.txt
+OnlyDraw_Report_Images.zip
+report_images/

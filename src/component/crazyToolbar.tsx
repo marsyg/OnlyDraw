@@ -69,7 +69,7 @@ const ToolbarStyles = () => (
     .tool-island-btn.active {
       background: #2563eb !important;
       color: #ffffff !important;
-      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+      box-shadow: none !important;
     }
 
     /* Custom Range Slider */
@@ -164,19 +164,19 @@ export default function RoughSketchToolbox({
     selectedYElement?.get('routing') || arrowRouting || 'straight'
   );
 
-  // Palettes tuned for light / dark
+  // Palettes tuned for light / dark (True neutral obsidian in dark mode)
   const shapeSwatches = isDark
-    ? ["#f8fafc", "#3b82f6", "#10b981", "#8b5cf6", "#f59e0b", "#ef4444", "#94a3b8", "#1e293b"]
-    : ["#0f172a", "#3b82f6", "#10b981", "#8b5cf6", "#f59e0b", "#ef4444", "#64748b", "#ffffff"];
+    ? ["#f4f4f5", "#3b82f6", "#10b981", "#a855f7", "#f59e0b", "#ef4444", "#a1a1aa", "#27272a"]
+    : ["#18181b", "#2563eb", "#10b981", "#8b5cf6", "#f59e0b", "#ef4444", "#71717a", "#ffffff"];
 
   // Dedicated light/pastel fill swatches designed for readability when writing text over shapes
   const fillSwatches = isDark
-    ? ["#1e293b", "#1e3a5f", "#14532d", "#3b1e54", "#451a03", "#450a0a", "#334155", "#0f172a"]
-    : ["#dbeafe", "#dcfce7", "#ede9fe", "#fef3c7", "#fee2e2", "#e0f2fe", "#f1f5f9", "#ffffff"];
+    ? ["#27272a", "#1e293b", "#14532d", "#3b1e54", "#451a03", "#450a0a", "#3f3f46", "#18181b"]
+    : ["#dbeafe", "#dcfce7", "#ede9fe", "#fef3c7", "#fee2e2", "#e0f2fe", "#f4f4f5", "#ffffff"];
 
   const textSwatches = isDark
-    ? ["#f8fafc", "#94a3b8", "#60a5fa", "#34d399", "#a78bfa", "#fbbf24", "#f87171", "#38bdf8"]
-    : ["#0f172a", "#475569", "#2563eb", "#10b981", "#8b5cf6", "#d97706", "#dc2626", "#0284c7"];
+    ? ["#f4f4f5", "#a1a1aa", "#60a5fa", "#34d399", "#c084fc", "#fbbf24", "#f87171", "#38bdf8"]
+    : ["#18181b", "#52525b", "#2563eb", "#10b981", "#8b5cf6", "#d97706", "#dc2626", "#0284c7"];
 
   const fillStyles = [
     { id: "solid", label: "Solid" },
@@ -389,26 +389,28 @@ export default function RoughSketchToolbox({
   const showFillControl = !isTextElement && !isArrowElement && !isLineElement && (
     !currentTool.elementType ||
     currentTool.elementType === elementType.Rectangle ||
+    currentTool.elementType === elementType.Diamond ||
+    currentTool.elementType === elementType.RoundedRect ||
     currentTool.elementType === elementType.Ellipse ||
     hasSelection
   );
 
-  // Theme-aware color tokens
+  // Theme-aware color tokens - Clean Neutral Dark Mode
   const panelClasses = isDark
-    ? 'bg-slate-900/95 border-slate-700/80 shadow-[0_20px_35px_-10px_rgba(0,0,0,0.6)] text-slate-100'
-    : 'bg-white/95 border-slate-200/90 shadow-[0_12px_32px_-5px_rgba(0,0,0,0.08)] text-slate-800';
+    ? 'bg-zinc-900/95 border-zinc-800 shadow-[0_12px_28px_rgba(0,0,0,0.5)] text-zinc-100'
+    : 'bg-white/95 border-zinc-200/90 shadow-[0_8px_24px_rgba(0,0,0,0.06)] text-zinc-800';
 
   const toolBtnClasses = isDark
-    ? 'text-slate-400 hover:text-white hover:bg-slate-800/80'
-    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100';
+    ? 'text-zinc-400 hover:text-white hover:bg-zinc-800'
+    : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100';
 
-  const subpanelBorder = isDark ? 'border-slate-800' : 'border-slate-100';
-  const subpanelBg = isDark ? 'bg-slate-950/40' : 'bg-slate-50/80';
-  const labelColor = isDark ? 'text-slate-300' : 'text-slate-600';
-  const mutedColor = isDark ? 'text-slate-400' : 'text-slate-400';
+  const subpanelBorder = isDark ? 'border-zinc-800' : 'border-zinc-100';
+  const subpanelBg = isDark ? 'bg-zinc-950/40' : 'bg-zinc-50/80';
+  const labelColor = isDark ? 'text-zinc-300' : 'text-zinc-600';
+  const mutedColor = isDark ? 'text-zinc-400' : 'text-zinc-400';
   const btnBase = isDark
-    ? 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
-    : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-900';
+    ? 'bg-zinc-900 border-zinc-800 text-zinc-300 hover:border-zinc-700 hover:text-white'
+    : 'bg-white border-zinc-200 text-zinc-700 hover:border-zinc-300 hover:text-zinc-900';
 
   return (
     <>
@@ -424,7 +426,7 @@ export default function RoughSketchToolbox({
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: "spring", stiffness: 350, damping: 25 }}
       >
-        <div className={`canvas-glass-panel px-2 py-1.5 flex items-center gap-1 border shadow-2xl ${panelClasses}`}>
+        <div className={`canvas-glass-panel px-2 py-1.5 flex items-center gap-1 border shadow-xl ${panelClasses}`}>
           {TOOLBAR_ITEM.map((item) => {
             const isActive = toolbar.activeToolId === item.id || (item.id === 'select' && toolbar.activeToolId === null);
 
@@ -442,14 +444,14 @@ export default function RoughSketchToolbox({
           })}
 
           {/* Divider */}
-          <div className={`w-[1px] h-6 mx-1 ${isDark ? 'bg-slate-700/80' : 'bg-slate-200'}`} />
+          <div className={`w-[1px] h-6 mx-1 ${isDark ? 'bg-zinc-800' : 'bg-zinc-200'}`} />
 
           {/* Toggle Property Inspector Button */}
           <button
             onClick={() => setIsPanelOpen((prev) => !prev)}
             className={`tool-island-btn w-9 h-9 flex items-center justify-center relative transition-colors ${
               isPanelOpen
-                ? (isDark ? 'text-blue-400 bg-slate-800' : 'text-blue-600 bg-blue-50')
+                ? (isDark ? 'text-white bg-zinc-800' : 'text-zinc-900 bg-zinc-100')
                 : toolBtnClasses
             }`}
             title={isPanelOpen ? "Hide Styles" : "Show Styles"}
@@ -458,7 +460,7 @@ export default function RoughSketchToolbox({
             <SlidersHorizontal size={17} />
             {/* Color swatch dot on button */}
             <span
-              className={`absolute bottom-1.5 right-1.5 w-2 h-2 rounded-full border ${isDark ? 'border-slate-900' : 'border-white'}`}
+              className={`absolute bottom-1.5 right-1.5 w-2 h-2 rounded-full border ${isDark ? 'border-zinc-900' : 'border-white'}`}
               style={{ backgroundColor: isTextElement ? (fillColor || strokeColor) : strokeColor }}
             />
           </button>
@@ -480,13 +482,13 @@ export default function RoughSketchToolbox({
             {/* Inspector Header */}
             <div className={`px-3.5 py-2.5 flex items-center justify-between border-b ${subpanelBorder} ${subpanelBg}`}>
               <span className="text-xs font-semibold tracking-wide flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
                 {getHeaderTitle()}
               </span>
               <button
                 onClick={() => setIsPanelOpen(false)}
                 className={`w-5 h-5 flex items-center justify-center rounded transition-colors ${
-                  isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-400 hover:text-slate-800 hover:bg-slate-100'
+                  isDark ? 'text-zinc-400 hover:text-white hover:bg-zinc-800' : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100'
                 }`}
                 title="Hide Inspector"
               >
@@ -505,8 +507,8 @@ export default function RoughSketchToolbox({
                         onClick={onGroup}
                         className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-medium border flex items-center justify-center gap-1.5 transition-colors ${
                           isDark
-                            ? 'bg-blue-950/60 hover:bg-blue-900/60 border-blue-700/80 text-blue-200'
-                            : 'bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700'
+                            ? 'bg-zinc-800 hover:bg-zinc-700 border-zinc-700 text-zinc-200'
+                            : 'bg-zinc-100 hover:bg-zinc-200 border-zinc-200 text-zinc-700'
                         }`}
                         title="Group elements (Ctrl+G)"
                       >
@@ -519,8 +521,8 @@ export default function RoughSketchToolbox({
                         onClick={onUngroup}
                         className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-medium border flex items-center justify-center gap-1.5 transition-colors ${
                           isDark
-                            ? 'bg-purple-950/60 hover:bg-purple-900/60 border-purple-700/80 text-purple-200'
-                            : 'bg-purple-50 hover:bg-purple-100 border-purple-200 text-purple-700'
+                            ? 'bg-zinc-800 hover:bg-zinc-700 border-zinc-700 text-zinc-200'
+                            : 'bg-zinc-100 hover:bg-zinc-200 border-zinc-200 text-zinc-700'
                         }`}
                         title="Ungroup elements (Ctrl+Shift+G)"
                       >
@@ -533,8 +535,8 @@ export default function RoughSketchToolbox({
                         onClick={onDelete}
                         className={`py-1.5 px-2.5 rounded-lg text-[11px] font-medium border flex items-center justify-center transition-colors ${
                           isDark
-                            ? 'bg-red-950/50 hover:bg-red-900/60 border-red-800/80 text-red-200'
-                            : 'bg-red-50 hover:bg-red-100 border-red-200 text-red-600'
+                            ? 'bg-zinc-800/80 hover:bg-rose-500/15 border-zinc-700 text-zinc-300 hover:text-rose-400'
+                            : 'bg-zinc-50 hover:bg-rose-50 border-zinc-200 text-zinc-600 hover:text-rose-600'
                         }`}
                         title="Delete selected (Del)"
                       >
@@ -598,7 +600,7 @@ export default function RoughSketchToolbox({
                   {selectedYElement && onEditText && (
                     <button
                       onClick={onEditText}
-                      className="w-full py-2 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2 shadow-md shadow-blue-500/20 active:scale-[0.98] transition-all"
+                      className="w-full py-2 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] transition-all"
                     >
                       <Edit3 size={14} />
                       <span>Edit Text Content</span>
@@ -637,7 +639,7 @@ export default function RoughSketchToolbox({
                   </div>
 
                   {/* 2. Font Size */}
-                  <div className="space-y-1.5 pt-2 border-t border-slate-200/50 dark:border-slate-800/80">
+                  <div className="space-y-1.5 pt-2 border-t border-zinc-200/80 dark:border-zinc-800">
                     <div className="flex justify-between items-center text-[11px]">
                       <span className={`font-semibold ${labelColor}`}>Font Size</span>
                       <span className={`font-mono text-[10px] ${mutedColor}`}>{fontSize}px</span>
@@ -678,13 +680,13 @@ export default function RoughSketchToolbox({
                       }}
                       className="modern-slider mt-1"
                       style={{
-                        background: isDark ? '#334155' : '#e2e8f0',
+                        background: isDark ? '#27272a' : '#e4e4e7',
                       }}
                     />
                   </div>
 
                   {/* 3. Font Family */}
-                  <div className="space-y-1.5 pt-2 border-t border-slate-200/50 dark:border-slate-800/80">
+                  <div className="space-y-1.5 pt-2 border-t border-zinc-200/80 dark:border-zinc-800">
                     <div className="flex justify-between items-center text-[11px]">
                       <span className={`font-semibold ${labelColor}`}>Font Family</span>
                     </div>
@@ -715,7 +717,7 @@ export default function RoughSketchToolbox({
                   </div>
 
                   {/* 4. Text Color */}
-                  <div className="space-y-1.5 pt-2 border-t border-slate-200/50 dark:border-slate-800/80">
+                  <div className="space-y-1.5 pt-2 border-t border-zinc-200/80 dark:border-zinc-800">
                     <div className="flex justify-between items-center text-[11px]">
                       <span className={`font-semibold ${labelColor}`}>Text Color</span>
                       <span className={`font-mono text-[10px] ${mutedColor}`}>{fillColor || strokeColor}</span>
@@ -724,7 +726,7 @@ export default function RoughSketchToolbox({
                       <button
                         title="Pick custom text color"
                         className={`w-6 h-6 rounded-md border shadow-sm active:scale-95 transition-transform flex-shrink-0 ${
-                          isDark ? 'border-slate-700' : 'border-slate-300'
+                          isDark ? 'border-zinc-700' : 'border-zinc-300'
                         }`}
                         style={{ backgroundColor: fillColor || strokeColor }}
                         onClick={() => openPicker('text')}
@@ -745,10 +747,10 @@ export default function RoughSketchToolbox({
                               title={`Color: ${c}`}
                               className={`w-4 h-4 rounded-full border transition-all ${
                                 isSel
-                                  ? 'border-blue-500 scale-125 shadow-md ring-2 ring-blue-500/30'
+                                  ? 'ring-2 ring-offset-2 ring-blue-600 dark:ring-offset-zinc-900 border-transparent shadow-sm'
                                   : isDark
-                                  ? 'border-slate-700 hover:scale-110'
-                                  : 'border-slate-300 hover:scale-110'
+                                  ? 'border-zinc-700 hover:scale-110'
+                                  : 'border-zinc-300 hover:scale-110'
                               }`}
                             />
                           );
@@ -767,7 +769,7 @@ export default function RoughSketchToolbox({
                   {/* Arrow Routing Style (Straight, Curved, Angled) & Label */}
                   {isArrowElement && (
                     <>
-                      <div className="space-y-1.5 pb-2 border-b border-slate-200/50 dark:border-slate-800/80">
+                      <div className="space-y-1.5 pb-2 border-b border-zinc-200/80 dark:border-zinc-800">
                         <div className="flex justify-between items-center text-[11px]">
                           <span className={`font-semibold ${labelColor}`}>Arrow Type</span>
                           <span className={`font-mono text-[10px] uppercase ${mutedColor}`}>{currentRouting}</span>
@@ -793,7 +795,7 @@ export default function RoughSketchToolbox({
                         </div>
                       </div>
 
-                      <div className="space-y-1.5 pb-2 border-b border-slate-200/50 dark:border-slate-800/80">
+                      <div className="space-y-1.5 pb-2 border-b border-zinc-200/80 dark:border-zinc-800">
                         <div className="flex justify-between items-center text-[11px]">
                           <span className={`font-semibold ${labelColor}`}>Arrow Label</span>
                           {onEditText && (
@@ -820,8 +822,8 @@ export default function RoughSketchToolbox({
                           }}
                           className={`w-full px-2 py-1.5 text-xs rounded-lg border transition-colors focus:outline-none focus:ring-1 focus:ring-blue-500 ${
                             isDark
-                              ? 'bg-slate-800/80 border-slate-700 text-slate-100 placeholder-slate-500'
-                              : 'bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400'
+                              ? 'bg-zinc-800/80 border-zinc-700 text-zinc-100 placeholder-zinc-500'
+                              : 'bg-zinc-50 border-zinc-200 text-zinc-800 placeholder-zinc-400'
                           }`}
                         />
                       </div>
@@ -838,7 +840,7 @@ export default function RoughSketchToolbox({
                       <button
                         title="Pick custom stroke color"
                         className={`w-6 h-6 rounded-md border shadow-sm active:scale-95 transition-transform flex-shrink-0 ${
-                          isDark ? 'border-slate-700' : 'border-slate-300'
+                          isDark ? 'border-zinc-700' : 'border-zinc-300'
                         }`}
                         style={{ backgroundColor: strokeColor }}
                         onClick={() => openPicker('stroke')}
@@ -855,10 +857,10 @@ export default function RoughSketchToolbox({
                             title={`Stroke: ${c}`}
                             className={`w-4 h-4 rounded-full border transition-all ${
                               strokeColor.toLowerCase() === c.toLowerCase()
-                                ? 'border-blue-500 scale-125 shadow-md ring-2 ring-blue-500/30'
+                                ? 'ring-2 ring-offset-2 ring-blue-600 dark:ring-offset-zinc-900 border-transparent shadow-sm'
                                 : isDark
-                                ? 'border-slate-700 hover:scale-110'
-                                : 'border-slate-300 hover:scale-110'
+                                ? 'border-zinc-700 hover:scale-110'
+                                : 'border-zinc-300 hover:scale-110'
                             }`}
                           />
                         ))}
@@ -880,8 +882,8 @@ export default function RoughSketchToolbox({
                           className={`text-[10px] px-2 py-0.5 rounded font-medium border transition-colors ${
                             isFillTransparent
                               ? isDark
-                                ? 'bg-blue-950/60 text-blue-300 border-blue-800'
-                                : 'bg-blue-50 text-blue-700 border-blue-200'
+                                ? 'bg-zinc-800 text-zinc-200 border-zinc-700'
+                                : 'bg-zinc-100 text-zinc-800 border-zinc-300'
                               : btnBase
                           }`}
                         >
@@ -892,9 +894,9 @@ export default function RoughSketchToolbox({
                         <button
                           title={isFillTransparent ? 'Transparent (click to choose color)' : 'Pick custom fill color'}
                           className={`w-6 h-6 rounded-md border shadow-sm relative overflow-hidden active:scale-95 transition-transform flex-shrink-0 ${
-                            isDark ? 'border-slate-700' : 'border-slate-300'
+                            isDark ? 'border-zinc-700' : 'border-zinc-300'
                           }`}
-                          style={{ backgroundColor: isFillTransparent ? (isDark ? '#1e293b' : '#f1f5f9') : fillColor }}
+                          style={{ backgroundColor: isFillTransparent ? (isDark ? '#27272a' : '#f4f4f5') : fillColor }}
                           onClick={() => openPicker('fill')}
                         >
                           {isFillTransparent && (
@@ -917,10 +919,10 @@ export default function RoughSketchToolbox({
                               title={`Fill: ${c}`}
                               className={`w-4 h-4 rounded-full border transition-all ${
                                 !isFillTransparent && fillColor.toLowerCase() === c.toLowerCase()
-                                  ? 'border-blue-500 scale-125 shadow-md ring-2 ring-blue-500/30'
+                                  ? 'ring-2 ring-offset-2 ring-blue-600 dark:ring-offset-zinc-900 border-transparent shadow-sm'
                                   : isDark
-                                  ? 'border-slate-700 hover:scale-110'
-                                  : 'border-slate-300 hover:scale-110'
+                                  ? 'border-zinc-700 hover:scale-110'
+                                  : 'border-zinc-300 hover:scale-110'
                               }`}
                             />
                           ))}
@@ -970,7 +972,7 @@ export default function RoughSketchToolbox({
                       }}
                       className="modern-slider mt-1"
                       style={{
-                        background: isDark ? '#334155' : '#e2e8f0',
+                        background: isDark ? '#27272a' : '#e4e4e7',
                       }}
                     />
                   </div>
@@ -981,8 +983,8 @@ export default function RoughSketchToolbox({
                       <span className={`font-semibold ${labelColor}`}>Sloppiness</span>
                       <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
                         isDark
-                          ? 'bg-blue-950/60 border-blue-900/60 text-blue-300'
-                          : 'bg-blue-50 border-blue-200 text-blue-700'
+                          ? 'bg-zinc-800 border-zinc-700 text-zinc-300'
+                          : 'bg-zinc-100 border-zinc-200 text-zinc-700'
                       }`}>
                         {getRoughnessLabel(roughness)}
                       </span>
@@ -1022,7 +1024,7 @@ export default function RoughSketchToolbox({
                       }}
                       className="modern-slider mt-1"
                       style={{
-                        background: isDark ? '#334155' : '#e2e8f0',
+                        background: isDark ? '#27272a' : '#e4e4e7',
                       }}
                     />
                   </div>
@@ -1036,7 +1038,7 @@ export default function RoughSketchToolbox({
                 <button
                   onClick={() => setShowAdvanced((prev) => !prev)}
                   className={`w-full py-1.5 px-2 flex items-center justify-between text-[11px] font-medium rounded-lg transition-colors ${
-                    isDark ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
+                    isDark ? 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50' : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100'
                   }`}
                 >
                   <span>More Styling Options</span>
@@ -1117,7 +1119,7 @@ export default function RoughSketchToolbox({
                                 }}
                                 className="modern-slider"
                                 style={{
-                                  background: isDark ? '#334155' : '#e2e8f0',
+                                  background: isDark ? '#27272a' : '#e4e4e7',
                                 }}
                               />
                             </div>
@@ -1154,8 +1156,8 @@ export default function RoughSketchToolbox({
                             }}
                             className={`w-11 text-right rounded text-[10px] p-0.5 font-mono border ${
                               isDark
-                                ? 'bg-slate-900 border-slate-700 text-slate-200'
-                                : 'bg-slate-50 border-slate-200 text-slate-800'
+                                ? 'bg-zinc-900 border-zinc-700 text-zinc-200'
+                                : 'bg-zinc-50 border-zinc-200 text-zinc-800'
                             }`}
                           />
                           <span className={`text-[10px] ${mutedColor}`}>%</span>
@@ -1182,7 +1184,7 @@ export default function RoughSketchToolbox({
                           }}
                           className="modern-slider"
                           style={{
-                            background: isDark ? '#334155' : '#e2e8f0',
+                            background: isDark ? '#27272a' : '#e4e4e7',
                           }}
                         />
 

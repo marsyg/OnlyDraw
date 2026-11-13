@@ -71,6 +71,8 @@ const createYElement = (element: OnlyDrawElement) => {
       break;
     }
     case elementType.Rectangle:
+    case elementType.RoundedRect:
+    case elementType.Diamond:
     case elementType.Ellipse: {
       newElement.set('fillColor', element.fillColor);
       newElement.set('isFillTransparent', element.isFillTransparent ?? true);
@@ -78,6 +80,9 @@ const createYElement = (element: OnlyDrawElement) => {
       newElement.set('fillWeight', element.fillWeight);
       newElement.set('boundaryStyle', element.boundaryStyle);
       newElement.set('roughness', element.roughness);
+      if (element.text !== undefined) newElement.set('text', element.text);
+      if (element.fontSize !== undefined) newElement.set('fontSize', element.fontSize);
+      if (element.fontFamily !== undefined) newElement.set('fontFamily', element.fontFamily);
       break;
     }
   }
@@ -163,6 +168,8 @@ const updateYElement = (element: OnlyDrawElement, yElement: Y.Map<unknown>) => {
       break;
     }
     case elementType.Rectangle:
+    case elementType.RoundedRect:
+    case elementType.Diamond:
     case elementType.Ellipse: {
       yElement.set('fillColor', element.fillColor);
       if (element.isFillTransparent !== undefined) {
@@ -172,6 +179,9 @@ const updateYElement = (element: OnlyDrawElement, yElement: Y.Map<unknown>) => {
       yElement.set('fillWeight', element.fillWeight);
       yElement.set('boundaryStyle', element.boundaryStyle);
       yElement.set('roughness', element.roughness);
+      if (element.text !== undefined) yElement.set('text', element.text);
+      if (element.fontSize !== undefined) yElement.set('fontSize', element.fontSize);
+      if (element.fontFamily !== undefined) yElement.set('fontFamily', element.fontFamily);
       break;
     }
   }
