@@ -103,33 +103,6 @@ function createShapeMap(op: ShapeOp, runId: string, style: AgentStyle): Y.Map<un
   return map;
 }
 
-function createLabelMap(op: ShapeOp, runId: string, style: AgentStyle): Y.Map<unknown> {
-  const fontSize = clamp(style.fontSize, 12, 20);
-  const map = new Y.Map<unknown>();
-  baseFields(map, {
-    id: `${op.id}__label`,
-    x: op.x,
-    y: op.y + op.h / 2 - fontSize * 0.65,
-    w: op.w,
-    h: fontSize * 1.4,
-    seed: op.seed + 1,
-    runId,
-  });
-  map.set('type', elementType.Text);
-  map.set('text', op.label);
-  map.set('fontSize', fontSize);
-  map.set('fontFamily', style.fontFamily);
-  map.set('textAlign', 'center');
-  map.set('fillColor', op.style?.strokeColor ?? style.strokeColor);
-  map.set('strokeColor', op.style?.strokeColor ?? style.strokeColor);
-  map.set('strokeWidth', 1);
-  map.set('roughness', 0);
-  map.set('opacity', style.opacity);
-  map.set('hasShadow', false);
-  map.set('lineHeight', 1.3);
-  return map;
-}
-
 function createArrowMap(op: ArrowOp, runId: string, style: AgentStyle): Y.Map<unknown> {
   const first = op.points[0] ?? [0, 0];
   const last = op.points[op.points.length - 1] ?? first;

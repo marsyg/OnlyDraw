@@ -21,6 +21,7 @@ export function useCanvasCollaboration({
   const [roomId, setRoomId] = useState('');
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
   const [showRoomInput, setShowRoomInput] = useState(false);
+  const [currentUser, setCurrentUser] = useState<{ clientId: number; name: string; color: string } | null>(null);
   const providerRef = useRef<WebsocketProvider | null>(null);
   const [participants, setParticipants] = useState<
     Array<{ clientId: number; name: string; color: string; cursor?: { x: number; y: number } }>
@@ -51,6 +52,12 @@ export function useCanvasCollaboration({
       providerRef.current = provider;
 
       const awareness = provider.awareness;
+
+      setCurrentUser({
+        clientId: awareness.clientID,
+        name: currentUserName,
+        color: userColor,
+      });
 
       awareness.setLocalState({
         user: {
@@ -125,6 +132,7 @@ export function useCanvasCollaboration({
       providerRef.current.destroy();
       providerRef.current = null;
       setParticipants([]);
+      setCurrentUser(null);
       setIsCollaborating(false);
       setConnectionStatus('disconnected');
     }
@@ -170,6 +178,7 @@ export function useCanvasCollaboration({
     setShowRoomInput,
     providerRef,
     participants,
+    currentUser,
     startCollaboration,
     disconnectCollaboration,
     stopCollaboration: disconnectCollaboration,

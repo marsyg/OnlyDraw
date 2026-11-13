@@ -4,7 +4,7 @@ import path from 'path';
 export default defineConfig({
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts', 'test/intent_classifier.test.ts'],
+    include: ['src/**/*.test.ts', 'test/intent_classifier.test.ts', 'test/collab_chat.test.ts'],
   },
   resolve: {
     alias: {

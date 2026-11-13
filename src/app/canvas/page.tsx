@@ -23,6 +23,7 @@ import KeybindingsDialog from '@/component/KeybindingsDialog';
 import CanvasViewportControls from '@/component/CanvasViewportControls';
 import CanvasTextEditor from '@/component/CanvasTextEditor';
 import AgentWorkingOverlay from '@/component/AgentWorkingOverlay';
+import CollabChat from '@/component/CollabChat';
 import { drawAgentWorking } from '@/lib/canvas/drawAgentWorking';
 
 import { useTextEditing } from '@/hooks/useTextEditing';
@@ -30,7 +31,7 @@ import { useCanvasPointerEvents } from '@/hooks/useCanvasPointerEvents';
 import { useCanvasActions } from '@/hooks/useCanvasActions';
 import { useCanvasCollaboration } from '@/hooks/useCanvasCollaboration';
 import PromptInput from '@/component/PromptInput';
-import { Users, X, Radio } from 'lucide-react';
+import { Users, X } from 'lucide-react';
 
 export default function App() {
   const [activeWorkspaceId, setActiveWorkspaceIdState] = useState<string>(() => {
@@ -1137,6 +1138,19 @@ export default function App() {
 
       {/* Amazing On-Canvas Agent Working Overlay */}
       <AgentWorkingOverlay isDark={isDark} />
+
+      {/* Real-time Collaboration Chat (When collaborating via WebSocket & Yjs) */}
+      {collaboration.isCollaborating && (
+        <CollabChat
+          doc={doc}
+          provider={collaboration.providerRef.current}
+          currentUser={collaboration.currentUser}
+          isCollaborating={collaboration.isCollaborating}
+          participants={collaboration.participants}
+          roomId={collaboration.roomId}
+          isDark={isDark}
+        />
+      )}
 
       {/* Agent Prompt Input */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] w-full max-w-xl px-4 pointer-events-none">

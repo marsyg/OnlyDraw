@@ -12,7 +12,6 @@ import {
   RefreshCw,
   CheckCircle2,
   AlertCircle,
-  X,
 } from 'lucide-react';
 import type { Intent } from '@/agent/domain/intent';
 import type { DiagramTheme, Plan } from '@/agent/domain/plan';

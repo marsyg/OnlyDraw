@@ -191,8 +191,9 @@ function extractDomainSteps(text: string): { label: string; role: 'process' | 'd
  */
 export function plannerAgent(
   intent: PlannerIntent,
-  _context: PlannerContext,
+  _context?: PlannerContext,
 ): FlowPlan | null {
+  void _context;
   const command = (intent.rawCommand ?? intent.subject).trim();
   if (!command) return null;
   const lower = command.toLowerCase();

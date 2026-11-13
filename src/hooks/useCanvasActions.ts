@@ -11,9 +11,8 @@ import { serializeYElement, serializeYElements, deserializeYElement, deserialize
 import { cleanupArrowBindings, SnapTarget } from '@/lib/arrowSnap';
 import { cleanupOrphanGroups, groupElements, ungroupElements } from '@/lib/grouping';
 import { handleUndo, handleRedo } from '@/lib/helperfunc/undo-redo';
-import { DrawElements, getThemeAdaptedColor } from '@/lib/utils/drawingUtility/drawElement';
+import { DrawElements } from '@/lib/utils/drawingUtility/drawElement';
 import { createTextElement } from '@/lib/createTextElement';
-import yUtils from '@/lib/utils/createYElement';
 import canvasDoc, { LOCAL_ORIGIN } from '@/Store/yjs-store';
 import { EditingTextState, ElementResizeSnapshot, MarqueeBox } from '@/types/canvas';
 

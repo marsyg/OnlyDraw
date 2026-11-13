@@ -96,11 +96,6 @@ export function drawAgentWorking({
     { id: 'n4', cx: x + w * 0.8, cy: y + h * 0.45, nw: 110, nh: 48, shape: 'pill', label: 'Output' },
   ];
 
-  const ghostPulse = 0.55 + 0.35 * Math.sin(time * 0.003);
-  const strokeColor = isDark
-    ? `rgba(96, 165, 250, ${ghostPulse})`
-    : `rgba(37, 99, 235, ${ghostPulse})`;
-
   // Ghost connections (arrows)
   const connections = [
     { from: ghostNodes[0], to: ghostNodes[1] },

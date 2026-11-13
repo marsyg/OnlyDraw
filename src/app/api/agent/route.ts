@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
-import type { Intent } from '@/agent/domain/intent';
 import type { Plan } from '@/agent/domain/plan';
 import type { ProposedChange } from '@/agent/domain/proposed-change';
 import { intentAgentAsync } from '@/agent/inngest/agents/intent';

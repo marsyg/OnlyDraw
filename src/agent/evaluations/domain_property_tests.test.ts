@@ -1,5 +1,4 @@
-import { describe, it, expect } from 'vitest';
-import { Op } from '../domain';
+import { it, expect } from 'vitest';
 
 // Property: Over 100 runs, both create_shape and create_arrow appear
 it('both op types generated over many runs', () => {
