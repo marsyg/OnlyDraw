@@ -523,8 +523,8 @@ export default function PromptInput({ isDark }: PromptInputProps) {
         >
           {phase === 'working' && (
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 font-medium text-xs">
-                <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+              <div className="flex items-center gap-2 text-zinc-700 dark:text-zinc-300 font-medium text-xs">
+                <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 dark:bg-zinc-500" />
                 <span>Generating diagram: classifying intent → planning layout → committing elements</span>
               </div>
               <span className="font-mono text-xs text-zinc-400">{elapsed.toFixed(1)}s</span>

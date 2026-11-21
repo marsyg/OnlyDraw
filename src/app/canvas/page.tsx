@@ -22,9 +22,7 @@ import WorkspaceManager from '@/component/WorkspaceManager';
 import KeybindingsDialog from '@/component/KeybindingsDialog';
 import CanvasViewportControls from '@/component/CanvasViewportControls';
 import CanvasTextEditor from '@/component/CanvasTextEditor';
-import AgentWorkingOverlay from '@/component/AgentWorkingOverlay';
 import CollabChat from '@/component/CollabChat';
-import { drawAgentWorking } from '@/lib/canvas/drawAgentWorking';
 
 import { useTextEditing } from '@/hooks/useTextEditing';
 import { useCanvasPointerEvents } from '@/hooks/useCanvasPointerEvents';
@@ -478,39 +476,13 @@ export default function App() {
       }
     }
 
-    // On-canvas Holographic Blueprint & Agent Cursor when agent is drafting
-    if (agentState.isWorking && agentState.targetBbox) {
-      drawAgentWorking({
-        ctx,
-        agentState,
-        camera: cam,
-        isDark,
-        time: performance.now(),
-      });
-    }
-
     ctx.restore();
-  }, [isDark, yElement, selectedYElement, selectedElementIds, bound, pointerEvents, textEditing, agentState]);
+  }, [isDark, yElement, selectedYElement, selectedElementIds, bound, pointerEvents, textEditing]);
 
   const scheduleRender = useCallback(() => {
     if (animationFrameIdRef.current) cancelAnimationFrame(animationFrameIdRef.current);
     animationFrameIdRef.current = requestAnimationFrame(renderCanvas);
   }, [renderCanvas]);
-
-  // Continuous 60fps render loop while agent is actively working on canvas
-  useEffect(() => {
-    let animId: number;
-    if (agentState.isWorking) {
-      const loop = () => {
-        scheduleRender();
-        animId = requestAnimationFrame(loop);
-      };
-      animId = requestAnimationFrame(loop);
-    }
-    return () => {
-      if (animId) cancelAnimationFrame(animId);
-    };
-  }, [agentState.isWorking, scheduleRender]);
 
   // 6. Drag & Drop and Image Upload Handlers
   const handleImageFileChange = useCallback(
@@ -1135,9 +1107,6 @@ export default function App() {
         onClose={() => setIsKeybindingsOpen(false)}
         isDark={isDark}
       />
-
-      {/* Amazing On-Canvas Agent Working Overlay */}
-      <AgentWorkingOverlay isDark={isDark} />
 
       {/* Real-time Collaboration Chat (When collaborating via WebSocket & Yjs) */}
       {collaboration.isCollaborating && (
